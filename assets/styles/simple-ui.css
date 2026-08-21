@@ -1,0 +1,299 @@
+@import url("./style.css");
+
+#table_debug_log_button,
+.checkbox_label:has(> #table_switch_debug_mode),
+h4[data-i18n="Message template"],
+div:has(> #dataTable_message_template),
+div:has(> #dataTable_injection_mode),
+label[for="fill_table_time"],
+#fill_table_time,
+#reply_options,
+#step_by_step_options > .checkbox_label:first-child > #step_by_step_use_main_api,
+#step_by_step_options > .checkbox_label:first-child > #step_by_step_use_main_api + span,
+#step_by_step_options > .checkbox_label:first-child > label[for="separateReadLorebook"],
+#step_by_step_options > .checkbox_label:first-child > #separateReadLorebook,
+#step_by_step_options > .checkbox_label:first-child > small,
+.checkbox_label:has(> #confirm_before_execution),
+.inline-drawer:has(#custom_api_url),
+#step_by_step_user_prompt,
+label[for="step_by_step_user_prompt"],
+label[for="step_by_step_user_prompt"] ~ .toggle-description,
+#reset_step_by_step_user_prompt,
+#step_by_step_options > div:has(#step_by_step_user_prompt),
+.inline-drawer:has(#rebuild--select),
+.flex1.wide100p:has(#show_settings_in_extension_menu) {
+    display: none !important;
+}
+
+/* Memo-N settings shell */
+.memo-n-root {
+    --memo-n-accent: #7c8cff;
+    --memo-n-accent-2: #55c9b5;
+    --memo-n-surface: color-mix(in srgb, var(--SmartThemeBlurTintColor) 88%, transparent);
+    --memo-n-soft: color-mix(in srgb, var(--SmartThemeBodyColor) 7%, transparent);
+    --memo-n-line: color-mix(in srgb, var(--SmartThemeBodyColor) 14%, transparent);
+    color: var(--SmartThemeBodyColor);
+}
+
+.memo-n-root #inline_drawer_header_content {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 4px 0 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--memo-n-line);
+    border-radius: 18px;
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--memo-n-accent) 16%, var(--memo-n-surface)),
+        color-mix(in srgb, var(--memo-n-accent-2) 8%, var(--memo-n-surface)));
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .14);
+}
+
+.memo-n-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.memo-n-brand > span:last-child { display: flex; flex-direction: column; line-height: 1.12; }
+.memo-n-brand b { font-size: 1.08rem; letter-spacing: .02em; }
+.memo-n-brand small { margin-top: 4px; font-size: .76rem; opacity: .65; font-weight: 500; }
+.memo-n-logo {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 12px;
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.05rem;
+    background: linear-gradient(145deg, var(--memo-n-accent), #5665da);
+    box-shadow: 0 7px 18px color-mix(in srgb, var(--memo-n-accent) 34%, transparent);
+}
+.memo-n-version {
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--memo-n-accent) 38%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--memo-n-accent) 72%, var(--SmartThemeBodyColor));
+    background: color-mix(in srgb, var(--memo-n-accent) 10%, transparent);
+    font-size: .76rem;
+    font-weight: 650;
+}
+
+.memo-n-intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--memo-n-line);
+    border-radius: 14px;
+    background: var(--memo-n-soft);
+}
+.memo-n-intro > div { display: flex; flex-direction: column; gap: 3px; }
+.memo-n-intro b { font-size: .92rem; }
+.memo-n-intro small { opacity: .62; font-size: .76rem; }
+.memo-n-status-dot {
+    padding: 5px 9px;
+    border-radius: 999px;
+    color: var(--memo-n-accent-2);
+    background: color-mix(in srgb, var(--memo-n-accent-2) 11%, transparent);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.memo-n-root .persona_management_left_column {
+    align-items: flex-start;
+    gap: 14px !important;
+    padding: 0 !important;
+}
+.memo-n-root .persona_management_left_column > .flex1 {
+    padding: 15px;
+    border: 1px solid var(--memo-n-line);
+    border-radius: 16px;
+    background: var(--memo-n-surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .1);
+}
+.memo-n-root .standoutHeader {
+    margin: 0 0 12px;
+    padding: 0 0 9px;
+    border: 0;
+    border-bottom: 1px solid var(--memo-n-line);
+    color: var(--SmartThemeBodyColor);
+    font-size: .96rem;
+    letter-spacing: .01em;
+}
+.memo-n-root h4:not(.standoutHeader) { margin: 14px 0 7px; font-size: .86rem; opacity: .78; }
+.memo-n-root select,
+.memo-n-root textarea,
+.memo-n-root input[type="text"],
+.memo-n-root input[type="password"],
+.memo-n-root input[type="number"] {
+    border: 1px solid var(--memo-n-line) !important;
+    border-radius: 10px !important;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 78%, transparent) !important;
+    transition: border-color .16s ease, box-shadow .16s ease;
+}
+.memo-n-root select:focus,
+.memo-n-root textarea:focus,
+.memo-n-root input:focus {
+    border-color: color-mix(in srgb, var(--memo-n-accent) 70%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--memo-n-accent) 15%, transparent) !important;
+    outline: none !important;
+}
+.memo-n-root .checkbox_label {
+    margin: 5px 0;
+    padding: 8px 9px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 4%, transparent);
+}
+.memo-n-root .menu_button {
+    border-radius: 10px;
+    transition: transform .14s ease, background-color .14s ease;
+}
+.memo-n-root .menu_button:hover { transform: translateY(-1px); }
+.memo-n-root .inline-drawer-header { border-radius: 11px; }
+
+.memory_enhancement_container,
+.memory_enhancement_settings,
+.memory_enhancement_settings > .inline-drawer,
+.memory_enhancement_settings > .inline-drawer > .inline-drawer-content,
+#memory_enhancement_settings_inline_drawer_content {
+    min-height: calc(100dvh - 100px);
+    box-sizing: border-box;
+}
+
+#step_by_step_options::before {
+    content: '自动记录已启用 · AI 回复后自动维护记忆';
+    display: block;
+    margin: 6px 0 8px;
+    opacity: .72;
+    font-size: .9em;
+}
+
+#step_by_step_options > .checkbox_label:first-child {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px 10px !important;
+    margin: 8px 0 4px !important;
+}
+
+#step_by_step_options > .checkbox_label:first-child > label[for="separateReadContextLayers"] {
+    margin-left: 0 !important;
+    white-space: nowrap !important;
+}
+
+#separateReadContextLayers { width: 64px !important; }
+#trigger_step_by_step_button { margin-left: 0 !important; }
+#trigger_step_by_step_button > span,
+#trigger_step_by_step_button > a { font-size: 0 !important; }
+#trigger_step_by_step_button > span::after,
+#trigger_step_by_step_button > a::after {
+    content: '手动更新记忆';
+    font-size: 14px;
+}
+
+#step_by_step_options > .checkbox_label:first-child::after {
+    content: '漏记时使用：立即读取最近上下文并补充更新六张记忆表。';
+    flex-basis: 100%;
+    display: block;
+    margin-top: 2px;
+    font-size: .82em;
+    line-height: 1.45;
+    opacity: .68;
+}
+
+/* 数据页：单指左右滚动完全交给浏览器原生滚动线程；双指缩放仍由 pinchZoom.js 处理。 */
+#contentContainer.memory-table-pinch-area {
+    touch-action: pan-x pan-y pinch-zoom;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: auto;
+}
+
+#contentContainer.memory-table-pinch-area #tableContainer {
+    transform-origin: top left;
+    transform: none !important;
+    will-change: auto;
+}
+
+/* #1 角色状态表：原始长表仅作为数据源，界面只显示拆分后的两张短表。 */
+#contentContainer.memory-table-pinch-area .memory-role-status-source {
+    display: none !important;
+}
+
+#contentContainer.memory-table-pinch-area .memory-role-status-two-tables,
+#contentContainer.memory-table-pinch-area .memory-person-two-tables {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 2px 0 8px;
+}
+
+#contentContainer.memory-table-pinch-area .memory-role-status-half-table,
+#contentContainer.memory-table-pinch-area .memory-person-half-table {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+}
+
+/* #4 人物表：原始表作为数据源；界面仅拆成上下两张短表。 */
+#contentContainer.memory-table-pinch-area .memory-person-source {
+    display: none !important;
+}
+
+#contentContainer.memory-table-pinch-area .memory-person-half {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+/* 隐藏横向滚动条，但保留原生触摸滚动与惯性。 */
+#contentContainer.memory-table-pinch-area::-webkit-scrollbar,
+#contentContainer.memory-table-pinch-area *::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+}
+#contentContainer.memory-table-pinch-area {
+    scrollbar-width: none;
+}
+
+@media screen and (max-width: 768px) {
+    .memory_enhancement_container,
+    .memory_enhancement_settings,
+    .memory_enhancement_settings > .inline-drawer,
+    .memory_enhancement_settings > .inline-drawer > .inline-drawer-content,
+    #memory_enhancement_settings_inline_drawer_content { min-height: calc(100dvh - 64px); }
+
+    #step_by_step_options { padding-left: 0 !important; width: 100% !important; }
+    #step_by_step_options > .checkbox_label:first-child {
+        display: grid !important;
+        grid-template-columns: minmax(132px, 1fr) auto 64px !important;
+        gap: 8px !important;
+        width: 100% !important;
+    }
+    #trigger_step_by_step_button { min-width: 132px !important; justify-content: center !important; }
+    #step_by_step_options > .checkbox_label:first-child::after { grid-column: 1 / -1; }
+
+    .memo-n-root #inline_drawer_header_content { margin: 0 0 10px; padding: 12px; border-radius: 15px; }
+    .memo-n-logo { width: 34px; height: 34px; flex-basis: 34px; border-radius: 10px; }
+    .memo-n-version { padding: 5px 8px; font-size: .7rem; }
+    .memo-n-intro { align-items: flex-start; padding: 11px 12px; }
+    .memo-n-intro small { line-height: 1.4; }
+    .memo-n-root .persona_management_left_column { display: flex !important; flex-direction: column !important; }
+    .memo-n-root .persona_management_left_column > .flex1 {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 12px;
+        border-radius: 14px;
+    }
+}
