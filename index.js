@@ -3,10 +3,10 @@ import { openTableRendererPopup, updateSystemMessageTableStatus } from "./script
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
 import { ext_getAllTables, ext_exportAllTablesAsJson } from './scripts/settings/standaloneAPI.js';
 import { openTableDebugLogPopup } from "./scripts/settings/devConsole.js";
-import { TableTwoStepSummary } from "./scripts/runtime/separateTableUpdate.js?v=memon5";
+import { TableTwoStepSummary } from "./scripts/runtime/separateTableUpdate.js?v=memon6";
 import { initTest } from "./components/_fotTest.js";
 import { initAppHeaderTableDrawer, openAppHeaderTableDrawer } from "./scripts/renderer/appHeaderTableBaseDrawer.js";
-import { initRefreshTypeSelector } from './scripts/runtime/absoluteRefresh.js?v=memon5';
+import { initRefreshTypeSelector } from './scripts/runtime/absoluteRefresh.js?v=memon6';
 import {refreshTempView, updateTableContainerPosition} from "./scripts/editor/tableTemplateEditView.js";
 import { functionToBeRegistered } from "./services/debugs.js";
 import { parseLooseDict, replaceUserTag } from "./utils/stringUtil.js";
@@ -14,14 +14,14 @@ import {executeTranslation} from "./services/translate.js";
 import applicationFunctionManager from "./services/appFuncManager.js"
 import {SheetBase} from "./core/table/base.js";
 import { Cell } from "./core/table/cell.js";
-import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon5';
-import { getMemoTableEditChannel } from './scripts/runtime/memoResponseChannels.js?v=memon5';
+import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon6';
+import { getMemoTableEditChannel } from './scripts/runtime/memoResponseChannels.js?v=memon6';
 import { initExternalDataAdapter } from './external-data-adapter.js';
 
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '0.1.0-memon.5'
+const VERSION = '0.1.0-memon.6'
 
 const editErrorInfo = {
     forgotCommentTag: false,
