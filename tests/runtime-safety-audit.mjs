@@ -129,6 +129,8 @@ if (!independentText.includes('!sessionChat.includes(initialPiece)')) throw new 
 if (!finishText.includes("if(status.noChange===true){EDITOR.info('Memo-N：本轮无需更新表格'")) throw new Error('Memo-N缺少NO_CHANGE明确状态提示');
 if (!engineText.includes('聊天保存失败') || !engineText.includes('restoreMemoSnapshot(copySnapshot(baselineSnapshot))')) throw new Error('Memo-N缺少聊天保存失败后的表格回滚');
 if (!engineText.includes('__memoStrictPersistence') || !finishText.includes('await persistence')) throw new Error('Memo-N写入提示未等待真实保存结果');
+if (engineText.includes('return persistence;') || !engineText.includes('void persistence.catch') || !finishText.includes('void finishSingleApi(chatId).catch')) throw new Error('Memo-N仍可能用后台持久化Promise拖住正文渲染事件');
+if (!engineText.includes('await BASE.refreshContextView?.()')) throw new Error('Memo-N成功写表后未刷新活动表格视图');
 const detachedGate = independentText.indexOf("return'detached'");
 const independentExecute = independentText.indexOf('const result=executeMemoTableEdit');
 if (detachedGate < 0 || independentExecute < 0 || detachedGate > independentExecute) throw new Error('独立记录缺少执行前聊天会话身份门控');
