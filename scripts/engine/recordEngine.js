@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon2';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon3';
 import { buildPresetCharacterRule } from './recordPolicy.js';
 import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';
 
@@ -41,7 +41,7 @@ function preparePrompt(eventData) {
     const settings = USER?.getContext?.()?.chatCompletionSettings;
     if (settings?.stream_openai === true) {
         settings.stream_openai = false;
-        streamRestore = { settings, value: true, timer: setTimeout(restoreStreaming, 15000) };
+        streamRestore = { settings, value: true, timer: setTimeout(restoreStreaming, 5000) };
     }
 }
 function forceJsonObject(data) {
@@ -91,7 +91,6 @@ function inject(data) {
     const custom = String(data.chat_completion_source ?? '').toLowerCase() === 'custom' || Boolean(data.custom_url);
     if (custom) { delete data.json_schema; forceJsonObject(data); }
     else data.json_schema = structuredClone(schema);
-    restoreStreaming();
     console.log(`[Memo-N] 已接管本轮一次API：${custom ? 'json_object' : 'json_schema'}变更信封`);
 }
 function syncSwipe(chat) {
@@ -120,16 +119,52 @@ async function preserveFailureBaseline(chatId, chat, appendMode) {
     }
     try { saveMemoSnapshot(chat); await USER.saveChat(); return true; } catch (error) { console.error('[Memo-N] 失败基线保存失败', error); return false; }
 }
+function incompleteJson(envelope) {
+    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input/i.test(String(envelope.error || ''));
+}
+function reasoningText(chat) {
+    const swipeId = Number(chat?.swipe_id);
+    const swipeReasoning = Number.isInteger(swipeId) && swipeId >= 0
+        ? chat?.swipe_info?.[swipeId]?.extra?.reasoning
+        : '';
+    return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
+}
+function selectEnvelope(chat, job, appendMode) {
+    const current = String(chat?.mes ?? '');
+    const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
+    const reasoning = reasoningText(chat);
+    const contentEnvelope = content ? parseRecordEnvelope(content) : null;
+    if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint: `${current}\u241f${reasoning}` };
+    const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null;
+    if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint: `${current}\u241f${reasoning}` };
+    const envelope = contentEnvelope || reasoningEnvelope || parseRecordEnvelope('');
+    return { current, envelope, source: contentEnvelope ? 'content' : reasoningEnvelope ? 'reasoning' : 'none', fingerprint: `${current}\u241f${reasoning}` };
+}
+async function waitForCompleteEnvelope(chat, job, appendMode) {
+    let selected = selectEnvelope(chat, job, appendMode);
+    if (selected.envelope.ok || !incompleteJson(selected.envelope)) return selected;
+    for (let attempt = 0; attempt < 25; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 120));
+        if (job.session && USER?.getContext?.()?.chat !== job.session) return { ...selected, detached: true };
+        const latest = selectEnvelope(chat, job, appendMode);
+        if (latest.fingerprint === selected.fingerprint) continue;
+        selected = latest;
+        if (selected.envelope.ok || !incompleteJson(selected.envelope)) break;
+    }
+    return selected;
+}
 async function unpack(chatId) {
     const job = pending;
     if (!job || Date.now() - job.at > 300000) { pending = null; return false; }
     if (job.session && USER?.getContext?.()?.chat !== job.session) { pending = null; return false; }
     const chat = USER?.getContext?.()?.chat?.[chatId];
     if (!chat || chat.is_user || handled.get(chat) === chat.mes) return false;
-    const current = String(chat.mes ?? '');
+    let current = String(chat.mes ?? '');
     const isAppend = appendType(job.type) && job.base === chat && job.baseMes && current.startsWith(job.baseMes);
-    const raw = isAppend ? current.slice(job.baseMes.length).trim() : current;
-    const envelope = parseRecordEnvelope(raw);
+    const waited = await waitForCompleteEnvelope(chat, job, isAppend);
+    if (waited.detached) { pending = null; return false; }
+    current = waited.current;
+    const envelope = waited.envelope;
     pending = null;
     if (!envelope.ok) {
         if (envelope.reply) {
@@ -143,6 +178,7 @@ async function unpack(chatId) {
     }
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
+    if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
     handled.set(chat, chat.mes);
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
@@ -165,6 +201,7 @@ async function unpack(chatId) {
 }
 
 function handleRendered(chatId) {
+    restoreStreaming();
     const chat = USER?.getContext?.()?.chat?.[chatId];
     const persistence = unpack(chatId);
     if (chat && persistence && typeof persistence.then === 'function') {
