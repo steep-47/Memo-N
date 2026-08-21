@@ -29,4 +29,17 @@ for (const sample of invalidCases) if (parseRecordEnvelope(sample).ok) throw new
 const recoverable = parseRecordEnvelope({ reply: '可保留正文', changes: [{ op: 'INSERT INTO', table: 2, row: null, cells: [] }] });
 if (recoverable.ok || recoverable.reply !== '可保留正文') throw new Error('非法变更时未安全保留可确定的reply正文');
 
-console.log('memo-n-envelope PASS: valid=3, no-change=1, invalid=7, recoverable-body=1, SQL-string-impossible=1');
+const rawControl = `{"reply":"第一行
+第二行","changes":[{"op":"insert","table":4,"row":null,"cells":[{"column":0,"value":"甲
+乙"}]}]}`;
+const normalizedControl = parseRecordEnvelope(rawControl);
+if (!normalizedControl.ok || normalizedControl.reply !== '第一行\n第二行' || normalizedControl.changes[0]?.data?.[0] !== '甲\n乙') {
+    throw new Error(`字符串内原始控制字符未被无损规范化：${normalizedControl.error}`);
+}
+if (!changesToStrictCalls(normalizedControl.changes)[0].includes('甲\\n乙')) throw new Error('规范化后的换行未安全编译为严格调用');
+
+const brokenStructure = parseRecordEnvelope(`{"reply":"正文
+第二行","changes":[}`);
+if (brokenStructure.ok) throw new Error('控制字符规范化错误修复了残缺JSON结构');
+
+console.log('memo-n-envelope PASS: valid=3, no-change=1, invalid=7, recoverable-body=1, raw-control-normalized=1, broken-structure-rejected=1, SQL-string-impossible=1');
