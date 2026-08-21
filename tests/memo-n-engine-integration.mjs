@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon3';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon4';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace("import { buildPresetCharacterRule } from './recordPolicy.js';", 'const { buildPresetCharacterRule } = globalThis.__memoNMocks;')
     .replace("import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';", 'const { changesToStrictCalls, parseRecordEnvelope } = globalThis.__memoNMocks;');
 
@@ -84,12 +84,22 @@ await run(events.CHARACTER_MESSAGE_RENDERED, 1);
 if (reasoningOnly.mes !== '思考区拆出的正常正文' || reasoningOnly.swipes[0] !== reasoningOnly.mes) throw new Error('未从当前Swipe思考区拆出正文');
 if (executeCalls.length !== 3 || !executeCalls[2][0].startsWith('updateRow(0,0,')) throw new Error('思考区JSON未进入严格事务');
 
+currentChat = [previous];
+await run(events.GENERATION_STARTED, 'normal', {}, false);
+await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
+const rawControlReasoning = { is_user: false, mes: '', swipe_id: 0, swipes: [''], swipe_info: [{ extra: { reasoning: `{"reply":"含原始换行的
+正常正文","changes":[{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:16"}]}]}` } }] };
+currentChat.push(rawControlReasoning);
+await run(events.CHARACTER_MESSAGE_RENDERED, 1);
+if (rawControlReasoning.mes !== '含原始换行的\n正常正文' || rawControlReasoning.__memoStrictExecution?.ok !== true) throw new Error('思考区字符串内原始换行未被规范化并拆包');
+if (executeCalls.length !== 4 || !executeCalls[3][0].startsWith('updateRow(0,0,')) throw new Error('规范化后的思考区JSON未进入严格事务');
+
 await run(events.GENERATION_STARTED, 'normal', {}, false);
 await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
 const foreignChat = [];
 currentChat = foreignChat;
 await run(events.CHARACTER_MESSAGE_RENDERED, 0);
-if (executeCalls.length !== 3) throw new Error('切换聊天后仍执行旧任务');
+if (executeCalls.length !== 4) throw new Error('切换聊天后仍执行旧任务');
 
 currentChat = [previous];
 await run(events.GENERATION_STARTED, 'normal', {}, false);
@@ -98,7 +108,7 @@ const invalidChange = { is_user: false, mes: JSON.stringify({ reply: '非法变�
 currentChat.push(invalidChange);
 await run(events.CHARACTER_MESSAGE_RENDERED, 1);
 if (invalidChange.mes !== '非法变更仍保留正文' || invalidChange.swipes[0] !== invalidChange.mes) throw new Error('非法变更未安全保留正文');
-if (executeCalls.length !== 3 || invalidChange.__memoStrictExecution?.ok !== false) throw new Error('非法变更被执行或未标记失败');
+if (executeCalls.length !== 4 || invalidChange.__memoStrictExecution?.ok !== false) throw new Error('非法变更被执行或未标记失败');
 
 currentChat = [previous];
 await run(events.GENERATION_STARTED, 'normal', {}, false);
@@ -112,4 +122,4 @@ if (failing.__memoStrictExecution?.ok !== false || !failing.__memoStrictExecutio
 if (!errors.some(message => message.includes('Memo-N保存失败'))) throw new Error('保存失败未显示严重错误提示');
 if (restoreCalls.length < 3) throw new Error('保存失败没有执行基线恢复');
 
-console.log('memo-n-engine-integration PASS: custom-json=1, final-system=1, stream-hold=1, partial-wait=1, reasoning-channel=1, unpack=1, strict-transaction=3, swipe-sync=1, session-cancel=1, save-rollback=1');
+console.log('memo-n-engine-integration PASS: custom-json=1, final-system=1, stream-hold=1, partial-wait=1, reasoning-channel=1, raw-control-normalized=1, unpack=1, strict-transaction=4, swipe-sync=1, session-cancel=1, save-rollback=1');
