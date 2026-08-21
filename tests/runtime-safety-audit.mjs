@@ -111,6 +111,7 @@ const indexText = await fs.readFile(new URL('../index.js', import.meta.url), 'ut
 const settingsText = await fs.readFile(new URL('../data/pluginSetting.js', import.meta.url), 'utf8');
 const bootstrapText = await fs.readFile(new URL('../scripts/runtime/settingsBootstrap.js', import.meta.url), 'utf8');
 const engineText = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
+const envelopeText = await fs.readFile(new URL('../scripts/engine/recordEnvelope.js', import.meta.url), 'utf8');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的结构化/提示改写层');
 if (!indexText.includes('CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady') || !indexText.includes('CHARACTER_MESSAGE_RENDERED, onMessageReceived')) throw new Error('原作者直接注入/直接解析事件链缺失');
 if (!indexText.includes('executeMemoTableEdit(matches, piece)')) throw new Error('直接解析入口未接严格事务执行器');
@@ -120,6 +121,7 @@ if (!settingsText.includes('日影移动') || !settingsText.includes('changes为
 if (!engineText.includes('response_format:\\n  type: json_object') || !engineText.includes("changesToStrictCalls(envelope.changes)")) throw new Error('Memo-N缺少自定义端点JSON对象模式或严格事务编译');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
 if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'reasoning'")) throw new Error('Memo-N缺少当前Swipe思考区JSON信封通道');
+if (!envelopeText.includes('escapeControlCharsInsideJsonStrings') || !envelopeText.includes('JSON.parse(normalized)')) throw new Error('Memo-N缺少JSON字符串内原始控制字符的确定性规范化');
 if (!bootstrapText.includes('migrateKnownSingleApiOutput') || !bootstrapText.includes('一次API模式使用结构化双字段响应')) throw new Error('缺少手机已保存旧模板的一次性升级迁移');
 if (!independentText.includes('if(!prepareAutoBaseline')) throw new Error('自动独立记录缺少基线成功门控');
 if (!independentText.includes('if(!baselineReady)throw new Error')) throw new Error('手动独立记录缺少基线成功门控');
