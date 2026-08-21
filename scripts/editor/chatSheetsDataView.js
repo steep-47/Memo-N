@@ -1,8 +1,7 @@
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
 import { findNextChatWhitTableData, undoSheets } from "../../index.js";
-import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon5";
-import { openTableHistoryPopup } from "./tableHistory.js";
+import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon6";
 import { PopupMenu } from "../../components/popupMenu.js";
 import { openTableStatisticsPopup } from "./tableStatistics.js";
 import { openCellHistoryPopup } from "./cellHistory.js";
@@ -613,10 +612,6 @@ async function initTableView(mesId) {
     // 点击打开查看表格数据统计
     $(document).on('click', '#table_data_statistics_button', function () {
         EDITOR.tryBlock(openTableStatisticsPopup, "打开表格统计失败")
-    })
-    // 点击打开查看表格历史按钮
-    $(document).on('click', '#dataTable_history_button', function () {
-        EDITOR.tryBlock(openTableHistoryPopup, "打开表格历史失败")
     })
     // 点击清空表格按钮
     $(document).on('click', '#clear_table_button', function () {
