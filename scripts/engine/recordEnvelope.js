@@ -42,11 +42,56 @@ function normalizeChange(change, index) {
     return { op: 'update', table: change.table, row: change.row, data: normalizeCells(change.cells, label) };
 }
 
+// Some OpenAI-compatible relays leave literal control characters inside JSON
+// strings. JSON has exactly one lossless representation for them: escapes.
+// This changes encoding only; it never repairs structure or table operations.
+function escapeControlCharsInsideJsonStrings(text) {
+    let result = '';
+    let inString = false;
+    let escaped = false;
+    for (const char of String(text ?? '')) {
+        if (!inString) {
+            result += char;
+            if (char === '"') inString = true;
+            continue;
+        }
+        if (escaped) {
+            result += char;
+            escaped = false;
+            continue;
+        }
+        if (char === '\\') {
+            result += char;
+            escaped = true;
+            continue;
+        }
+        if (char === '"') {
+            result += char;
+            inString = false;
+            continue;
+        }
+        const code = char.charCodeAt(0);
+        if (code < 0x20) {
+            const shortEscape = { 8: '\\b', 9: '\\t', 10: '\\n', 12: '\\f', 13: '\\r' }[code];
+            result += shortEscape || `\\u${code.toString(16).padStart(4, '0')}`;
+        } else {
+            result += char;
+        }
+    }
+    return result;
+}
+
 export function parseRecordEnvelope(raw) {
     let value = raw;
     if (typeof value === 'string') {
         const text = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-        try { value = JSON.parse(text); } catch (error) { return { ok: false, error: `响应不是合法JSON：${error.message}` }; }
+        try {
+            value = JSON.parse(text);
+        } catch (error) {
+            const normalized = escapeControlCharsInsideJsonStrings(text);
+            if (normalized === text) return { ok: false, error: `响应不是合法JSON：${error.message}` };
+            try { value = JSON.parse(normalized); } catch { return { ok: false, error: `响应不是合法JSON：${error.message}` }; }
+        }
     }
     try {
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('响应根节点必须是对象');
@@ -73,4 +118,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES };
+export { OP_TYPES, escapeControlCharsInsideJsonStrings };
