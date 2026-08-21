@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, USER } from '../../core/manager.js';", 'const { APP, BASE, USER } = globalThis.__memoNSwipeMocks;')
-    .replace("import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon2';", 'const { restoreMemoSnapshot } = globalThis.__memoNSwipeMocks;');
+    .replace("import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon3';", 'const { restoreMemoSnapshot } = globalThis.__memoNSwipeMocks;');
 
 let handler;
 const restored = [];
