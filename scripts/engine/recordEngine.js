@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon4';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon5';
 import { buildPresetCharacterRule } from './recordPolicy.js';
 import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';
 
@@ -195,6 +195,10 @@ async function unpack(chatId) {
         EDITOR.error(`Memo-N保存失败：${failed.error}`);
         return false;
     }
+    if (execution.ok && execution.changed) {
+        try { await BASE.refreshContextView?.(); }
+        catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); }
+    }
     if (job.session === USER?.getContext?.()?.chat) USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat);
     if (!execution.ok) EDITOR.warning(`Memo-N记录失败：${execution.error}。正文已保留，表格未部分写入。`);
     return execution.ok === true;
@@ -206,8 +210,11 @@ function handleRendered(chatId) {
     const persistence = unpack(chatId);
     if (chat && persistence && typeof persistence.then === 'function') {
         Object.defineProperty(chat, '__memoStrictPersistence', { configurable: true, writable: true, value: persistence });
+        // Do not return this promise to CHARACTER_MESSAGE_RENDERED. SillyTavern
+        // treats listener promises as part of generation finalization, which
+        // leaves the send button in its stop state while Memo-N saves tables.
+        void persistence.catch(error => console.error('[Memo-N] 后台记录任务异常', error));
     }
-    return persistence;
 }
 
 APP.eventSource.on(APP.event_types.GENERATION_STARTED, arm);
