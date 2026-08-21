@@ -26,5 +26,11 @@ async function finishSingleApi(chatId){
     EDITOR.success(`Memo-N：已记录${status.count || ''}${status.count ? '项变化' : ''}`,'',2500);
 }
 
-APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED,finishSingleApi);
+function scheduleFinish(chatId){
+    // Toasts still wait for the real persistence result, but the render event
+    // itself must finish immediately so it cannot hold SillyTavern's stop UI.
+    void finishSingleApi(chatId).catch(error=>console.error('[Memo-N] 写入提示任务异常',error));
+}
+
+APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED,scheduleFinish);
 console.log('[Memo-N] 写入提示已加载：只相信严格事务和聊天保存的真实结果');
