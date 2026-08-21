@@ -1,7 +1,7 @@
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
 import { findNextChatWhitTableData, undoSheets } from "../../index.js";
-import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon4";
+import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon5";
 import { openTableHistoryPopup } from "./tableHistory.js";
 import { PopupMenu } from "../../components/popupMenu.js";
 import { openTableStatisticsPopup } from "./tableStatistics.js";
@@ -689,11 +689,17 @@ async function initTableView(mesId) {
 }
 
 export async function refreshContextView(mesId = -1) {
-    if (BASE.contextViewRefreshing) return
+    // The drawer may not have been opened yet. It will render current data on
+    // first open; trying to refresh a missing container only creates a false
+    // view error after an otherwise successful table transaction.
+    if (!viewSheetsContainer || BASE.contextViewRefreshing) return
     BASE.contextViewRefreshing = true
-    await renderSheetsDOM(mesId);
-    console.log("刷新表格视图")
-    BASE.contextViewRefreshing = false
+    try {
+        await renderSheetsDOM(mesId);
+        console.log("刷新表格视图")
+    } finally {
+        BASE.contextViewRefreshing = false
+    }
 }
 
 export async function getChatSheetsView(mesId = -1) {
