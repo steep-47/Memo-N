@@ -119,6 +119,7 @@ if (!settingsText.includes('唯一JSON变更信封') || !settingsText.includes('
 if (!settingsText.includes('日影移动') || !settingsText.includes('changes为空数组')) throw new Error('主模板缺少时间推进/空变更规则');
 if (!engineText.includes('response_format:\\n  type: json_object') || !engineText.includes("changesToStrictCalls(envelope.changes)")) throw new Error('Memo-N缺少自定义端点JSON对象模式或严格事务编译');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
+if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'reasoning'")) throw new Error('Memo-N缺少当前Swipe思考区JSON信封通道');
 if (!bootstrapText.includes('migrateKnownSingleApiOutput') || !bootstrapText.includes('一次API模式使用结构化双字段响应')) throw new Error('缺少手机已保存旧模板的一次性升级迁移');
 if (!independentText.includes('if(!prepareAutoBaseline')) throw new Error('自动独立记录缺少基线成功门控');
 if (!independentText.includes('if(!baselineReady)throw new Error')) throw new Error('手动独立记录缺少基线成功门控');
