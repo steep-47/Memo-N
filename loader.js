@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon4';
+const RUNTIME_VERSION = 'memon5';
 
 async function loadOptional(label, path) {
     try {
@@ -15,7 +15,7 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon4缓存实例。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon5缓存实例。
 // 正常模式：同一次回复返回固定JSON信封，本地拆出正文与结构化变化，再进入严格事务执行器。
 // 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
@@ -36,4 +36,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon4 记录引擎与完整辅助功能运行时加载完成');
+console.log('[Memo-N][loader] memon5 记录引擎与完整辅助功能运行时加载完成');
