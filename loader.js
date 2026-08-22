@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon26';
+const RUNTIME_VERSION = 'memon27';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// CUSTOM OpenAI兼容中转站使用原生json_schema，并把changes放在reply之前优先生成。
-// 如果CUSTOM响应在reply尾部被截断，但changes已经完整，生成结束时重建信封，优先完成记录链。
+// memon26稳定记录主链冻结：CUSTOM中转站继续使用原生json_schema，changes优先于reply。
+// DeepSeek直连（api.deepseek.com）单独走官方response_format=json_object，避免CUSTOM json_schema被翻译成DeepSeek不支持的type=json_schema导致400。
 // 非CUSTOM reverse proxy继续使用纯文本哨兵兜底；不增加API次数，不改user消息，不改stream_openai。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -28,6 +28,7 @@ const modules = [
     ['中转站提示协调', './scripts/runtime/relayPromptCoordinator.js'],
     ['非CUSTOM中转哨兵桥', './scripts/runtime/relaySentinelBridge.js'],
     ['CUSTOM原生结构化输出', './scripts/runtime/customStructuredOutputBridge.js'],
+    ['DeepSeek兼容层', './scripts/runtime/deepseekCompatibility.js'],
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -41,4 +42,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon26 记录链优先版运行时加载完成');
+console.log('[Memo-N][loader] memon27 DeepSeek兼容版运行时加载完成');
