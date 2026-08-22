@@ -5,7 +5,7 @@ import { defaultSettings } from '../../data/pluginSetting.js';
 const STANDARD_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const LEGACY_PERSON_NAME = '人物表';
 const STANDARD_OR_LEGACY_NAMES = new Set([...STANDARD_NAMES, LEGACY_PERSON_NAME]);
-const MAIN_COLUMNS = ['姓名','性别','别名/称呼','身份/所属','外貌特征','性格','与玩家关系','重要信息'];
+const MAIN_COLUMNS = ['姓名','性别','种族/血脉','修炼体系/路径','别名/称呼','身份/所属','外貌特征','性格','与玩家关系','重要信息'];
 const DEV_COLUMNS = ['姓名','修为','主要能力','当前地点','年龄','最后确认时间','当前状态','主要目标/重要事项'];
 
 function norm(v) { return String(v ?? '').trim(); }
@@ -24,10 +24,10 @@ function canonicalStructures() {
     const dev = structures.find(item => item?.tableName === '人物发展表');
     if (dev) {
         dev.columns = [...DEV_COLUMNS];
-        dev.note = 'NPC专属最新发展锚点表；年龄与最后确认时间分列；同一NPC一行；只保存最后有效状态，不记录离线流水账';
+        dev.note = 'NPC专属最新发展锚点表；年龄与最后确认时间分列；同一NPC一行；只保存最后有效状态，不记录离线流水账；修为保存角色自身体系的原生境界';
         dev.initNode = '值得长期追踪的NPC出现已确认发展信息时记录；姓名用于与人物主表关联，其余未知留空';
         dev.insertNode = '人物发展表中尚无该NPC且已确认至少一项发展状态时插入；不得为了成长而编造信息';
-        dev.updateNode = '新确认的修为/能力/地点/年龄/最后确认时间/重要状态/目标覆盖对应旧锚点；年龄是人物属性，最后确认时间是该锚点被确认的世界时间，二者不得混写';
+        dev.updateNode = '新确认的原生修为/能力/地点/年龄/最后确认时间/重要状态/目标覆盖对应旧锚点；不得把战力对应换算成人族境界；年龄与最后确认时间不得混写';
     }
     return structures;
 }
@@ -205,6 +205,8 @@ function projectLegacyPerson(sheet, columns) {
         return columns.map(col => {
             if (col === '年龄') return m.get('年龄') ?? splitLegacyAgeAnchor(m.get('年龄/最后确认时间')).age;
             if (col === '最后确认时间') return m.get('最后确认时间') ?? splitLegacyAgeAnchor(m.get('年龄/最后确认时间')).confirmed;
+            if (col === '种族/血脉') return m.get('种族/血脉') ?? m.get('种族') ?? m.get('血脉') ?? '';
+            if (col === '修炼体系/路径') return m.get('修炼体系/路径') ?? m.get('修炼体系') ?? m.get('修行体系') ?? m.get('修炼路径') ?? m.get('修行路径') ?? '';
             return m.get(col) ?? '';
         });
     }).filter(row => norm(row[0]));
@@ -288,7 +290,7 @@ function migrateCurrentChatSheetsInternal() {
     const custom=refreshed.filter(sheet=>sheet&&!canonicalSet.has(sheet.name)&&sheet.name!==LEGACY_PERSON_NAME); const ordered=[...canonical,...custom];
     const currentNames=refreshed.filter(s=>s?.name!==LEGACY_PERSON_NAME).map(s=>s.name); const targetNames=ordered.map(s=>s?.name);
     const needsReorder=currentNames.length!==targetNames.length||targetNames.some((name,i)=>currentNames[i]!==name)||!!legacy;
-    if(changed||needsReorder){ if(BASE.reSaveAllChatSheets(ordered)!==true)throw new Error('七表重排保存失败'); try{BASE.refreshContextView?.();BASE.refreshTempView?.(true);}catch(error){console.warn('[Memo] 七表迁移已提交，但视图刷新失败',error);} console.log('[Memo] 世界状态表已统一为七表：固定启用/索引/上下文发送/标准规则元数据；人物发展年龄与确认时间分列'); return true; }
+    if(changed||needsReorder){ if(BASE.reSaveAllChatSheets(ordered)!==true)throw new Error('七表重排保存失败'); try{BASE.refreshContextView?.();BASE.refreshTempView?.(true);}catch(error){console.warn('[Memo] 七表迁移已提交，但视图刷新失败',error);} console.log('[Memo] 世界状态表已统一为七表：固定启用/索引/上下文发送/标准规则元数据；人物主表含种族/血脉与修炼体系/路径；人物发展保留原生修为'); return true; }
     return false;
 }
 function migrateCurrentChatSheets() {
