@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon36';
+const RUNTIME_VERSION = 'memon37';
 
 async function loadOptional(label, path) {
     try {
@@ -16,7 +16,8 @@ async function loadOptional(label, path) {
 }
 
 // 世界七表稳定主链冻结。
-// 伊依插件层只负责：长期存储、召回排序、写回与分支事务；人格/文风/表达方式留给预设。
+// 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
+// 容量策略只限制每轮召回，不按年代或条目数量自动删除长期记忆。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -33,6 +34,7 @@ const modules = [
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
     ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
     ['伊依独立召回引擎', './scripts/yiyi/yiyiRecallEngine.js'],
+    ['伊依记忆维护引擎', './scripts/yiyi/yiyiMemoryMaintenance.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
@@ -44,4 +46,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon36 伊依记忆召回分层版加载完成；人格规则不再写进插件运行时');
+console.log('[Memo-N][loader] memon37 伊依记忆维护版加载完成；世界记录主链未改动');
