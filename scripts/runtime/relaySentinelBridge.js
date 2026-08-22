@@ -13,9 +13,10 @@ const CONTRACT = `${RECORD_MARKER}\n本轮使用中转站纯文本记录协议�
 
 function isRelay(data) {
     const source = String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
+    if (source === 'custom') return false;
     const customUrl = String(data?.custom_url ?? oai_settings?.custom_url ?? '').trim();
     const reverseProxy = String(data?.reverse_proxy ?? oai_settings?.reverse_proxy ?? '').trim();
-    return source === 'custom' || Boolean(customUrl) || Boolean(reverseProxy);
+    return Boolean(customUrl) || Boolean(reverseProxy);
 }
 
 function rewriteRequest(data) {
@@ -36,7 +37,7 @@ function rewriteRequest(data) {
     }
     delete data.json_schema;
     globalThis.__memoNSentinelRequest = { at: Date.now(), tableCount, contractCount };
-    console.log(`[Memo-N] 中转站最终协议=纯文本哨兵｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
+    console.log(`[Memo-N] 非CUSTOM中转最终协议=纯文本哨兵｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
 }
 
 function convertOne(text) {
@@ -54,6 +55,7 @@ function convertOne(text) {
 }
 
 function convertLatestResponse() {
+    if (String(oai_settings?.chat_completion_source ?? '').trim().toLowerCase() === 'custom') return;
     const chat = USER?.getContext?.()?.chat;
     if (!Array.isArray(chat) || !chat.length) return;
     let piece = null;
@@ -97,4 +99,4 @@ const endEvent = APP.event_types.GENERATION_ENDED;
 APP.eventSource.on(endEvent, convertLatestResponse);
 APP.eventSource.makeFirst?.(endEvent, convertLatestResponse);
 
-console.log('[Memo-N] 中转站纯文本哨兵桥已加载：最终请求统一去XML，生成结束前转换回内部tableEdit');
+console.log('[Memo-N] 非CUSTOM中转纯文本哨兵桥已加载；CUSTOM保留原生JSON Schema');
