@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon50';
+const RUNTIME_VERSION = 'memon51';
 
 async function loadOptional(label, path) {
     try {
@@ -16,7 +16,7 @@ async function loadOptional(label, path) {
 }
 
 // 世界七表稳定主链冻结。
-// 世界书人物与剧情自动生成NPC统一按人物事实处理，不区分来源。
+// 所有NPC统一按已确认事实维护，不区分世界书来源或剧情自动生成来源。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
 // Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
@@ -48,4 +48,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon50 设置清理版加载完成；人物不再按世界书/自动NPC区分，废弃DBG模块已删除');
+console.log('[Memo-N][loader] memon51 设置层清理版加载完成；旧人物来源策略及相关死代码已移除');
