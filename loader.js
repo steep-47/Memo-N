@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon20';
+const RUNTIME_VERSION = 'memon21';
 
 async function loadOptional(label, path) {
     try {
@@ -16,8 +16,8 @@ async function loadOptional(label, path) {
 }
 
 // 原生直连继续使用严格JSON信封。
-// custom或reverse proxy中转站：完整正文优先，正文结束后追加tableEdit。
-// 中转站不改写最后一条user消息；streamStateGuard强制保留SillyTavern原始stream_openai状态，避免生成结束状态被Memo-N污染。
+// custom或reverse proxy中转站：优先在隐藏reasoning中生成tableEdit；无reasoning时才回退到正文尾部。
+// 不改写最后user消息；streamStateGuard继续保留SillyTavern原始stream_openai状态，避免生成结束状态被Memo-N污染。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -39,4 +39,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon20 流式状态保护版运行时加载完成');
+console.log('[Memo-N][loader] memon21 reasoning优先中转站记录版运行时加载完成');
