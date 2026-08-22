@@ -1,7 +1,7 @@
 import { APP, USER } from '../../core/manager.js';
 import { applyYiYiMemoryDelta, buildYiYiMemoryContext, getYiYiVault, saveYiYiVault } from './yiyiMemoryStore.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v4]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v5]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
@@ -9,7 +9,7 @@ const LEDGER_KEY = 'memo_n_yiyi_tx_ledger_v1';
 const handled = new WeakMap();
 const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
 const SECTIONS = Object.freeze({
-    relationship: ['stage', 'summary', 'sharedUnderstanding', 'boundaries', 'unresolved'],
+    relationship: ['stage', 'summary', 'sharedUnderstanding', 'boundaries', 'unresolved', 'expectations', 'trustBasis', 'interactionPattern', 'initiative', 'comfort'],
     emotion: ['current', 'cause', 'residue', 'intensity', 'trajectory'],
     self: ['understanding', 'changes'],
 });
@@ -25,7 +25,7 @@ function recentQuery(messages) { return (Array.isArray(messages) ? messages.slic
 function hasYiYi(messages) { return Array.isArray(messages) && messages.some(message => { const content = contentOf(message); return !content.includes(PROMPT_MARKER) && content.includes('伊依'); }); }
 function isRecordOnly(messages) { const joined = Array.isArray(messages) ? messages.map(contentOf).join('\n') : ''; return RECORD_ONLY_MARKERS.some(marker => joined.includes(marker)); }
 function contract(context) {
-    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆增量]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n只记录会影响以后相处的长期信息：重要称呼/玩笑/默契、明确偏好或反感、边界、持续看法、未消退情绪及原因、共同经历、错误与纠正、未完话题/约定、关系阶段变化、自我理解变化。普通闲聊、一次性动作不形成长期记忆。不得记录剧情NPC可知内容、世界事实、人物好感、背包、能力或历史事件。不得把推测写成事实。没有长期变化时add/update/relationship/self保持空。add每轮最多2条，importance只能是normal/high/core；相同事情不要重复add。update只更新上方已提供的#记忆ID，不自动删除旧记忆；纠正、失效或解决通过currentView等字段更新。relationship可用stage/summary/sharedUnderstanding/boundaries/unresolved；self可用understanding/changes。\n情绪必须单独判断，不等于长期记忆。emotion可用current/cause/residue/intensity/trajectory；intensity只能是0/1/2/3，trajectory只能是rising/steady/easing。每轮都判断情绪是否真的发生变化：没有变化则emotion={}；有变化只填变化字段。不要因为换了一轮回复就突然归零，也不要为了“连续”而永远保持同一情绪。强烈且原因未解决的情绪通常有惯性；互动可以增强、转向或缓和。trajectory=easing时，后续互动中应在合理时机降低intensity，并把仍在意但已不再占据当前状态的部分转入residue；真正淡去后可以清空residue。反复出现或长期未解决、已经改变关系理解的东西，才考虑沉淀到relationship或共同记忆。禁止用固定口癖、固定动作、固定撒娇/生气模板来证明情绪存在，情绪应通过当下语境自然影响措辞、主动性、距离感、耐心、回避或关注点。\nJSON必须合法，不输出额外字段。`;
+    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆增量]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n只记录会影响以后相处的长期信息：重要称呼/玩笑/默契、明确偏好或反感、边界、持续看法、未消退情绪及原因、共同经历、错误与纠正、未完话题/约定、关系结构变化、自我理解变化。普通闲聊、一次性动作不形成长期记忆。不得记录剧情NPC可知内容、世界事实、人物好感、背包、能力或历史事件。不得把推测写成事实。没有长期变化时add/update/relationship/self保持空。add每轮最多2条，importance只能是normal/high/core；相同事情不要重复add。update只更新上方已提供的#记忆ID，不自动删除旧记忆；纠正、失效或解决通过currentView等字段更新。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort。stage只是自然语言概括，不是等级；禁止好感度、亲密度数值和固定升级路线。expectations记录基于真实经历形成的现实预期；trustBasis记录为什么信任、哪里仍保留；interactionPattern记录已经自然重复出现的相处方式；initiative记录伊依目前会自然主动做什么或主动到什么程度；comfort记录哪些地方已经不用客套、哪些地方仍谨慎。一次普通友好/争执通常不改关系结构；明确承诺、重大冲突、反复一致的行为或多次共同经历才更新。字段应描述当前有效判断，出现新证据时直接修正旧判断，不要把互相矛盾的历史判断越堆越长。关系靠近不等于失去边界，关系受损不等于立刻敌对，也不要为了证明“熟了”而强行毒舌、撒娇、调情、贴贴或使用固定称呼。\nself可用understanding/changes。情绪必须单独判断，不等于长期记忆。emotion可用current/cause/residue/intensity/trajectory；intensity只能是0/1/2/3，trajectory只能是rising/steady/easing。每轮都判断情绪是否真的发生变化：没有变化则emotion={}；有变化只填变化字段。不要因为换了一轮回复就突然归零，也不要为了“连续”而永远保持同一情绪。强烈且原因未解决的情绪通常有惯性；互动可以增强、转向或缓和。trajectory=easing时，后续互动中应在合理时机降低intensity，并把仍在意但已不再占据当前状态的部分转入residue；真正淡去后可以清空residue。反复出现或长期未解决、已经改变关系理解的东西，才考虑沉淀到relationship或共同记忆。禁止用固定口癖、固定动作、固定撒娇/生气模板来证明情绪存在，情绪应通过当下语境自然影响措辞、主动性、距离感、耐心、回避或关注点。\nJSON必须合法，不输出额外字段。`;
 }
 function inject(data) {
     if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || isRecordOnly(data.messages) || !hasYiYi(data.messages)) return;
@@ -181,4 +181,4 @@ function onGenerationEnded() {
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, onGenerationEnded); APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 
 globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe, handleSwipeDeleted, handleMessageDeleted, handleMessageEdited });
-console.log('[Memo-N][伊依] 自动记忆v4已加载：情绪强度与走势进入同一请求，按语境自然延续/缓和；事务回滚同步覆盖情绪字段');
+console.log('[Memo-N][伊依] 自动记忆v5已加载：关系按真实经历形成预期/信任/相处模式，不使用好感度或固定升级模板');
