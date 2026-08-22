@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon29';
+const RUNTIME_VERSION = 'memon30';
 
 async function loadOptional(label, path) {
     try {
@@ -15,11 +15,11 @@ async function loadOptional(label, path) {
     }
 }
 
-// 两条主路彻底分开：
-// 1) DeepSeek直连（api.deepseek.com）沿用原先稳定的一次API tableEdit记录链，不进入后来新增的CUSTOM中转站JSON Schema逻辑。
-// 2) 其他CUSTOM中转站沿用memon26稳定链：原生json_schema，changes先于reply；尾部截断时优先保全changes。
-// 3) recordEngine统一服从providerRoute：CUSTOM按JSON解析，DeepSeek/非CUSTOM relay按tableEdit解析。
-// 非CUSTOM reverse proxy继续使用纯文本哨兵兜底。三条协议只共享最终严格表格执行器。
+// 稳定记录主链冻结：
+// 1) DeepSeek直连沿用独立tableEdit链。
+// 2) CUSTOM中转站沿用memon26/29稳定JSON Schema链（changes优先、reply随后）。
+// 3) 非CUSTOM relay沿用tableEdit/sentinel兜底。
+// 伊依长期记忆库是独立全局存储，不写入聊天七表，也不参与上述协议路由。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -35,6 +35,9 @@ const modules = [
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
 
+    ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
+    ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
+
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
@@ -44,4 +47,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon29 Provider解析路由修正版运行时加载完成');
+console.log('[Memo-N][loader] memon30 伊依独立长期记忆库基础版加载完成；稳定记录主链未改动');
