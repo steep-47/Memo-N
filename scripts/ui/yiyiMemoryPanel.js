@@ -21,14 +21,15 @@ function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
     const style = el('style', { id: STYLE_ID });
     style.textContent = `
-#${WRAPPER_ID}{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;clear:both!important;margin:8px 0!important;padding:0!important;writing-mode:horizontal-tb!important}
+#${WRAPPER_ID}{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;clear:both!important;margin:10px 0!important;padding:0!important;writing-mode:horizontal-tb!important}
 #${BUTTON_ID}{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:42px!important;margin:0!important;padding:8px 12px!important;box-sizing:border-box!important;white-space:normal!important;word-break:keep-all!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;line-height:1.35!important}
 #${MODAL_ID}{position:fixed!important;inset:0!important;width:100dvw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;border:0!important;background:transparent!important;color:inherit!important;box-sizing:border-box!important;overflow:hidden!important;writing-mode:horizontal-tb!important}
 #${MODAL_ID}[open]{display:flex!important;align-items:center!important;justify-content:center!important}
 #${MODAL_ID}::backdrop{background:rgba(0,0,0,.58)!important;backdrop-filter:blur(1px)}
 #${MODAL_ID} .yiyi-shell{display:block;width:min(1120px,100%);min-width:0;max-width:1120px;max-height:calc(100dvh - max(28px,env(safe-area-inset-top) + env(safe-area-inset-bottom)));overflow:auto;overscroll-behavior:contain;box-sizing:border-box;background:var(--SmartThemeBlurTintColor,#202126);color:var(--SmartThemeBodyColor,#eee);border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:18px;writing-mode:horizontal-tb!important;-webkit-overflow-scrolling:touch}
-#${MODAL_ID} .yiyi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+#${MODAL_ID} .yiyi-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 #${MODAL_ID} .yiyi-head>div{min-width:0;flex:1 1 auto}
+#${MODAL_ID} .yiyi-close{display:inline-flex!important;flex:0 0 auto!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:64px!important;max-width:none!important;height:auto!important;min-height:40px!important;padding:8px 12px!important;margin:0!important;white-space:nowrap!important;word-break:keep-all!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;line-height:1.2!important}
 #${MODAL_ID} h2{margin:0;font-size:1.25rem;white-space:normal;word-break:break-word} #${MODAL_ID} .yiyi-sub{opacity:.68;font-size:.82rem;margin-top:4px;white-space:normal;word-break:break-word}
 #${MODAL_ID} .yiyi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0;min-width:0}
 #${MODAL_ID} label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;opacity:.92;min-width:0;writing-mode:horizontal-tb!important}
@@ -49,7 +50,8 @@ function ensureStyle() {
 @media(max-width:720px){
 #${MODAL_ID}{padding:max(10px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important;align-items:flex-start!important}
 #${MODAL_ID} .yiyi-shell{width:100%;max-width:100%;max-height:calc(100dvh - max(20px,env(safe-area-inset-top) + env(safe-area-inset-bottom)));border-radius:14px;padding:12px;margin:0}
-#${MODAL_ID} .yiyi-head{position:sticky;top:-12px;z-index:4;background:var(--SmartThemeBlurTintColor,#202126);padding:12px 0 10px;margin-top:-12px}
+#${MODAL_ID} .yiyi-head{position:sticky;top:-12px;z-index:4;background:var(--SmartThemeBlurTintColor,#202126);padding:12px 0 10px;margin-top:-12px;align-items:center}
+#${MODAL_ID} .yiyi-close{min-width:60px!important;padding:8px 10px!important;font-size:.95rem!important}
 #${MODAL_ID} .yiyi-grid{grid-template-columns:minmax(0,1fr)}
 #${MODAL_ID} .yiyi-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 #${MODAL_ID} .yiyi-actions button{width:100%;min-width:0;margin:0}
@@ -195,7 +197,7 @@ function openPanel() {
     const head = el('div', { class: 'yiyi-head' });
     const titleBox = el('div');
     titleBox.append(el('h2', {}, '伊依 · 长期记忆'), el('div', { class: 'yiyi-sub' }, `独立于游戏存档 · ${vault.memories.length} 条共同记忆 · 修订 ${vault.meta.revision}`));
-    const close = el('button', { type: 'button', class: 'menu_button' }, '关闭');
+    const close = el('button', { type: 'button', class: 'menu_button yiyi-close' }, '关闭');
     close.addEventListener('click', () => closePanel(modal));
     head.append(titleBox, close); shell.appendChild(head);
 
@@ -276,15 +278,16 @@ function createButton() {
 function mount() {
     if (document.getElementById(WRAPPER_ID) || document.getElementById(BUTTON_ID)) return true;
     ensureStyle();
-    const anchor = document.getElementById('memory-independent-record-api') || document.getElementById('fill_table_time');
-    if (!anchor?.parentElement) return false;
 
-    const anchorRow = anchor.parentElement;
-    const parent = anchorRow.parentElement;
-    if (!parent) return false;
+    const presetPolicy = document.getElementById('preset_character_policy');
+    const fillTable = document.getElementById('fill_table_time');
+    const targetRow = presetPolicy?.parentElement || fillTable?.parentElement;
+    const parent = targetRow?.parentElement;
+    if (!targetRow || !parent) return false;
+
     const wrapper = el('div', { id: WRAPPER_ID });
     wrapper.appendChild(createButton());
-    parent.insertBefore(wrapper, anchorRow.nextSibling);
+    parent.insertBefore(wrapper, targetRow);
     return true;
 }
 
@@ -294,4 +297,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 15000);
 }
 
-console.log('[Memo-N][伊依] 长期记忆库UI已加载：Top Layer弹窗 + 移动端安全区 + 独立全宽入口');
+console.log('[Memo-N][伊依] 长期记忆库UI已加载：入口置于运行策略上方区域；关闭按钮固定横向；Top Layer移动端安全区');
