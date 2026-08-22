@@ -1,4 +1,4 @@
-import { changesToStrictCalls, parseRecordEnvelope } from '../scripts/engine/recordEnvelope.js';
+import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope, RELAY_TAG_START, RELAY_TAG_END } from '../scripts/engine/recordEnvelope.js';
 
 const valid = parseRecordEnvelope(JSON.stringify({
     reply: '正文',
@@ -42,4 +42,26 @@ const brokenStructure = parseRecordEnvelope(`{"reply":"正文
 第二行","changes":[}`);
 if (brokenStructure.ok) throw new Error('控制字符规范化错误修复了残缺JSON结构');
 
-console.log('memo-n-envelope PASS: valid=3, no-change=1, invalid=7, recoverable-body=1, raw-control-normalized=1, broken-structure-rejected=1, SQL-string-impossible=1');
+const relayChanges = [
+    { op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:25' }] },
+    { op: 'insert', table: 6, row: null, cells: [{ column: 0, value: '12500年01月01日' }, { column: 3, value: '进入后山猎道' }] },
+];
+const relayRaw = `正常正文\n\n1. 继续前进。\n\n${RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${RELAY_TAG_END}`;
+const relay = parseRelayTaggedEnvelope(relayRaw);
+if (!relay.ok || relay.reply.includes('MEMO_N_CHANGES') || relay.changes.length !== 2 || relay.changes[0]?.data?.[1] !== '08:25') {
+    throw new Error(`中转站隐藏记录块解析失败：${relay.error}`);
+}
+
+const relayNoChange = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}`);
+if (!relayNoChange.ok || !relayNoChange.noChange || relayNoChange.reply !== '正文') throw new Error('中转站NO_CHANGE未正确解析');
+
+const reasoningOnly = parseRelayTaggedEnvelope(`${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}`, '正文来自content');
+if (!reasoningOnly.ok || reasoningOnly.reply !== '正文来自content') throw new Error('思考区机器块未能与正文安全合并');
+
+const incompleteRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[]`);
+if (incompleteRelay.ok || !/尚未闭合/.test(incompleteRelay.error) || incompleteRelay.reply !== '正文') throw new Error('未闭合中转站记录块未安全等待/保留正文');
+
+const badRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[{"op":"INSERT INTO"}]\n${RELAY_TAG_END}`);
+if (badRelay.ok || badRelay.reply !== '正文') throw new Error('非法中转站变更被接受或正文未保留');
+
+console.log('memo-n-envelope PASS: strict-json + relay-tagged parsing, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
