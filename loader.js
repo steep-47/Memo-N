@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon14';
+const RUNTIME_VERSION = 'memon15';
 
 async function loadOptional(label, path) {
     try {
@@ -15,10 +15,10 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon14缓存实例。
-// 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：协调原始dataTable提示后使用tableEdit，并在最后user消息再次强化收尾要求。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon15缓存实例。
+// 原生直连：继续使用严格JSON信封。
+// custom或reverse proxy中转站：统一要求先输出tableEdit、再输出正文；渲染时先归一为现有事务引擎可解析的尾部tableEdit格式。
 // relayDebugLogger仅在中转站每轮回复后显示短诊断码Toast，不打印API Key或完整聊天正文。
-// 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -26,6 +26,7 @@ const modules = [
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['中转站提示协调', './scripts/runtime/relayPromptCoordinator.js'],
+    ['中转站前置记录归一', './scripts/runtime/relayPrefixNormalizer.js'],
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -39,4 +40,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon14 中转站末尾user强化诊断版运行时加载完成');
+console.log('[Memo-N][loader] memon15 中转站前置tableEdit协议运行时加载完成');
