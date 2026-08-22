@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon6';
+const RUNTIME_VERSION = 'memon7';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon6缓存实例。
-// 正常模式：同一次回复返回固定JSON信封，本地拆出正文与结构化变化，再进入严格事务执行器。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon7缓存实例。
+// 原生端点：同一次回复返回严格JSON信封；自定义/中转站：正常正文后追加隐藏changes块，再进入同一严格事务执行器。
 // 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -36,4 +36,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon6 记录引擎与完整辅助功能运行时加载完成');
+console.log('[Memo-N][loader] memon7 原生JSON + 中转站隐藏changes兼容运行时加载完成');
