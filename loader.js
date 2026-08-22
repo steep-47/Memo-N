@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon51';
+const RUNTIME_VERSION = 'memon52';
 
 async function loadOptional(label, path) {
     try {
@@ -17,6 +17,7 @@ async function loadOptional(label, path) {
 
 // 世界七表稳定主链冻结。
 // 所有NPC统一按已确认事实维护，不区分世界书来源或剧情自动生成来源。
+// 修炼记录保存角色自身种族/血脉、修炼体系/路径与原生修为文本，不换算成人族境界。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
 // Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
@@ -48,4 +49,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon51 设置层清理版加载完成；旧人物来源策略及相关死代码已移除');
+console.log('[Memo-N][loader] memon52 多种族修炼体系适配版加载完成；原生境界不再换算成人族体系');
