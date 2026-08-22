@@ -23,8 +23,10 @@ function ensureStyle() {
     style.textContent = `
 #${WRAPPER_ID}{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;clear:both!important;margin:8px 0!important;padding:0!important;writing-mode:horizontal-tb!important}
 #${BUTTON_ID}{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:42px!important;margin:0!important;padding:8px 12px!important;box-sizing:border-box!important;white-space:normal!important;word-break:keep-all!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;line-height:1.35!important}
-#${MODAL_ID}{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
-#${MODAL_ID} .yiyi-shell{display:block;width:min(1120px,96vw);min-width:0;max-width:96vw;max-height:92vh;overflow:auto;box-sizing:border-box;background:var(--SmartThemeBlurTintColor,#202126);color:var(--SmartThemeBodyColor,#eee);border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:18px;writing-mode:horizontal-tb!important}
+#${MODAL_ID}{position:fixed!important;inset:0!important;width:100dvw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;border:0!important;background:transparent!important;color:inherit!important;box-sizing:border-box!important;overflow:hidden!important;writing-mode:horizontal-tb!important}
+#${MODAL_ID}[open]{display:flex!important;align-items:center!important;justify-content:center!important}
+#${MODAL_ID}::backdrop{background:rgba(0,0,0,.58)!important;backdrop-filter:blur(1px)}
+#${MODAL_ID} .yiyi-shell{display:block;width:min(1120px,100%);min-width:0;max-width:1120px;max-height:calc(100dvh - max(28px,env(safe-area-inset-top) + env(safe-area-inset-bottom)));overflow:auto;overscroll-behavior:contain;box-sizing:border-box;background:var(--SmartThemeBlurTintColor,#202126);color:var(--SmartThemeBodyColor,#eee);border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:18px;writing-mode:horizontal-tb!important;-webkit-overflow-scrolling:touch}
 #${MODAL_ID} .yiyi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
 #${MODAL_ID} .yiyi-head>div{min-width:0;flex:1 1 auto}
 #${MODAL_ID} h2{margin:0;font-size:1.25rem;white-space:normal;word-break:break-word} #${MODAL_ID} .yiyi-sub{opacity:.68;font-size:.82rem;margin-top:4px;white-space:normal;word-break:break-word}
@@ -45,8 +47,9 @@ function ensureStyle() {
 #${MODAL_ID} button{min-height:36px;writing-mode:horizontal-tb!important}
 #${MODAL_ID} .yiyi-danger{margin-left:auto}
 @media(max-width:720px){
-#${MODAL_ID}{padding:7px;align-items:stretch}
-#${MODAL_ID} .yiyi-shell{width:100%;max-width:100%;max-height:calc(100vh - 14px);border-radius:13px;padding:12px}
+#${MODAL_ID}{padding:max(10px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important;align-items:flex-start!important}
+#${MODAL_ID} .yiyi-shell{width:100%;max-width:100%;max-height:calc(100dvh - max(20px,env(safe-area-inset-top) + env(safe-area-inset-bottom)));border-radius:14px;padding:12px;margin:0}
+#${MODAL_ID} .yiyi-head{position:sticky;top:-12px;z-index:4;background:var(--SmartThemeBlurTintColor,#202126);padding:12px 0 10px;margin-top:-12px}
 #${MODAL_ID} .yiyi-grid{grid-template-columns:minmax(0,1fr)}
 #${MODAL_ID} .yiyi-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 #${MODAL_ID} .yiyi-actions button{width:100%;min-width:0;margin:0}
@@ -173,20 +176,27 @@ function importBackup(onDone) {
     document.body.appendChild(input); input.click();
 }
 
+function closePanel(modal) {
+    try { if (typeof modal?.close === 'function' && modal.open) modal.close(); } catch (_) {}
+    modal?.remove?.();
+}
+
 function openPanel() {
-    document.getElementById(MODAL_ID)?.remove();
+    closePanel(document.getElementById(MODAL_ID));
     ensureStyle();
     const vault = getYiYiVault();
-    const modal = el('div', { id: MODAL_ID });
+    const canDialog = typeof HTMLDialogElement !== 'undefined';
+    const modal = el(canDialog ? 'dialog' : 'div', { id: MODAL_ID });
     const shell = el('div', { class: 'yiyi-shell' });
     modal.appendChild(shell);
-    modal.addEventListener('click', event => { if (event.target === modal) modal.remove(); });
+    modal.addEventListener('click', event => { if (event.target === modal) closePanel(modal); });
+    modal.addEventListener?.('cancel', event => { event.preventDefault(); closePanel(modal); });
 
     const head = el('div', { class: 'yiyi-head' });
     const titleBox = el('div');
     titleBox.append(el('h2', {}, '伊依 · 长期记忆'), el('div', { class: 'yiyi-sub' }, `独立于游戏存档 · ${vault.memories.length} 条共同记忆 · 修订 ${vault.meta.revision}`));
     const close = el('button', { type: 'button', class: 'menu_button' }, '关闭');
-    close.addEventListener('click', () => modal.remove());
+    close.addEventListener('click', () => closePanel(modal));
     head.append(titleBox, close); shell.appendChild(head);
 
     const relationSection = el('div', { class: 'yiyi-section' });
@@ -235,19 +245,26 @@ function openPanel() {
     const add = el('button', { type: 'button', class: 'menu_button' }, '＋ 添加一段记忆');
     add.addEventListener('click', () => { tbody.appendChild(memoryRow()); wrap.scrollTop = wrap.scrollHeight; });
     const save = el('button', { type: 'button', class: 'menu_button' }, '保存伊依记忆');
-    save.addEventListener('click', () => { saveYiYiVault(readPanel(shell, vault)); EDITOR.success('伊依记忆已保存'); openPanel(); });
+    save.addEventListener('click', () => { saveYiYiVault(readPanel(shell, vault)); EDITOR.success('伊依记忆已保存'); closePanel(modal); openPanel(); });
     const backup = el('button', { type: 'button', class: 'menu_button' }, '导出备份');
     backup.addEventListener('click', downloadBackup);
     const restore = el('button', { type: 'button', class: 'menu_button' }, '导入备份');
-    restore.addEventListener('click', () => importBackup(openPanel));
+    restore.addEventListener('click', () => importBackup(() => { closePanel(modal); openPanel(); }));
     const clear = el('button', { type: 'button', class: 'menu_button yiyi-danger' }, '清空伊依记忆');
     clear.addEventListener('click', () => {
         if (!confirm('这会清空伊依独立长期记忆。游戏表格不会受影响。确定继续吗？')) return;
         if (!confirm('再次确认：这不是“新游戏”，而是让伊依失去自己的长期记忆。仍然清空吗？')) return;
-        clearYiYiVault(); EDITOR.warning('伊依长期记忆已清空'); openPanel();
+        clearYiYiVault(); EDITOR.warning('伊依长期记忆已清空'); closePanel(modal); openPanel();
     });
     actions.append(add, save, backup, restore, clear); shell.appendChild(actions);
+
+    // dialog进入浏览器Top Layer，不受SillyTavern移动端抽屉的transform/overflow裁切。
     document.body.appendChild(modal);
+    if (canDialog && typeof modal.showModal === 'function') {
+        try { modal.showModal(); }
+        catch (error) { console.warn('[Memo-N][伊依] dialog.showModal失败，使用fixed回退', error); modal.setAttribute('open', ''); }
+    } else modal.setAttribute('open', '');
+    shell.scrollTop = 0;
 }
 
 function createButton() {
@@ -262,7 +279,6 @@ function mount() {
     const anchor = document.getElementById('memory-independent-record-api') || document.getElementById('fill_table_time');
     if (!anchor?.parentElement) return false;
 
-    // 不再把按钮塞进checkbox/label所在的窄flex行。以该行的父级为宿主，插入一个独立100%宽度的设置行。
     const anchorRow = anchor.parentElement;
     const parent = anchorRow.parentElement;
     if (!parent) return false;
@@ -278,4 +294,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 15000);
 }
 
-console.log('[Memo-N][伊依] 长期记忆库UI已加载：移动端独立全宽入口 + 响应式记忆面板');
+console.log('[Memo-N][伊依] 长期记忆库UI已加载：Top Layer弹窗 + 移动端安全区 + 独立全宽入口');
