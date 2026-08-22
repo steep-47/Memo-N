@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon32';
+const RUNTIME_VERSION = 'memon33';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 稳定记录主链冻结：DeepSeek/CUSTOM/relay世界七表协议不改。
-// 伊依长期记忆独立全局存储；同一正文请求完成相关记忆读取与增量写回；Swipe只切换伊依自己的事务差异。
+// 世界七表稳定主链冻结；伊依长期记忆使用独立全局库 + 当前聊天事务账本。
+// Swipe、删Swipe、删消息、编辑消息、Regenerate只撤销对应聊天分支造成的伊依记忆差异。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -43,4 +43,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon32 伊依Swipe事务版加载完成；稳定世界记录主链未改动');
+console.log('[Memo-N][loader] memon33 伊依分支删除/编辑事务版加载完成；世界记录主链未改动');
