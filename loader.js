@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon52';
+const RUNTIME_VERSION = 'memon53';
 
 async function loadOptional(label, path) {
     try {
@@ -49,4 +49,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon52 多种族修炼体系适配版加载完成；原生境界不再换算成人族体系');
+console.log('[Memo-N][loader] memon53 最终检查版加载完成；多种族原生修炼锚点与旧表结构升级已对齐');
