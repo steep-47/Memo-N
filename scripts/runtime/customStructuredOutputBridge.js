@@ -1,5 +1,5 @@
 import { APP, USER } from '../../core/manager.js';
-import { oai_settings } from '/scripts/openai.js';
+import { ROUTE, getProviderRoute } from './providerRoute.js';
 
 const TABLE_MARKER = '# dataTable 世界状态记忆';
 const RECORD_MARKER = '[Memo-N record envelope v1]';
@@ -47,12 +47,8 @@ const OUTPUT = `# 输出\n- 本轮由Memo-N使用CUSTOM端点原生JSON Schema�
 
 const CONTRACT = `${RECORD_MARKER}\n本轮使用SillyTavern CUSTOM OpenAI兼容端点的原生JSON Schema结构化输出。\n最终响应必须严格符合Memo-N已经附加到请求中的json_schema；JSON外不得出现任何字符。\n必须先完整生成changes字段，再生成reply字段。changes是记录链，优先级高于reply；禁止在changes完整闭合前开始reply。\nchanges只记录本轮正文已经明确确认的事实变化；没有变化时changes必须为[]。\nreply字段随后包含给用户看的完整正常回复，并完整保留原预设要求的正文、状态栏、选项和角色留言。\ninsert的row必须为null；update/delete的row必须是当前表格真实存在的整数rowIndex；delete的cells必须为[]；空表首次记录只能insert。\n日期、时间、地点、当前场景人物发生变化时必须维护表0。\n禁止输出tableEdit、MEMO_N_EDIT、SQL、Markdown代码围栏、解释或额外字段。`;
 
-function sourceOf(data) {
-    return String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
-}
-
 function enforceNativeStructuredOutput(data) {
-    if (!data || typeof data !== 'object' || sourceOf(data) !== 'custom' || !Array.isArray(data.messages)) return;
+    if (!data || typeof data !== 'object' || getProviderRoute(data) !== ROUTE.CUSTOM || !Array.isArray(data.messages)) return;
 
     let tableCount = 0;
     let contractCount = 0;
@@ -71,7 +67,7 @@ function enforceNativeStructuredOutput(data) {
 
     data.json_schema = structuredClone(schema);
     globalThis.__memoNCustomStructured = { at: Date.now(), tableCount, contractCount, schema: true, recordFirst: true };
-    console.log(`[Memo-N] CUSTOM原生JSON Schema已恢复（changes优先）｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
+    console.log(`[Memo-N] CUSTOM中转站原生JSON Schema（changes优先）｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
 }
 
 function findBalancedArray(text, start) {
@@ -113,7 +109,7 @@ function decodePartialReply(raw) {
 }
 
 function recoverTruncatedEnvelope() {
-    if (String(oai_settings?.chat_completion_source ?? '').trim().toLowerCase() !== 'custom') return;
+    if (getProviderRoute({}) !== ROUTE.CUSTOM) return;
     const chat = USER?.getContext?.()?.chat;
     if (!Array.isArray(chat) || !chat.length) return;
     let piece = null;
@@ -150,4 +146,4 @@ const endEvent = APP.event_types.GENERATION_ENDED;
 APP.eventSource.on(endEvent, recoverTruncatedEnvelope);
 APP.eventSource.makeFirst?.(endEvent, recoverTruncatedEnvelope);
 
-console.log('[Memo-N] CUSTOM结构化输出桥已加载：changes优先；完整JSON正常解包；尾部截断时优先保全记录');
+console.log('[Memo-N] CUSTOM结构化输出桥已加载：只处理CUSTOM中转站；DeepSeek完全绕过');
