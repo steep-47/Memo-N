@@ -31,6 +31,7 @@ function ensureStyle() {
 #${MODAL_ID} textarea{min-height:68px;resize:vertical}
 #${MODAL_ID} .yiyi-section{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
 #${MODAL_ID} .yiyi-section-title{font-weight:700;margin-bottom:8px}
+#${MODAL_ID} .yiyi-note{opacity:.62;font-size:.78rem;margin:-2px 0 10px}
 #${MODAL_ID} .yiyi-table-wrap{overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:12px}
 #${MODAL_ID} table{width:100%;min-width:880px;border-collapse:collapse;font-size:.82rem}
 #${MODAL_ID} th,#${MODAL_ID} td{padding:8px;border-bottom:1px solid rgba(255,255,255,.09);vertical-align:top;text-align:left}
@@ -39,7 +40,6 @@ function ensureStyle() {
 #${MODAL_ID} .yiyi-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 #${MODAL_ID} button{min-height:36px}
 #${MODAL_ID} .yiyi-danger{margin-left:auto}
-#${MODAL_ID} .yiyi-empty{text-align:center;opacity:.6;padding:22px}
 @media(max-width:720px){#${MODAL_ID}{padding:7px}#${MODAL_ID} .yiyi-shell{width:100%;max-height:96vh;border-radius:13px;padding:12px}#${MODAL_ID} .yiyi-grid{grid-template-columns:1fr}#${MODAL_ID} .yiyi-danger{margin-left:0}}
 `;
     document.head.appendChild(style);
@@ -113,6 +113,11 @@ function readPanel(shell, original) {
             stage: get('relationship.stage') || '初识',
             summary: get('relationship.summary'),
             sharedUnderstanding: get('relationship.sharedUnderstanding'),
+            expectations: get('relationship.expectations'),
+            trustBasis: get('relationship.trustBasis'),
+            interactionPattern: get('relationship.interactionPattern'),
+            initiative: get('relationship.initiative'),
+            comfort: get('relationship.comfort'),
             boundaries: get('relationship.boundaries'),
             unresolved: get('relationship.unresolved'),
         },
@@ -173,22 +178,36 @@ function openPanel() {
     close.addEventListener('click', () => modal.remove());
     head.append(titleBox, close); shell.appendChild(head);
 
-    const grid = el('div', { class: 'yiyi-grid' });
-    grid.append(
-        field('关系阶段', vault.relationship.stage, 'relationship.stage', false),
+    const relationSection = el('div', { class: 'yiyi-section' });
+    relationSection.append(el('div', { class: 'yiyi-section-title' }, '关系与相处方式'), el('div', { class: 'yiyi-note' }, '不是好感度或等级表。这里保存伊依根据真实共同经历形成、并且可以被新经历修正的判断。'));
+    const relationGrid = el('div', { class: 'yiyi-grid' });
+    relationGrid.append(
+        field('关系阶段（自然语言概括，不是等级）', vault.relationship.stage, 'relationship.stage', false),
+        field('她现在怎样理解你们的关系', vault.relationship.summary, 'relationship.summary'),
+        field('已经形成的默契', vault.relationship.sharedUnderstanding, 'relationship.sharedUnderstanding'),
+        field('对彼此的现实预期', vault.relationship.expectations, 'relationship.expectations'),
+        field('信任建立在哪里、哪里仍保留', vault.relationship.trustBasis, 'relationship.trustBasis'),
+        field('已经自然形成的相处方式', vault.relationship.interactionPattern, 'relationship.interactionPattern'),
+        field('伊依目前会自然主动到什么程度', vault.relationship.initiative, 'relationship.initiative'),
+        field('哪些地方已经放松、哪些仍谨慎', vault.relationship.comfort, 'relationship.comfort'),
+        field('边界、敏感点与不喜欢的事', vault.relationship.boundaries, 'relationship.boundaries'),
+        field('尚未解决的事', vault.relationship.unresolved, 'relationship.unresolved'),
+    );
+    relationSection.appendChild(relationGrid); shell.appendChild(relationSection);
+
+    const stateSection = el('div', { class: 'yiyi-section' });
+    stateSection.appendChild(el('div', { class: 'yiyi-section-title' }, '当前情绪与自我理解'));
+    const stateGrid = el('div', { class: 'yiyi-grid' });
+    stateGrid.append(
         field('当前情绪', vault.emotion.current, 'emotion.current', false),
         selectField('情绪强度', vault.emotion.intensity, 'emotion.intensity', [[0,'0 · 平稳/几乎没有'],[1,'1 · 轻微'],[2,'2 · 明显'],[3,'3 · 强烈']]),
         selectField('情绪走势', vault.emotion.trajectory, 'emotion.trajectory', [['rising','正在增强'],['steady','相对稳定'],['easing','正在缓和']]),
-        field('她现在怎样理解你们的关系', vault.relationship.summary, 'relationship.summary'),
-        field('已经形成的默契', vault.relationship.sharedUnderstanding, 'relationship.sharedUnderstanding'),
-        field('边界、敏感点与不喜欢的事', vault.relationship.boundaries, 'relationship.boundaries'),
-        field('尚未解决的事', vault.relationship.unresolved, 'relationship.unresolved'),
         field('这份情绪为什么存在', vault.emotion.cause, 'emotion.cause'),
         field('情绪余波（已经不占主导，但还在意）', vault.emotion.residue, 'emotion.residue'),
         field('伊依现在怎样理解自己', vault.self.understanding, 'self.understanding'),
         field('她意识到自己发生过什么变化', vault.self.changes, 'self.changes'),
     );
-    shell.appendChild(grid);
+    stateSection.appendChild(stateGrid); shell.appendChild(stateSection);
 
     const section = el('div', { class: 'yiyi-section' });
     section.appendChild(el('div', { class: 'yiyi-section-title' }, '共同经历 · 不是好感度流水账'));
@@ -240,4 +259,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 15000);
 }
 
-console.log('[Memo-N][伊依] 长期记忆库UI已加载：可查看/编辑当前情绪、强度、走势与余波');
+console.log('[Memo-N][伊依] 长期记忆库UI已加载：关系结构、情绪连续性和共同经历均可查看/编辑');
