@@ -8,7 +8,7 @@ const MARKER = '[Memo-N record envelope v1]';
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
-let streamRestore = null;
+let lastRenderedChatId = null;
 
 globalThis.__memoNRecordEngineActive = true;
 
@@ -26,24 +26,12 @@ function lastAssistant() {
     return last?.is_user === false ? last : null;
 }
 function arm(type, _options, dryRun) {
-    restoreStreaming();
     armed = validGeneration(type, dryRun) ? { type: String(type ?? 'normal'), at: Date.now() } : null;
+    lastRenderedChatId = null;
     if (armed) pending = null;
 }
-function restoreStreaming() {
-    if (!streamRestore) return;
-    const { settings, value, timer } = streamRestore;
-    streamRestore = null;
-    if (timer) clearTimeout(timer);
-    settings.stream_openai = value;
-}
-function preparePrompt(eventData) {
-    if (!armed || !active() || eventData?.dryRun === true) return;
-    const settings = USER?.getContext?.()?.chatCompletionSettings;
-    if (settings?.stream_openai === true) {
-        settings.stream_openai = false;
-        streamRestore = { settings, value: true, timer: setTimeout(restoreStreaming, 5000) };
-    }
+function preparePrompt() {
+    // Memo-N 不再修改 SillyTavern 的 stream_openai。流式/非流式完全服从用户原设置。
 }
 function finalContract() {
     const policy = buildPresetCharacterRule(USER?.getSettings?.()?.memo_n_settings ?? {});
@@ -59,7 +47,7 @@ ${policy}`;
 function relayContract() {
     const policy = buildPresetCharacterRule(USER?.getSettings?.()?.memo_n_settings ?? {});
     return `${MARKER}
-本轮使用中转站兼容协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON。
+本轮使用中转站兼容协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
 完整回复结束后必须追加且只追加一个<tableEdit>机器块，块后不得再输出任何字符：
 <tableEdit><!--
 updateRow(0,0,{1:"08:30"})
@@ -95,7 +83,7 @@ function relayRequestInfo(data) {
     return { relay, source, customUrl: Boolean(customUrl), reverseProxy: Boolean(reverseProxy) };
 }
 function inject(data) {
-    if (!armed || !active() || !data || typeof data !== 'object') { restoreStreaming(); return; }
+    if (!armed || !active() || !data || typeof data !== 'object') return;
     const context = USER.getContext?.();
     const base = lastAssistant();
     const endpoint = relayRequestInfo(data);
@@ -274,12 +262,30 @@ async function unpack(chatId) {
 }
 
 function handleRendered(chatId) {
-    restoreStreaming();
+    const id = Number(chatId);
+    if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id;
+}
+
+function resolveCompletedChatId() {
+    const chat = USER?.getContext?.()?.chat;
+    if (!Array.isArray(chat) || !chat.length) return null;
+    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length && chat[lastRenderedChatId]?.is_user === false) {
+        return lastRenderedChatId;
+    }
+    for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) return i;
+    return null;
+}
+
+function handleGenerationEnded() {
+    if (!pending) return;
+    const chatId = resolveCompletedChatId();
+    lastRenderedChatId = null;
+    if (!Number.isInteger(chatId)) { pending = null; return; }
     const chat = USER?.getContext?.()?.chat?.[chatId];
     const persistence = unpack(chatId);
     if (chat && persistence && typeof persistence.then === 'function') {
         Object.defineProperty(chat, '__memoStrictPersistence', { configurable: true, writable: true, value: persistence });
-        void persistence.catch(error => console.error('[Memo-N] 后台记录任务异常', error));
+        void persistence.catch(error => console.error('[Memo-N] 生成结束后记录任务异常', error));
     }
 }
 
@@ -289,6 +295,7 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_PROMPT_READY, prepare
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
-APP.eventSource.makeFirst?.(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
+APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
+APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：原生JSON schema + 中转站tableEdit双通道兼容');
+console.log('[Memo-N] 一次API记录引擎已加载：等待GENERATION_ENDED后再解析记录，避免流式正文提前判O0');
