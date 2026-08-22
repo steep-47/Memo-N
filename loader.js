@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon9';
+const RUNTIME_VERSION = 'memon10';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon9缓存实例。
-// 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：正文后追加tableEdit，并同时读取正文/reasoning，再进入同一严格事务执行器。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon10缓存实例。
+// 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：协调原始dataTable提示后使用tableEdit，并读取正文/reasoning，再进入同一严格事务执行器。
 // 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -24,6 +24,7 @@ const modules = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    ['中转站提示协调', './scripts/runtime/relayPromptCoordinator.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
 
@@ -36,4 +37,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon9 原生JSON + 中转站tableEdit双通道兼容运行时加载完成');
+console.log('[Memo-N][loader] memon10 原生JSON + 中转站提示协调/tableEdit双通道运行时加载完成');
