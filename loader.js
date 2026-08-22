@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon40';
+const RUNTIME_VERSION = 'memon41';
 
 async function loadOptional(label, path) {
     try {
@@ -19,6 +19,7 @@ async function loadOptional(label, path) {
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // 容量策略只限制每轮召回，不按年代或条目数量自动删除长期记忆；伊依记忆只在当前角色确认为“伊依”时启用。
 // JSON记录信封仅对可证明等价的cells外壳做安全归一化，其他非法结构继续拒绝。
+// 伊依记忆入口使用独立全宽设置行，移动端面板强制水平排版与单列响应式布局。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -48,4 +49,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon40 cells安全归一化版加载完成；世界记录主链与伊依记忆架构未改动');
+console.log('[Memo-N][loader] memon41 伊依移动端UI修复版加载完成；世界记录主链与记忆架构未改动');
