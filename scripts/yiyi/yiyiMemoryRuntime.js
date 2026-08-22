@@ -3,7 +3,7 @@ import { applyYiYiMemoryDelta, getYiYiVault, saveYiYiVault } from './yiyiMemoryS
 import { buildYiYiRecallContext } from './yiyiRecallEngine.js';
 import { maintainYiYiMemoryVault } from './yiyiMemoryMaintenance.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v7]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v8]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
@@ -24,13 +24,20 @@ function contentOf(message) {
     return '';
 }
 function recentQuery(messages) { return (Array.isArray(messages) ? messages.slice(-8).map(contentOf).join('\n') : '').slice(-6000); }
-function hasYiYi(messages) { return Array.isArray(messages) && messages.some(message => { const content = contentOf(message); return !content.includes(PROMPT_MARKER) && content.includes('伊依'); }); }
+function isYiYiSession() {
+    const context = USER?.getContext?.();
+    if (!context || context.groupId) return false;
+    if (String(context.name2 ?? '').trim() === '伊依') return true;
+    const id = Number(context.characterId);
+    const character = Number.isInteger(id) && id >= 0 ? context.characters?.[id] : null;
+    return String(character?.name ?? '').trim() === '伊依';
+}
 function isRecordOnly(messages) { const joined = Array.isArray(messages) ? messages.map(contentOf).join('\n') : ''; return RECORD_ONLY_MARKERS.some(marker => joined.includes(marker)); }
 function contract(context) {
     return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆写回协议]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n本协议只负责持久化数据，不定义伊依的人格、文风、口癖、行为模板或剧情表现；这些由当前预设与正常上下文决定。\nadd只保存以后仍可能有用的共同经历或明确长期信息，每轮最多2条，importance只能是normal/high/core；普通闲聊、一次性动作和重复事项不要add。update只更新上方已召回的#记忆ID，用于纠正旧认知、补充后续结果或更新currentView。\n冲突/纠正规则：如果新信息证明某条旧记忆本身就是错误事实，不要再add一条互相矛盾的新记忆；直接update该#ID的memory为当前确认事实，并在currentView简短注明已纠正。若旧事件确实发生过、只是后来理解或结果改变，则保留memory，只update currentView。无法确认谁对谁错时不要擅自覆盖，保留原记忆并等待明确证据。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort，只在有足够新证据导致当前长期判断确实变化时更新；字段保存当前有效判断，不保存好感度/亲密度数值，不建立固定升级路线。\nemotion可用current/cause/residue/intensity/trajectory；intensity只能为0/1/2/3，trajectory只能为rising/steady/easing。emotion保存连续状态：本轮无实际变化则{}；有变化只写变化字段。不得因为新一轮请求而自动清零，也不得仅为了维持连续性而制造变化。\nself可用understanding/changes，只记录明确形成且以后仍有意义的自我理解变化。\n不得把推测写成事实；不得把剧情NPC可知内容、世界事实、人物好感、背包、能力或世界历史写入伊依独立记忆。JSON必须严格合法，不输出额外字段。`;
 }
 function inject(data) {
-    if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || isRecordOnly(data.messages) || !hasYiYi(data.messages)) return;
+    if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !isYiYiSession() || isRecordOnly(data.messages)) return;
     data.messages = data.messages.filter(message => !contentOf(message).includes(PROMPT_MARKER));
     const query = recentQuery(data.messages);
     data.messages.push({ role: 'system', content: contract(buildYiYiRecallContext({ query, maxMemories: 10, maxChars: 650 })) });
@@ -153,6 +160,7 @@ async function handleMessageEdited(messageId) {
     try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] 编辑消息后的事务账本保存失败', error); }
 }
 async function processChat(chatId) {
+    if (!isYiYiSession()) return;
     const chat = USER?.getContext?.()?.chat?.[Number(chatId)]; if (!chat || chat.is_user === true) return;
     const token = `${Number(chat.swipe_id ?? 0)}\u241f${String(chat.mes ?? '')}`; if (handled.get(chat) === token) return;
     const persistence = chat.__memoStrictPersistence; if (persistence && typeof persistence.then === 'function') { try { await persistence; } catch (_) {} }
@@ -184,10 +192,11 @@ if (APP.event_types.MESSAGE_SWIPE_DELETED) APP.eventSource.on(APP.event_types.ME
 if (APP.event_types.MESSAGE_DELETED) APP.eventSource.on(APP.event_types.MESSAGE_DELETED, handleMessageDeleted);
 if (APP.event_types.MESSAGE_EDITED) APP.eventSource.on(APP.event_types.MESSAGE_EDITED, handleMessageEdited);
 function onGenerationEnded() {
+    if (!isYiYiSession()) return;
     const chat = USER?.getContext?.()?.chat; if (!Array.isArray(chat)) return;
     for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) { queueMicrotask(() => void processChat(i)); break; }
 }
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, onGenerationEnded); APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 
-globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe, handleSwipeDeleted, handleMessageDeleted, handleMessageEdited });
-console.log('[Memo-N][伊依] 自动记忆v7已加载：增加冲突纠正与精确去重；容量只限制召回，不按年龄/数量自动删记忆');
+globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe, handleSwipeDeleted, handleMessageDeleted, handleMessageEdited, isYiYiSession });
+console.log('[Memo-N][伊依] 自动记忆v8已加载：只在当前角色确认为“伊依”时启用；其他角色即使提到伊依也不会读写她的长期记忆');
