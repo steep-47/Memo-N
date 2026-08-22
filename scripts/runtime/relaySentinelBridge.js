@@ -1,10 +1,15 @@
-import { APP } from '../../core/manager.js';
+import { APP, USER } from '../../core/manager.js';
 import { oai_settings } from '/scripts/openai.js';
 
-const BEGIN = 'MEMO_N_EDIT_BEGIN';
-const END = 'MEMO_N_EDIT_END';
 const TABLE_MARKER = '# dataTable 世界状态记忆';
 const RECORD_MARKER = '[Memo-N record envelope v1]';
+const OUTPUT_HEADING = '# 输出';
+const BEGIN = 'MEMO_N_EDIT_BEGIN';
+const END = 'MEMO_N_EDIT_END';
+
+const OUTPUT = `# 输出\n- 本轮使用Memo-N中转站一次API协议：先输出完整正常正文，再在正文末尾追加一个且仅一个纯文本记录块。\n- 正文必须完整保留原本要求的状态栏、选项、角色留言等结构；不得为了记录省略正文组成部分。\n- 记录块格式固定为：\n${BEGIN}\nupdateRow(0,0,{1:"08:30"})\n${END}\n- 唯一允许的表格操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。\n- updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。\n- 无任何事实变化时记录块正文只写NO_CHANGE。\n- ${END}之后不得再输出任何字符；不得使用XML/HTML标签、JSON变更信封、SQL、Markdown代码围栏或解释。\n- 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
+
+const CONTRACT = `${RECORD_MARKER}\n本轮使用中转站纯文本记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。\n完整回复结束后必须追加且只追加一个纯文本机器块：\n${BEGIN}\nupdateRow(0,0,{1:"08:30"})\n${END}\n只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。\n没有任何事实变化时输出：\n${BEGIN}\nNO_CHANGE\n${END}\n不得输出<tableEdit>或任何XML/HTML标签，不得使用SQL，不得解释机器块，不得放进Markdown代码围栏。${END}之后不得再输出任何字符。\n日期、时间、地点、当前场景人物发生变化时必须维护表0。`;
 
 function isRelay(data) {
     const source = String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
@@ -13,79 +18,83 @@ function isRelay(data) {
     return source === 'custom' || Boolean(customUrl) || Boolean(reverseProxy);
 }
 
-function sentinelRules() {
-    return `\n【Memo-N中转站记录协议】\n完整正常正文必须优先，状态栏、选项、角色留言等原预设结构不得省略。\n正文全部结束后，追加且只追加一个纯文本机器块：\n${BEGIN}\nupdateRow(0,0,{1:"08:30"})\n${END}\n有事实变化时，块内仅允许 insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。\n没有事实变化时块内只写 NO_CHANGE。\n机器块必须位于整轮输出最后；${END} 后不得再输出任何字符。\n禁止输出 <tableEdit> 标签、JSON信封、SQL或Markdown代码围栏。`;
-}
-
-function rewritePrompt(data) {
+function rewriteRequest(data) {
     if (!data || typeof data !== 'object' || !isRelay(data) || !Array.isArray(data.messages)) return;
-    let touched = 0;
+    let tableCount = 0;
+    let contractCount = 0;
     for (const message of data.messages) {
-        const text = String(message?.content ?? '');
-        if (!text) continue;
-        if (text.includes(TABLE_MARKER) || text.includes(RECORD_MARKER)) {
-            // 移除旧XML协议的强制表述，追加纯文本哨兵协议；不改user消息。
-            message.content = text
-                .replace(/完整回复结束后必须追加且只追加一个<tableEdit>[\s\S]*?日期、时间、地点、当前场景人物发生变化时必须维护表0。/g, '完整回复结束后执行Memo-N中转站记录协议。日期、时间、地点、当前场景人物发生变化时必须维护表0。')
-                .replace(/完整正常正文，再在正文末尾追加一个且仅一个<tableEdit>记录块/g, '完整正常正文，再在正文末尾追加一个且仅一个Memo-N纯文本记录块')
-                .replace(/无任何事实变化时必须输出<tableEdit><!-- NO_CHANGE --><\/tableEdit>。有变化时输出<tableEdit><!-- 函数调用 --><\/tableEdit>。/g, '无任何事实变化时记录块写NO_CHANGE；有变化时写函数调用。')
-                .replace(/<tableEdit>之后不得再输出任何字符/g, `${END}之后不得再输出任何字符`)
-                + sentinelRules();
-            touched++;
+        const content = String(message?.content ?? '');
+        if (content.includes(TABLE_MARKER)) {
+            const index = content.lastIndexOf(OUTPUT_HEADING);
+            message.content = index >= 0 ? `${content.slice(0, index).trimEnd()}\n${OUTPUT}` : `${content.trimEnd()}\n${OUTPUT}`;
+            tableCount++;
+        }
+        if (String(message?.content ?? '').includes(RECORD_MARKER)) {
+            message.content = CONTRACT;
+            contractCount++;
         }
     }
-    globalThis.__memoNSentinelPrompt = { at: Date.now(), touched };
-    console.log(`[Memo-N] 中转站纯文本哨兵协议已注入：messages=${touched}`);
+    delete data.json_schema;
+    globalThis.__memoNSentinelRequest = { at: Date.now(), tableCount, contractCount };
+    console.log(`[Memo-N] 中转站最终协议=纯文本哨兵｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
 }
 
-function convertSentinelInText(text) {
+function convertOne(text) {
     const raw = String(text ?? '');
-    const start = raw.indexOf(BEGIN);
-    if (start < 0) return { found: false, text: raw };
-    const end = raw.indexOf(END, start + BEGIN.length);
-    if (end < 0) return { found: false, text: raw };
-    const body = raw.slice(start + BEGIN.length, end).trim();
-    const before = raw.slice(0, start).trimEnd();
-    const after = raw.slice(end + END.length).trim();
-    if (after) return { found: false, text: raw };
-    const tableEdit = `<tableEdit><!--\n${body || 'NO_CHANGE'}\n--></tableEdit>`;
-    return { found: true, text: `${before}\n${tableEdit}`.trim() };
+    const begin = raw.indexOf(BEGIN);
+    if (begin < 0) return { text: raw, found: false };
+    const end = raw.indexOf(END, begin + BEGIN.length);
+    if (end < 0) return { text: raw, found: false };
+    if (raw.indexOf(BEGIN, end + END.length) >= 0) return { text: raw, found: false };
+    const body = raw.slice(begin + BEGIN.length, end).trim();
+    if (!body) return { text: raw, found: false };
+    if (raw.slice(end + END.length).trim()) return { text: raw, found: false };
+    const machine = `<tableEdit><!--\n${body}\n--></tableEdit>`;
+    return { text: `${raw.slice(0, begin).trimEnd()}\n${machine}`.trim(), found: true };
 }
 
-function convertBeforeRecordEngine() {
-    const chat = APP.getContext?.()?.chat;
-    const piece = Array.isArray(chat) ? chat.at(-1) : null;
-    if (!piece || piece.is_user) return;
+function convertLatestResponse() {
+    const chat = USER?.getContext?.()?.chat;
+    if (!Array.isArray(chat) || !chat.length) return;
+    let piece = null;
+    for (let i = chat.length - 1; i >= 0; i--) {
+        if (chat[i]?.is_user === false) { piece = chat[i]; break; }
+    }
+    if (!piece) return;
 
-    const content = convertSentinelInText(piece.mes);
+    const content = convertOne(piece.mes);
     if (content.found) {
         piece.mes = content.text;
-        const id = Number(piece.swipe_id);
-        if (Array.isArray(piece.swipes) && Number.isInteger(id) && id >= 0 && id < piece.swipes.length) piece.swipes[id] = piece.mes;
-        console.log('[Memo-N] 已在GENERATION_ENDED前将正文纯文本哨兵转换为内部tableEdit');
+        const swipeId = Number(piece.swipe_id);
+        if (Array.isArray(piece.swipes) && Number.isInteger(swipeId) && swipeId >= 0 && swipeId < piece.swipes.length) piece.swipes[swipeId] = piece.mes;
+        console.log('[Memo-N] 正文哨兵已转换为内部tableEdit');
         return;
     }
 
-    const id = Number(piece.swipe_id);
-    const info = Number.isInteger(id) && id >= 0 ? piece?.swipe_info?.[id] : null;
-    const reasoning = String(info?.extra?.reasoning || piece?.extra?.reasoning || '');
-    const converted = convertSentinelInText(reasoning);
-    if (converted.found) {
-        if (info?.extra) info.extra.reasoning = converted.text;
-        else {
-            if (!piece.extra || typeof piece.extra !== 'object') piece.extra = {};
-            piece.extra.reasoning = converted.text;
+    const swipeId = Number(piece.swipe_id);
+    if (Number.isInteger(swipeId) && swipeId >= 0 && piece?.swipe_info?.[swipeId]?.extra) {
+        const converted = convertOne(piece.swipe_info[swipeId].extra.reasoning);
+        if (converted.found) {
+            piece.swipe_info[swipeId].extra.reasoning = converted.text;
+            console.log('[Memo-N] reasoning哨兵已转换为内部tableEdit');
+            return;
         }
-        console.log('[Memo-N] 已在GENERATION_ENDED前将reasoning纯文本哨兵转换为内部tableEdit');
+    }
+    if (piece?.extra) {
+        const converted = convertOne(piece.extra.reasoning);
+        if (converted.found) {
+            piece.extra.reasoning = converted.text;
+            console.log('[Memo-N] reasoning哨兵已转换为内部tableEdit');
+        }
     }
 }
 
 const requestEvent = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
-APP.eventSource.on(requestEvent, rewritePrompt);
-APP.eventSource.makeLast?.(requestEvent, rewritePrompt);
+APP.eventSource.on(requestEvent, rewriteRequest);
+APP.eventSource.makeLast?.(requestEvent, rewriteRequest);
 
-const endedEvent = APP.event_types.GENERATION_ENDED;
-APP.eventSource.on(endedEvent, convertBeforeRecordEngine);
-APP.eventSource.makeFirst?.(endedEvent, convertBeforeRecordEngine);
+const endEvent = APP.event_types.GENERATION_ENDED;
+APP.eventSource.on(endEvent, convertLatestResponse);
+APP.eventSource.makeFirst?.(endEvent, convertLatestResponse);
 
-console.log('[Memo-N] 中转站纯文本哨兵桥已加载：规避预设Regex清理XML标签；不改user消息');
+console.log('[Memo-N] 中转站纯文本哨兵桥已加载：最终请求统一去XML，生成结束前转换回内部tableEdit');
