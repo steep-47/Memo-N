@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon35';
+const RUNTIME_VERSION = 'memon36';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 世界七表稳定主链冻结；伊依长期记忆使用独立全局库 + 当前聊天事务账本。
-// 伊依关系不是好感度：由真实共同经历形成预期、信任依据、相处方式、主动程度与舒适/谨慎边界。
+// 世界七表稳定主链冻结。
+// 伊依插件层只负责：长期存储、召回排序、写回与分支事务；人格/文风/表达方式留给预设。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -32,6 +32,7 @@ const modules = [
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
     ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
+    ['伊依独立召回引擎', './scripts/yiyi/yiyiRecallEngine.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
@@ -43,4 +44,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon35 伊依关系连续性版加载完成；世界记录主链未改动');
+console.log('[Memo-N][loader] memon36 伊依记忆召回分层版加载完成；人格规则不再写进插件运行时');
