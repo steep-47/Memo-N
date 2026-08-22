@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon22';
+const RUNTIME_VERSION = 'memon23';
 
 async function loadOptional(label, path) {
     try {
@@ -16,9 +16,9 @@ async function loadOptional(label, path) {
 }
 
 // 原生直连继续使用严格JSON信封。
-// custom或reverse proxy中转站：完整正文结束后追加tableEdit，不改写最后user消息。
-// 关键修复：recordEngine不再在CHARACTER_MESSAGE_RENDERED时提前解析，统一等待GENERATION_ENDED后再读取完整正文/reasoning并执行记录。
-// streamStateGuard继续保留SillyTavern原始stream_openai状态，避免生成结束状态被Memo-N污染。
+// custom/reverse proxy中转站改用纯文本哨兵块，规避预设/角色Regex清理XML标签导致tableEdit消失。
+// 哨兵块在GENERATION_ENDED最前置阶段转换成内部tableEdit，再交给现有严格执行器；不改user消息、不关闭Regex。
+// streamStateGuard继续保留SillyTavern原始stream_openai状态。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -27,6 +27,7 @@ const modules = [
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['流式状态保护', './scripts/runtime/streamStateGuard.js'],
     ['中转站提示协调', './scripts/runtime/relayPromptCoordinator.js'],
+    ['中转站纯文本哨兵桥', './scripts/runtime/relaySentinelBridge.js'],
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -40,4 +41,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon22 生成结束后记录版运行时加载完成');
+console.log('[Memo-N][loader] memon23 中转站纯文本哨兵版运行时加载完成');
