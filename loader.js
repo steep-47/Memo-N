@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon47';
+const RUNTIME_VERSION = 'memon48';
 
 async function loadOptional(label, path) {
     try {
@@ -19,7 +19,7 @@ async function loadOptional(label, path) {
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
 // Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
-// relayDebugLogger仅用于开发排错，不进入生产加载链，避免开局/刷新时弹出DBG诊断Toast。
+// relayDebugLogger仅用于开发排错，不进入生产加载链；原生DeepSeek source优先于残留custom_url/reverse_proxy。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -48,4 +48,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon47 生产清理版加载完成；DBG诊断Toast不再加载，世界记录主链未改动');
+console.log('[Memo-N][loader] memon48 DeepSeek路由修正版加载完成；原生DeepSeek不再误入relay，DBG Toast不加载');
