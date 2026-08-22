@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon33';
+const RUNTIME_VERSION = 'memon34';
 
 async function loadOptional(label, path) {
     try {
@@ -16,7 +16,7 @@ async function loadOptional(label, path) {
 }
 
 // 世界七表稳定主链冻结；伊依长期记忆使用独立全局库 + 当前聊天事务账本。
-// Swipe、删Swipe、删消息、编辑消息、Regenerate只撤销对应聊天分支造成的伊依记忆差异。
+// 伊依情绪是连续状态而非性格标签：强度、走势、原因和余波进入同一正文请求，不增加API调用。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -43,4 +43,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon33 伊依分支删除/编辑事务版加载完成；世界记录主链未改动');
+console.log('[Memo-N][loader] memon34 伊依情绪连续性版加载完成；世界记录主链未改动');
