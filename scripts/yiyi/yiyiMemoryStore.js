@@ -1,13 +1,16 @@
 import { USER } from '../../core/manager.js';
 
 const STORE_KEY = 'memo_n_yiyi_memory_v1';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const IMPORTANCE_RANK = Object.freeze({ core: 3, high: 2, normal: 1 });
+const EMOTION_TRAJECTORIES = Object.freeze(['rising', 'steady', 'easing']);
 
 function nowIso() { return new Date().toISOString(); }
 function clone(value) { try { return structuredClone(value); } catch (_) { return JSON.parse(JSON.stringify(value)); } }
 function text(value) { return String(value ?? '').trim(); }
 function importance(value) { return ['core', 'high', 'normal'].includes(value) ? value : 'normal'; }
+function emotionIntensity(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(3, Math.round(n))) : 0; }
+function emotionTrajectory(value) { return EMOTION_TRAJECTORIES.includes(value) ? value : 'steady'; }
 function makeId() { return `yiyi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
 
 export function createEmptyYiYiVault() {
@@ -16,7 +19,7 @@ export function createEmptyYiYiVault() {
         schemaVersion: SCHEMA_VERSION,
         identity: { name: '伊依', createdAt: now },
         relationship: { stage: '初识', summary: '', sharedUnderstanding: '', boundaries: '', unresolved: '' },
-        emotion: { current: '平静', cause: '', residue: '', updatedAt: now },
+        emotion: { current: '平静', cause: '', residue: '', intensity: 0, trajectory: 'steady', updatedAt: now },
         self: { understanding: '', changes: '' },
         memories: [],
         meta: { updatedAt: now, revision: 0 },
@@ -53,6 +56,7 @@ export function normalizeYiYiVault(input) {
         },
         emotion: {
             current: text(emotion.current) || '平静', cause: text(emotion.cause), residue: text(emotion.residue),
+            intensity: emotionIntensity(emotion.intensity), trajectory: emotionTrajectory(emotion.trajectory),
             updatedAt: text(emotion.updatedAt) || base.emotion.updatedAt,
         },
         self: { understanding: text(self.understanding), changes: text(self.changes) },
@@ -163,6 +167,22 @@ export function selectYiYiMemories(vault, { query = '', maxMemories = 16, maxCha
     return selected;
 }
 
+function elapsedLabel(iso) {
+    const then = Date.parse(iso); if (!Number.isFinite(then)) return '未知';
+    const ms = Math.max(0, Date.now() - then);
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 2) return '刚刚';
+    if (minutes < 60) return `约${minutes}分钟`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `约${hours}小时`;
+    const days = Math.floor(hours / 24);
+    return `约${days}天`;
+}
+
+function trajectoryLabel(value) {
+    return value === 'rising' ? '正在增强' : value === 'easing' ? '正在缓和' : '相对稳定';
+}
+
 export function buildYiYiMemoryContext({ query = '', maxMemories = 16, maxChars = 650 } = {}) {
     const vault = getYiYiVault();
     const selected = selectYiYiMemories(vault, { query, maxMemories, maxChars });
@@ -174,12 +194,13 @@ export function buildYiYiMemoryContext({ query = '', maxMemories = 16, maxChars 
         vault.relationship.sharedUnderstanding ? `已有默契：${vault.relationship.sharedUnderstanding}` : '',
         vault.relationship.boundaries ? `边界与敏感点：${vault.relationship.boundaries}` : '',
         vault.relationship.unresolved ? `尚未解决：${vault.relationship.unresolved}` : '',
-        `当前情绪：${vault.emotion.current || '平静'}`,
+        `当前情绪：${vault.emotion.current || '平静'}｜强度 ${vault.emotion.intensity}/3｜${trajectoryLabel(vault.emotion.trajectory)}｜距上次情绪变化 ${elapsedLabel(vault.emotion.updatedAt)}`,
         vault.emotion.cause ? `情绪原因：${vault.emotion.cause}` : '',
-        vault.emotion.residue ? `未消退的情绪：${vault.emotion.residue}` : '',
+        vault.emotion.residue ? `情绪余波：${vault.emotion.residue}` : '',
         vault.self.understanding ? `伊依对自己的理解：${vault.self.understanding}` : '',
         vault.self.changes ? `伊依意识到自己的变化：${vault.self.changes}` : '',
         lines.length ? `本轮检索到的相关共同记忆：\n${lines.join('\n')}` : '本轮没有检索到需要额外带入的共同记忆。',
+        '情绪连续性：当前情绪是状态而不是固定性格。不要因为开始了新一轮回复就瞬间恢复平静，也不要机械维持同一种情绪。强度越高、原因越未解决，惯性通常越明显；新的互动可以让它增强、转向或缓和。现实经过时间只是一项参考，不自动清零情绪。即时情绪缓和后，真正仍在意的部分可进入“情绪余波”，再逐渐淡化或沉淀为关系理解/共同记忆。不要为了表现情绪而固定使用某种口癖、动作或模板。',
         '使用规则：这些内容只影响伊依自己的理解、情绪、分寸和说话方式；不得改变剧情世界事实、NPC认知、人物好感、背包、能力或历史。不要机械复述字段，也不要把后台记忆说给NPC听。玩家当前明确说明 > 较新纠正 > 有效长期记忆 > 较旧聊天 > 伊依推测。',
     ].filter(Boolean).join('\n');
 }
@@ -192,6 +213,21 @@ function patchTextObject(target, patch, allowed) {
         const next = text(patch[key]);
         if (target[key] !== next) { target[key] = next; changed = true; }
     }
+    return changed;
+}
+
+function patchEmotion(target, patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return false;
+    let changed = patchTextObject(target, patch, ['current', 'cause', 'residue']);
+    if ('intensity' in patch) {
+        const next = emotionIntensity(patch.intensity);
+        if (target.intensity !== next) { target.intensity = next; changed = true; }
+    }
+    if ('trajectory' in patch) {
+        const next = emotionTrajectory(patch.trajectory);
+        if (target.trajectory !== next) { target.trajectory = next; changed = true; }
+    }
+    if (changed) target.updatedAt = nowIso();
     return changed;
 }
 
@@ -221,8 +257,7 @@ export function applyYiYiMemoryDelta(delta) {
     }
 
     changed = patchTextObject(vault.relationship, delta.relationship, ['stage', 'summary', 'sharedUnderstanding', 'boundaries', 'unresolved']) || changed;
-    const emotionChanged = patchTextObject(vault.emotion, delta.emotion, ['current', 'cause', 'residue']);
-    if (emotionChanged) { vault.emotion.updatedAt = nowIso(); changed = true; }
+    changed = patchEmotion(vault.emotion, delta.emotion) || changed;
     changed = patchTextObject(vault.self, delta.self, ['understanding', 'changes']) || changed;
 
     return { changed, vault: changed ? saveYiYiVault(vault) : vault };
@@ -235,4 +270,4 @@ export const YiYiMemoryStore = Object.freeze({
 });
 
 globalThis.MemoNYiYiMemory = YiYiMemoryStore;
-console.log('[Memo-N][伊依] 独立长期记忆库已加载：相关性检索 + 安全增量写入，不随聊天/七表重置');
+console.log('[Memo-N][伊依] 独立长期记忆库v2已加载：情绪强度/走势/余波与时间连续性，不随聊天或七表重置');
