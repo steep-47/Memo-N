@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon34';
+const RUNTIME_VERSION = 'memon35';
 
 async function loadOptional(label, path) {
     try {
@@ -16,7 +16,7 @@ async function loadOptional(label, path) {
 }
 
 // 世界七表稳定主链冻结；伊依长期记忆使用独立全局库 + 当前聊天事务账本。
-// 伊依情绪是连续状态而非性格标签：强度、走势、原因和余波进入同一正文请求，不增加API调用。
+// 伊依关系不是好感度：由真实共同经历形成预期、信任依据、相处方式、主动程度与舒适/谨慎边界。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -43,4 +43,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon34 伊依情绪连续性版加载完成；世界记录主链未改动');
+console.log('[Memo-N][loader] memon35 伊依关系连续性版加载完成；世界记录主链未改动');
