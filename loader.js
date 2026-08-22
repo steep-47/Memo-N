@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon45';
+const RUNTIME_VERSION = 'memon46';
 
 async function loadOptional(label, path) {
     try {
@@ -18,7 +18,7 @@ async function loadOptional(label, path) {
 // 世界七表稳定主链冻结。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
-// 输出结构验收只检查预设明确要求的行动选项；缺失时提示，不补写、不重试、不影响表格事务。
+// Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -31,7 +31,6 @@ const modules = [
     ['非CUSTOM中转哨兵桥', './scripts/runtime/relaySentinelBridge.js'],
     ['CUSTOM中转结构化输出', './scripts/runtime/customStructuredOutputBridge.js'],
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
-    ['输出结构验收', './scripts/runtime/outputStructureGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
     ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
@@ -49,4 +48,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon45 输出结构验收版加载完成；记录成功与正文结构完整性分开判断');
+console.log('[Memo-N][loader] memon46 记录职责收敛版加载完成；已移除正文结构验收，世界记录主链未改动');
