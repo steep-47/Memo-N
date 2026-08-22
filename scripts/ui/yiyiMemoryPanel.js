@@ -54,6 +54,19 @@ function field(labelText, value, key, multiline = true) {
     return label;
 }
 
+function selectField(labelText, value, key, options) {
+    const label = el('label');
+    label.appendChild(el('span', {}, labelText));
+    const select = el('select', { 'data-yiyi-field': key });
+    for (const [optionValue, optionLabel] of options) {
+        const option = el('option', { value: String(optionValue) }, optionLabel);
+        if (String(value) === String(optionValue)) option.selected = true;
+        select.appendChild(option);
+    }
+    label.appendChild(select);
+    return label;
+}
+
 function memoryRow(item = {}) {
     const tr = el('tr');
     tr.dataset.id = item.id || '';
@@ -108,6 +121,8 @@ function readPanel(shell, original) {
             current: get('emotion.current') || '平静',
             cause: get('emotion.cause'),
             residue: get('emotion.residue'),
+            intensity: Number(get('emotion.intensity') || 0),
+            trajectory: get('emotion.trajectory') || 'steady',
             updatedAt: new Date().toISOString(),
         },
         self: { understanding: get('self.understanding'), changes: get('self.changes') },
@@ -162,12 +177,14 @@ function openPanel() {
     grid.append(
         field('关系阶段', vault.relationship.stage, 'relationship.stage', false),
         field('当前情绪', vault.emotion.current, 'emotion.current', false),
+        selectField('情绪强度', vault.emotion.intensity, 'emotion.intensity', [[0,'0 · 平稳/几乎没有'],[1,'1 · 轻微'],[2,'2 · 明显'],[3,'3 · 强烈']]),
+        selectField('情绪走势', vault.emotion.trajectory, 'emotion.trajectory', [['rising','正在增强'],['steady','相对稳定'],['easing','正在缓和']]),
         field('她现在怎样理解你们的关系', vault.relationship.summary, 'relationship.summary'),
         field('已经形成的默契', vault.relationship.sharedUnderstanding, 'relationship.sharedUnderstanding'),
         field('边界、敏感点与不喜欢的事', vault.relationship.boundaries, 'relationship.boundaries'),
         field('尚未解决的事', vault.relationship.unresolved, 'relationship.unresolved'),
         field('这份情绪为什么存在', vault.emotion.cause, 'emotion.cause'),
-        field('还没有完全消退的情绪', vault.emotion.residue, 'emotion.residue'),
+        field('情绪余波（已经不占主导，但还在意）', vault.emotion.residue, 'emotion.residue'),
         field('伊依现在怎样理解自己', vault.self.understanding, 'self.understanding'),
         field('她意识到自己发生过什么变化', vault.self.changes, 'self.changes'),
     );
@@ -223,4 +240,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 15000);
 }
 
-console.log('[Memo-N][伊依] 长期记忆库UI已加载');
+console.log('[Memo-N][伊依] 长期记忆库UI已加载：可查看/编辑当前情绪、强度、走势与余波');
