@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon31';
+const RUNTIME_VERSION = 'memon32';
 
 async function loadOptional(label, path) {
     try {
@@ -15,11 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 稳定记录主链冻结：
-// 1) DeepSeek直连沿用独立tableEdit链。
-// 2) CUSTOM中转站沿用memon26/29稳定JSON Schema链（changes优先、reply随后）。
-// 3) 非CUSTOM relay沿用tableEdit/sentinel兜底。
-// 伊依长期记忆库独立全局存储；读取与增量写回复用同一次正文请求，不写入聊天七表，也不增加API调用。
+// 稳定记录主链冻结：DeepSeek/CUSTOM/relay世界七表协议不改。
+// 伊依长期记忆独立全局存储；同一正文请求完成相关记忆读取与增量写回；Swipe只切换伊依自己的事务差异。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -34,11 +31,9 @@ const modules = [
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
-
     ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
-
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
@@ -48,4 +43,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon31 伊依自动长期记忆版加载完成；稳定世界记录主链未改动');
+console.log('[Memo-N][loader] memon32 伊依Swipe事务版加载完成；稳定世界记录主链未改动');
