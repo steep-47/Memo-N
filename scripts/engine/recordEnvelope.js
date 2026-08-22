@@ -6,12 +6,46 @@ function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
 }
 
+function normalizeCellsContainer(value, label, allowEmpty) {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') throw new Error(`${label}.cells必须是数组`);
+
+    const keys = Object.keys(value);
+    if (!keys.length) {
+        if (allowEmpty) return [];
+        throw new Error(`${label}.cells不能为空`);
+    }
+
+    // Safe compatibility #1: a relay/model emitted one cell object instead of [cell].
+    // No value or column is inferred; this only restores the missing array wrapper.
+    if (keys.every(key => ['column', 'value'].includes(key)) && keys.includes('column') && keys.includes('value')) {
+        return [value];
+    }
+
+    // Safe compatibility #2: a relay/model emitted the canonical column map
+    // {"0":"x","2":7} instead of [{column:0,value:"x"},{column:2,value:7}].
+    // Every key must itself be an exact non-negative integer column index and every
+    // value must already be an allowed scalar. Otherwise the structure is rejected.
+    const mapped = [];
+    for (const key of keys) {
+        if (!/^(0|[1-9]\d*)$/.test(key)) throw new Error(`${label}.cells必须是数组`);
+        const column = Number(key);
+        if (!isIndex(column)) throw new Error(`${label}.cells列号必须是非负安全整数`);
+        const cellValue = value[key];
+        if (typeof cellValue !== 'string' && (typeof cellValue !== 'number' || !Number.isFinite(cellValue))) {
+            throw new Error(`${label}.cells[${key}]值必须是字符串或有限数字`);
+        }
+        mapped.push({ column, value: cellValue });
+    }
+    return mapped;
+}
+
 function normalizeCells(value, label, allowEmpty = false) {
-    if (!Array.isArray(value)) throw new Error(`${label}.cells必须是数组`);
-    if (!allowEmpty && !value.length) throw new Error(`${label}.cells不能为空`);
+    const cells = normalizeCellsContainer(value, label, allowEmpty);
+    if (!allowEmpty && !cells.length) throw new Error(`${label}.cells不能为空`);
     const result = {};
-    for (let index = 0; index < value.length; index++) {
-        const cell = value[index];
+    for (let index = 0; index < cells.length; index++) {
+        const cell = cells[index];
         if (!cell || typeof cell !== 'object' || Array.isArray(cell)) throw new Error(`${label}.cells[${index}]必须是对象`);
         if (Object.keys(cell).some(key => !['column', 'value'].includes(key))) throw new Error(`${label}.cells[${index}]包含未知字段`);
         if (!isIndex(cell.column)) throw new Error(`${label}.cells[${index}].column必须是非负安全整数`);
@@ -37,8 +71,9 @@ function normalizeChange(change, index) {
     }
     if (!isIndex(change.row)) throw new Error(`${label}.row必须是真实存在的非负安全整数`);
     if (change.op === 'delete') {
-        normalizeCells(change.cells, label, true);
-        if (change.cells.length) throw new Error(`${label}删除操作cells必须为空数组`);
+        const normalized = normalizeCellsContainer(change.cells, label, true);
+        normalizeCells(normalized, label, true);
+        if (normalized.length) throw new Error(`${label}删除操作cells必须为空数组`);
         return { op: 'delete', table: change.table, row: change.row };
     }
     return { op: 'update', table: change.table, row: change.row, data: normalizeCells(change.cells, label) };
