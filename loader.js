@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon15';
+const RUNTIME_VERSION = 'memon16';
 
 async function loadOptional(label, path) {
     try {
@@ -15,9 +15,9 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon15缓存实例。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon16缓存实例。
 // 原生直连：继续使用严格JSON信封。
-// custom或reverse proxy中转站：统一要求先输出tableEdit、再输出正文；渲染时先归一为现有事务引擎可解析的尾部tableEdit格式。
+// custom或reverse proxy中转站：先输出tableEdit再输出正文；完全相同的重复tableEdit安全去重，内容不同仍拒绝执行。
 // relayDebugLogger仅在中转站每轮回复后显示短诊断码Toast，不打印API Key或完整聊天正文。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -40,4 +40,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon15 中转站前置tableEdit协议运行时加载完成');
+console.log('[Memo-N][loader] memon16 前置tableEdit重复保护运行时加载完成');
