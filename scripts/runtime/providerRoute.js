@@ -16,11 +16,22 @@ function customUrlOf(data) {
 }
 
 function modelOf(data) {
-    return String(data?.model ?? oai_settings?.custom_model ?? oai_settings?.openai_model ?? '').trim().toLowerCase();
+    return String(
+        data?.model
+        ?? oai_settings?.deepseek_model
+        ?? oai_settings?.custom_model
+        ?? oai_settings?.openai_model
+        ?? ''
+    ).trim().toLowerCase();
 }
 
 export function isDirectDeepSeek(data) {
-    if (sourceOf(data) !== 'custom') return false;
+    const source = sourceOf(data);
+    // SillyTavern 原生 DeepSeek provider 的 source 就是 "deepseek"。
+    // 一旦 source 明确为 deepseek，必须优先判定为直连 DeepSeek，忽略此前 CUSTOM/relay 遗留的 custom_url 或 reverse_proxy。
+    if (source === 'deepseek') return true;
+    if (source !== 'custom') return false;
+
     const url = customUrlOf(data).toLowerCase();
     const hostLike = url.replace(/^https?:\/\//, '');
     return /(^|\.)deepseek\.com(?:\/|$)/.test(hostLike)
@@ -29,6 +40,7 @@ export function isDirectDeepSeek(data) {
 }
 
 export function getProviderRoute(data) {
+    // Provider source takes precedence over stale connection-specific fields.
     if (isDirectDeepSeek(data)) return ROUTE.DEEPSEEK;
 
     const source = sourceOf(data);
