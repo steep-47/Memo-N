@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon27';
+const RUNTIME_VERSION = 'memon28';
 
 async function loadOptional(label, path) {
     try {
@@ -15,20 +15,21 @@ async function loadOptional(label, path) {
     }
 }
 
-// memon26稳定记录主链冻结：CUSTOM中转站继续使用原生json_schema，changes优先于reply。
-// DeepSeek直连（api.deepseek.com）单独走官方response_format=json_object，避免CUSTOM json_schema被翻译成DeepSeek不支持的type=json_schema导致400。
-// 非CUSTOM reverse proxy继续使用纯文本哨兵兜底；不增加API次数，不改user消息，不改stream_openai。
+// 两条主路彻底分开：
+// 1) DeepSeek直连（api.deepseek.com）沿用原先稳定的一次API tableEdit记录链，不进入后来新增的CUSTOM中转站JSON Schema逻辑。
+// 2) 其他CUSTOM中转站沿用memon26稳定链：原生json_schema，changes先于reply；尾部截断时优先保全changes。
+// 非CUSTOM reverse proxy继续使用纯文本哨兵兜底。三条协议只共享最终严格表格执行器。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
+    ['Provider路由', './scripts/runtime/providerRoute.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['流式状态保护', './scripts/runtime/streamStateGuard.js'],
-    ['中转站提示协调', './scripts/runtime/relayPromptCoordinator.js'],
+    ['非CUSTOM中转提示协调', './scripts/runtime/relayPromptCoordinator.js'],
     ['非CUSTOM中转哨兵桥', './scripts/runtime/relaySentinelBridge.js'],
-    ['CUSTOM原生结构化输出', './scripts/runtime/customStructuredOutputBridge.js'],
-    ['DeepSeek兼容层', './scripts/runtime/deepseekCompatibility.js'],
+    ['CUSTOM中转结构化输出', './scripts/runtime/customStructuredOutputBridge.js'],
     ['中转站调试日志', './scripts/runtime/relayDebugLogger.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -42,4 +43,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon27 DeepSeek兼容版运行时加载完成');
+console.log('[Memo-N][loader] memon28 双路隔离版运行时加载完成');
