@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon37';
+const RUNTIME_VERSION = 'memon38';
 
 async function loadOptional(label, path) {
     try {
@@ -17,7 +17,7 @@ async function loadOptional(label, path) {
 
 // 世界七表稳定主链冻结。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
-// 容量策略只限制每轮召回，不按年代或条目数量自动删除长期记忆。
+// 容量策略只限制每轮召回，不按年代或条目数量自动删除长期记忆；伊依记忆只在当前角色确认为“伊依”时启用。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -46,4 +46,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon37 伊依记忆维护版加载完成；世界记录主链未改动');
+console.log('[Memo-N][loader] memon38 伊依记忆维护/角色隔离版加载完成；世界记录主链未改动');
