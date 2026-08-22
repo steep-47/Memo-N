@@ -111,10 +111,6 @@ export async function initAppHeaderTableDrawer() {
     // 数据控制区默认折叠；需要时点击右上角箭头展开。
     setControlsCollapsed(true);
 
-    $('#tableUpdateTag').click(function() {
-        $('#extensions_details').trigger('click');
-    });
-
     databaseButton.on('click', function() {
         if (updateButtonStates(databaseButton)) switchContent(databaseContentDiv);
     });
