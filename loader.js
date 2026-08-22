@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon11';
+const RUNTIME_VERSION = 'memon12';
 
 async function loadOptional(label, path) {
     try {
@@ -15,9 +15,9 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon11缓存实例。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon12缓存实例。
 // 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：协调原始dataTable提示后使用tableEdit，并读取正文/reasoning，再进入同一严格事务执行器。
-// relayDebugLogger仅打印Memo相关最终请求摘要，不打印API Key或完整聊天正文，用于定位中转站偶发漏出tableEdit。
+// relayDebugLogger在手机端显示Memo相关最终请求摘要与本轮是否产出tableEdit，不打印API Key或完整聊天正文。
 // 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -39,4 +39,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon11 中转站诊断版运行时加载完成');
+console.log('[Memo-N][loader] memon12 手机中转站诊断版运行时加载完成');
