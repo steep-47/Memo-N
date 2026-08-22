@@ -2,6 +2,7 @@ import { EDITOR } from '../../core/manager.js';
 import { getYiYiVault, saveYiYiVault, replaceYiYiVault, clearYiYiVault, exportYiYiVaultText } from '../yiyi/yiyiMemoryStore.js';
 
 const BUTTON_ID = 'memo-n-yiyi-memory-button';
+const WRAPPER_ID = 'memo-n-yiyi-memory-entry';
 const MODAL_ID = 'memo-n-yiyi-memory-modal';
 const STYLE_ID = 'memo-n-yiyi-memory-style';
 
@@ -20,27 +21,37 @@ function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
     const style = el('style', { id: STYLE_ID });
     style.textContent = `
-#${BUTTON_ID}{margin:8px 0;width:100%;justify-content:center;gap:8px}
-#${MODAL_ID}{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}
-#${MODAL_ID} .yiyi-shell{width:min(1120px,96vw);max-height:92vh;overflow:auto;background:var(--SmartThemeBlurTintColor,#202126);color:var(--SmartThemeBodyColor,#eee);border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:18px}
+#${WRAPPER_ID}{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;clear:both!important;margin:8px 0!important;padding:0!important;writing-mode:horizontal-tb!important}
+#${BUTTON_ID}{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:42px!important;margin:0!important;padding:8px 12px!important;box-sizing:border-box!important;white-space:normal!important;word-break:keep-all!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;line-height:1.35!important}
+#${MODAL_ID}{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+#${MODAL_ID} .yiyi-shell{display:block;width:min(1120px,96vw);min-width:0;max-width:96vw;max-height:92vh;overflow:auto;box-sizing:border-box;background:var(--SmartThemeBlurTintColor,#202126);color:var(--SmartThemeBodyColor,#eee);border:1px solid rgba(255,255,255,.14);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:18px;writing-mode:horizontal-tb!important}
 #${MODAL_ID} .yiyi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
-#${MODAL_ID} h2{margin:0;font-size:1.25rem} #${MODAL_ID} .yiyi-sub{opacity:.68;font-size:.82rem;margin-top:4px}
-#${MODAL_ID} .yiyi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
-#${MODAL_ID} label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;opacity:.92}
-#${MODAL_ID} input,#${MODAL_ID} textarea,#${MODAL_ID} select{width:100%;box-sizing:border-box;background:rgba(0,0,0,.16);color:inherit;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px}
+#${MODAL_ID} .yiyi-head>div{min-width:0;flex:1 1 auto}
+#${MODAL_ID} h2{margin:0;font-size:1.25rem;white-space:normal;word-break:break-word} #${MODAL_ID} .yiyi-sub{opacity:.68;font-size:.82rem;margin-top:4px;white-space:normal;word-break:break-word}
+#${MODAL_ID} .yiyi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0;min-width:0}
+#${MODAL_ID} label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;opacity:.92;min-width:0;writing-mode:horizontal-tb!important}
+#${MODAL_ID} label>span{display:block;white-space:normal;word-break:break-word;writing-mode:horizontal-tb!important}
+#${MODAL_ID} input,#${MODAL_ID} textarea,#${MODAL_ID} select{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;background:rgba(0,0,0,.16);color:inherit;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;writing-mode:horizontal-tb!important}
 #${MODAL_ID} textarea{min-height:68px;resize:vertical}
-#${MODAL_ID} .yiyi-section{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
-#${MODAL_ID} .yiyi-section-title{font-weight:700;margin-bottom:8px}
-#${MODAL_ID} .yiyi-note{opacity:.62;font-size:.78rem;margin:-2px 0 10px}
-#${MODAL_ID} .yiyi-table-wrap{overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:12px}
+#${MODAL_ID} .yiyi-section{display:block;width:100%;min-width:0;box-sizing:border-box;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
+#${MODAL_ID} .yiyi-section-title{font-weight:700;margin-bottom:8px;white-space:normal;word-break:break-word}
+#${MODAL_ID} .yiyi-note{opacity:.62;font-size:.78rem;margin:-2px 0 10px;white-space:normal;word-break:break-word}
+#${MODAL_ID} .yiyi-table-wrap{width:100%;max-width:100%;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:12px;box-sizing:border-box}
 #${MODAL_ID} table{width:100%;min-width:880px;border-collapse:collapse;font-size:.82rem}
-#${MODAL_ID} th,#${MODAL_ID} td{padding:8px;border-bottom:1px solid rgba(255,255,255,.09);vertical-align:top;text-align:left}
+#${MODAL_ID} th,#${MODAL_ID} td{padding:8px;border-bottom:1px solid rgba(255,255,255,.09);vertical-align:top;text-align:left;writing-mode:horizontal-tb!important}
 #${MODAL_ID} th{position:sticky;top:0;background:var(--SmartThemeBlurTintColor,#202126);z-index:1}
 #${MODAL_ID} td textarea{min-height:64px}
 #${MODAL_ID} .yiyi-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-#${MODAL_ID} button{min-height:36px}
+#${MODAL_ID} button{min-height:36px;writing-mode:horizontal-tb!important}
 #${MODAL_ID} .yiyi-danger{margin-left:auto}
-@media(max-width:720px){#${MODAL_ID}{padding:7px}#${MODAL_ID} .yiyi-shell{width:100%;max-height:96vh;border-radius:13px;padding:12px}#${MODAL_ID} .yiyi-grid{grid-template-columns:1fr}#${MODAL_ID} .yiyi-danger{margin-left:0}}
+@media(max-width:720px){
+#${MODAL_ID}{padding:7px;align-items:stretch}
+#${MODAL_ID} .yiyi-shell{width:100%;max-width:100%;max-height:calc(100vh - 14px);border-radius:13px;padding:12px}
+#${MODAL_ID} .yiyi-grid{grid-template-columns:minmax(0,1fr)}
+#${MODAL_ID} .yiyi-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+#${MODAL_ID} .yiyi-actions button{width:100%;min-width:0;margin:0}
+#${MODAL_ID} .yiyi-danger{grid-column:1/-1;margin-left:0}
+}
 `;
     document.head.appendChild(style);
 }
@@ -246,10 +257,18 @@ function createButton() {
 }
 
 function mount() {
-    if (document.getElementById(BUTTON_ID)) return true;
+    if (document.getElementById(WRAPPER_ID) || document.getElementById(BUTTON_ID)) return true;
+    ensureStyle();
     const anchor = document.getElementById('memory-independent-record-api') || document.getElementById('fill_table_time');
     if (!anchor?.parentElement) return false;
-    anchor.parentElement.insertBefore(createButton(), anchor.nextSibling);
+
+    // 不再把按钮塞进checkbox/label所在的窄flex行。以该行的父级为宿主，插入一个独立100%宽度的设置行。
+    const anchorRow = anchor.parentElement;
+    const parent = anchorRow.parentElement;
+    if (!parent) return false;
+    const wrapper = el('div', { id: WRAPPER_ID });
+    wrapper.appendChild(createButton());
+    parent.insertBefore(wrapper, anchorRow.nextSibling);
     return true;
 }
 
@@ -259,4 +278,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 15000);
 }
 
-console.log('[Memo-N][伊依] 长期记忆库UI已加载：关系结构、情绪连续性和共同经历均可查看/编辑');
+console.log('[Memo-N][伊依] 长期记忆库UI已加载：移动端独立全宽入口 + 响应式记忆面板');
