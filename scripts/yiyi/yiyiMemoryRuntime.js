@@ -1,7 +1,7 @@
 import { APP, USER } from '../../core/manager.js';
 import { applyYiYiMemoryDelta, buildYiYiMemoryContext, getYiYiVault, saveYiYiVault } from './yiyiMemoryStore.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v3]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v4]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
@@ -10,7 +10,7 @@ const handled = new WeakMap();
 const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
 const SECTIONS = Object.freeze({
     relationship: ['stage', 'summary', 'sharedUnderstanding', 'boundaries', 'unresolved'],
-    emotion: ['current', 'cause', 'residue'],
+    emotion: ['current', 'cause', 'residue', 'intensity', 'trajectory'],
     self: ['understanding', 'changes'],
 });
 
@@ -25,7 +25,7 @@ function recentQuery(messages) { return (Array.isArray(messages) ? messages.slic
 function hasYiYi(messages) { return Array.isArray(messages) && messages.some(message => { const content = contentOf(message); return !content.includes(PROMPT_MARKER) && content.includes('伊依'); }); }
 function isRecordOnly(messages) { const joined = Array.isArray(messages) ? messages.map(contentOf).join('\n') : ''; return RECORD_ONLY_MARKERS.some(marker => joined.includes(marker)); }
 function contract(context) {
-    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆增量]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n只记录会影响以后相处的长期信息：重要称呼/玩笑/默契、明确偏好或反感、边界、持续看法、未消退情绪及原因、共同经历、错误与纠正、未完话题/约定、关系阶段变化、自我理解变化。普通闲聊、一次性动作、短暂情绪不形成长期记忆。不得记录剧情NPC可知内容、世界事实、人物好感、背包、能力或历史事件。不得把推测写成事实。没有长期变化时保持空数组和空对象。add每轮最多2条，importance只能是normal/high/core；相同事情不要重复add。update只更新上方已提供的#记忆ID，不自动删除旧记忆；纠正、失效或解决通过currentView等字段更新。relationship可用stage/summary/sharedUnderstanding/boundaries/unresolved；emotion可用current/cause/residue；self可用understanding/changes。只填写真正变化的字段。JSON必须合法，不输出额外字段。`;
+    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆增量]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n只记录会影响以后相处的长期信息：重要称呼/玩笑/默契、明确偏好或反感、边界、持续看法、未消退情绪及原因、共同经历、错误与纠正、未完话题/约定、关系阶段变化、自我理解变化。普通闲聊、一次性动作不形成长期记忆。不得记录剧情NPC可知内容、世界事实、人物好感、背包、能力或历史事件。不得把推测写成事实。没有长期变化时add/update/relationship/self保持空。add每轮最多2条，importance只能是normal/high/core；相同事情不要重复add。update只更新上方已提供的#记忆ID，不自动删除旧记忆；纠正、失效或解决通过currentView等字段更新。relationship可用stage/summary/sharedUnderstanding/boundaries/unresolved；self可用understanding/changes。\n情绪必须单独判断，不等于长期记忆。emotion可用current/cause/residue/intensity/trajectory；intensity只能是0/1/2/3，trajectory只能是rising/steady/easing。每轮都判断情绪是否真的发生变化：没有变化则emotion={}；有变化只填变化字段。不要因为换了一轮回复就突然归零，也不要为了“连续”而永远保持同一情绪。强烈且原因未解决的情绪通常有惯性；互动可以增强、转向或缓和。trajectory=easing时，后续互动中应在合理时机降低intensity，并把仍在意但已不再占据当前状态的部分转入residue；真正淡去后可以清空residue。反复出现或长期未解决、已经改变关系理解的东西，才考虑沉淀到relationship或共同记忆。禁止用固定口癖、固定动作、固定撒娇/生气模板来证明情绪存在，情绪应通过当下语境自然影响措辞、主动性、距离感、耐心、回避或关注点。\nJSON必须合法，不输出额外字段。`;
 }
 function inject(data) {
     if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || isRecordOnly(data.messages) || !hasYiYi(data.messages)) return;
@@ -45,7 +45,7 @@ function parseBlock(raw) {
 function txFrom(before, after) {
     const fields = [];
     for (const [section, keys] of Object.entries(SECTIONS)) for (const key of keys) {
-        if (before?.[section]?.[key] !== after?.[section]?.[key]) fields.push({ section, key, before: before?.[section]?.[key] ?? '', after: after?.[section]?.[key] ?? '' });
+        if (!same(before?.[section]?.[key], after?.[section]?.[key])) fields.push({ section, key, before: clone(before?.[section]?.[key] ?? ''), after: clone(after?.[section]?.[key] ?? '') });
     }
     const a = new Map((before?.memories || []).map(item => [item.id, item]));
     const b = new Map((after?.memories || []).map(item => [item.id, item]));
@@ -58,12 +58,15 @@ function txFrom(before, after) {
 }
 function applyTx(tx, direction) {
     if (!tx || tx.version !== 1) return false;
-    const vault = getYiYiVault(); let changed = false;
+    const vault = getYiYiVault(); let changed = false, emotionChanged = false;
     const fromKey = direction === 'forward' ? 'before' : 'after';
     const toKey = direction === 'forward' ? 'after' : 'before';
     for (const field of tx.fields || []) {
         const target = vault?.[field.section]; if (!target || !(field.key in target)) continue;
-        if (target[field.key] === field[fromKey] && target[field.key] !== field[toKey]) { target[field.key] = field[toKey]; changed = true; }
+        if (same(target[field.key], field[fromKey]) && !same(target[field.key], field[toKey])) {
+            target[field.key] = clone(field[toKey]); changed = true;
+            if (field.section === 'emotion') emotionChanged = true;
+        }
     }
     for (const change of tx.memories || []) {
         const index = vault.memories.findIndex(item => item.id === change.id);
@@ -74,6 +77,7 @@ function applyTx(tx, direction) {
         else if (next !== null && index < 0) { vault.memories.push(clone(next)); changed = true; }
         else if (next !== null && index >= 0 && !same(current, next)) { vault.memories[index] = clone(next); changed = true; }
     }
+    if (emotionChanged) vault.emotion.updatedAt = new Date().toISOString();
     if (changed) saveYiYiVault(vault);
     return changed;
 }
@@ -95,7 +99,6 @@ function setTx(messageId, swipeId, tx) {
     item.swipes[String(Number(swipeId))] = tx;
     item.activeSwipe = Number(swipeId);
 }
-function saveLedgerSoon() { try { USER.saveChat?.(); } catch (_) {} }
 function rollbackEntry(messageId) {
     const item = entry(messageId, false); if (!item) return false;
     const active = Number(item.activeSwipe);
@@ -144,7 +147,6 @@ async function handleMessageEdited(messageId) {
     const id = Number(messageId); if (!Number.isInteger(id) || id < 0) return;
     const chat = USER?.getContext?.()?.chat;
     const edited = Array.isArray(chat) ? chat[id] : null;
-    // 编辑玩家消息会使后续回复失去原因基础；编辑伊依/助手消息则连该消息自身记忆一起失效。
     deleteEntriesFrom(edited?.is_user === true ? id + 1 : id);
     try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] 编辑消息后的事务账本保存失败', error); }
 }
@@ -179,4 +181,4 @@ function onGenerationEnded() {
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, onGenerationEnded); APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 
 globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe, handleSwipeDeleted, handleMessageDeleted, handleMessageEdited });
-console.log('[Memo-N][伊依] 自动记忆v3已加载：聊天级事务账本覆盖Swipe、删除Swipe、删除消息、编辑消息与Regenerate；CAS回滚不覆盖其他聊天后来形成的记忆');
+console.log('[Memo-N][伊依] 自动记忆v4已加载：情绪强度与走势进入同一请求，按语境自然延续/缓和；事务回滚同步覆盖情绪字段');
