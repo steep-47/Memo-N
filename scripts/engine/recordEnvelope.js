@@ -6,6 +6,28 @@ function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
 }
 
+function normalizeCellValue(value, label) {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+
+    // Safe scalar compatibility only changes representation, never column or meaning.
+    // Explicit null is treated as an empty cell; booleans become literal text.
+    if (value === null) return '';
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+
+    // Some OpenAI-compatible relays/models occasionally wrap a textual cell value in
+    // an array/object despite the JSON Schema. A compact JSON string preserves the
+    // supplied value losslessly without guessing which nested field was "intended".
+    if (Array.isArray(value) || (value && typeof value === 'object')) {
+        try {
+            const serialized = JSON.stringify(value);
+            if (typeof serialized === 'string') return serialized;
+        } catch (_) {}
+    }
+
+    throw new Error(`${label}值必须是字符串、有限数字或可安全转成文本的JSON值`);
+}
+
 function normalizeCellsContainer(value, label, allowEmpty) {
     if (Array.isArray(value)) return value;
     if (!value || typeof value !== 'object') throw new Error(`${label}.cells必须是数组`);
@@ -24,18 +46,14 @@ function normalizeCellsContainer(value, label, allowEmpty) {
 
     // Safe compatibility #2: a relay/model emitted the canonical column map
     // {"0":"x","2":7} instead of [{column:0,value:"x"},{column:2,value:7}].
-    // Every key must itself be an exact non-negative integer column index and every
-    // value must already be an allowed scalar. Otherwise the structure is rejected.
+    // Every key must itself be an exact non-negative integer column index. Values are
+    // normalized with the same lossless scalar policy used for ordinary cell arrays.
     const mapped = [];
     for (const key of keys) {
         if (!/^(0|[1-9]\d*)$/.test(key)) throw new Error(`${label}.cells必须是数组`);
         const column = Number(key);
         if (!isIndex(column)) throw new Error(`${label}.cells列号必须是非负安全整数`);
-        const cellValue = value[key];
-        if (typeof cellValue !== 'string' && (typeof cellValue !== 'number' || !Number.isFinite(cellValue))) {
-            throw new Error(`${label}.cells[${key}]值必须是字符串或有限数字`);
-        }
-        mapped.push({ column, value: cellValue });
+        mapped.push({ column, value: normalizeCellValue(value[key], `${label}.cells[${key}]`) });
     }
     return mapped;
 }
@@ -50,10 +68,7 @@ function normalizeCells(value, label, allowEmpty = false) {
         if (Object.keys(cell).some(key => !['column', 'value'].includes(key))) throw new Error(`${label}.cells[${index}]包含未知字段`);
         if (!isIndex(cell.column)) throw new Error(`${label}.cells[${index}].column必须是非负安全整数`);
         if (String(cell.column) in result) throw new Error(`${label}.cells重复列${cell.column}`);
-        if (typeof cell.value !== 'string' && (typeof cell.value !== 'number' || !Number.isFinite(cell.value))) {
-            throw new Error(`${label}.cells[${index}].value必须是字符串或有限数字`);
-        }
-        result[cell.column] = cell.value;
+        result[cell.column] = normalizeCellValue(cell.value, `${label}.cells[${index}].value`);
     }
     return result;
 }
@@ -181,4 +196,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings };
+export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue };
