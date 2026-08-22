@@ -1,6 +1,6 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { oai_settings } from '/scripts/openai.js';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
+import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';
 import { buildPresetCharacterRule } from './recordPolicy.js';
 import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope } from './recordEnvelope.js';
 
@@ -75,30 +75,36 @@ const schema = {
         }, required: ['reply', 'changes'],
     },
 };
-function relayRequestInfo(data) {
-    const source = String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
-    const customUrl = String(data?.custom_url ?? oai_settings?.custom_url ?? '').trim();
-    const reverseProxy = String(data?.reverse_proxy ?? oai_settings?.reverse_proxy ?? '').trim();
-    const relay = source === 'custom' || Boolean(customUrl) || Boolean(reverseProxy);
-    return { relay, source, customUrl: Boolean(customUrl), reverseProxy: Boolean(reverseProxy) };
-}
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
     const context = USER.getContext?.();
     const base = lastAssistant();
-    const endpoint = relayRequestInfo(data);
-    pending = { at: Date.now(), type: armed.type, session: context?.chat, base, baseMes: String(base?.mes ?? ''), responseMode: endpoint.relay ? 'relay_tableedit' : 'json' };
+    const route = getProviderRoute(data);
+    const tableEditMode = route === ROUTE.DEEPSEEK || route === ROUTE.RELAY;
+    const info = providerDebug(data);
+
+    pending = {
+        at: Date.now(),
+        type: armed.type,
+        session: context?.chat,
+        base,
+        baseMes: String(base?.mes ?? ''),
+        responseMode: tableEditMode ? 'relay_tableedit' : 'json',
+        route,
+    };
     armed = null;
+
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        data.messages.push({ role: 'system', content: endpoint.relay ? relayContract() : finalContract() });
+        data.messages.push({ role: 'system', content: tableEditMode ? relayContract() : finalContract() });
     }
-    if (endpoint.relay) {
+
+    if (tableEditMode) {
         delete data.json_schema;
-        console.log(`[Memo-N] 已接管本轮一次API：中转站tableEdit兼容协议｜source=${endpoint.source || 'unknown'}｜customUrl=${endpoint.customUrl}｜reverseProxy=${endpoint.reverseProxy}`);
+        console.log(`[Memo-N] 已接管本轮一次API：tableEdit记录协议｜route=${route}｜source=${info.source || 'unknown'}`);
     } else {
         data.json_schema = structuredClone(schema);
-        console.log(`[Memo-N] 已接管本轮一次API：json_schema变更信封｜source=${endpoint.source || 'unknown'}`);
+        console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}｜source=${info.source || 'unknown'}`);
     }
 }
 function syncSwipe(chat) {
@@ -298,4 +304,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：等待GENERATION_ENDED后再解析记录，避免流式正文提前判O0');
+console.log('[Memo-N] 一次API记录引擎已加载：统一Provider路由；CUSTOM走JSON，DeepSeek/RELAY走tableEdit，等待GENERATION_ENDED后解析');
