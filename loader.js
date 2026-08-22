@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon48';
+const RUNTIME_VERSION = 'memon49';
 
 async function loadOptional(label, path) {
     try {
@@ -48,4 +48,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon48 DeepSeek路由修正版加载完成；原生DeepSeek不再误入relay，DBG Toast不加载');
+console.log('[Memo-N][loader] memon49 伊依记忆UI布局修正版加载完成；入口上移、关闭按钮保持横向');
