@@ -1,4 +1,6 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
+const RELAY_TAG_START = '<!--MEMO_N_CHANGES_V1';
+const RELAY_TAG_END = 'MEMO_N_CHANGES_END-->';
 
 function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
@@ -109,6 +111,32 @@ export function parseRecordEnvelope(raw) {
     }
 }
 
+export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
+    const text = String(raw ?? '');
+    const start = text.indexOf(RELAY_TAG_START);
+    if (start < 0) return { ok: false, error: '未找到中转站记录块', reply: String(fallbackReply || text).trim() };
+    const end = text.indexOf(RELAY_TAG_END, start + RELAY_TAG_START.length);
+    if (end < 0) {
+        const reply = text.slice(0, start).trim() || String(fallbackReply || '').trim();
+        return { ok: false, error: '中转站记录块尚未闭合', reply };
+    }
+    if (text.indexOf(RELAY_TAG_START, start + RELAY_TAG_START.length) >= 0) {
+        const reply = text.slice(0, start).trim() || String(fallbackReply || '').trim();
+        return { ok: false, error: '中转站记录块重复', reply };
+    }
+    const after = text.slice(end + RELAY_TAG_END.length).trim();
+    const reply = text.slice(0, start).trim() || String(fallbackReply || '').trim();
+    if (after) return { ok: false, error: '中转站记录块后存在额外内容', reply };
+    const payload = text.slice(start + RELAY_TAG_START.length, end).trim();
+    let changes;
+    try {
+        changes = JSON.parse(payload);
+    } catch (error) {
+        return { ok: false, error: `中转站记录块不是合法JSON数组：${error.message}`, reply };
+    }
+    return parseRecordEnvelope({ reply, changes });
+}
+
 export function changesToStrictCalls(changes) {
     if (!Array.isArray(changes) || !changes.length) return ['NO_CHANGE'];
     return changes.map(change => {
@@ -118,4 +146,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES, escapeControlCharsInsideJsonStrings };
+export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings };
