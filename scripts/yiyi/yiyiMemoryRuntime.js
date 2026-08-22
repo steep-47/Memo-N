@@ -5,6 +5,7 @@ const PROMPT_MARKER = '[Memo-N YiYi memory runtime v1]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const handled = new WeakMap();
+const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
 
 function contentOf(message) {
     if (typeof message?.content === 'string') return message.content;
@@ -18,11 +19,15 @@ function hasYiYi(messages) {
         return !content.includes(PROMPT_MARKER) && content.includes('伊依');
     });
 }
+function isRecordOnly(messages) {
+    const joined = Array.isArray(messages) ? messages.map(contentOf).join('\n') : '';
+    return RECORD_ONLY_MARKERS.some(marker => joined.includes(marker));
+}
 function contract(context) {
     return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆增量]\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮还有Memo-N的<tableEdit>，本块放在<tableEdit>之前；如果最终响应是Memo-N JSON信封，本块放在reply字符串末尾。\n只记录会影响以后相处的长期信息：重要称呼/玩笑/默契、明确偏好或反感、边界、持续看法、未消退情绪及原因、共同经历、错误与纠正、未完话题/约定、关系阶段变化、自我理解变化。普通闲聊、一次性动作、短暂情绪不形成长期记忆。不得记录剧情NPC可知内容、世界事实、人物好感、背包、能力或历史事件。不得把推测写成事实。没有长期变化时保持空数组和空对象。add每轮最多2条，importance只能是normal/high/core；相同事情不要重复add。update只更新上方已提供的#记忆ID，不自动删除旧记忆；纠正、失效或解决通过currentView等字段更新。relationship可用stage/summary/sharedUnderstanding/boundaries/unresolved；emotion可用current/cause/residue；self可用understanding/changes。只填写真正变化的字段。JSON必须合法，不输出额外字段。`;
 }
 function inject(data) {
-    if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !hasYiYi(data.messages)) return;
+    if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || isRecordOnly(data.messages) || !hasYiYi(data.messages)) return;
     data.messages = data.messages.filter(message => !contentOf(message).includes(PROMPT_MARKER));
     const query = recentQuery(data.messages);
     data.messages.push({ role: 'system', content: contract(buildYiYiMemoryContext({ query, maxMemories: 16, maxChars: 650 })) });
@@ -44,7 +49,6 @@ async function processChat(chatId) {
     if (!chat || chat.is_user === true) return;
     const token = `${Number(chat.swipe_id ?? 0)}\u241f${String(chat.mes ?? '')}`;
     if (handled.get(chat) === token) return;
-
     const persistence = chat.__memoStrictPersistence;
     if (persistence && typeof persistence.then === 'function') { try { await persistence; } catch (_) {} }
 
@@ -81,4 +85,4 @@ APP.eventSource.on(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 
 globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat });
-console.log('[Memo-N][伊依] 自动读取/写回已加载：相关记忆进入同一主请求，不增加API调用；只在生成结束后处理');
+console.log('[Memo-N][伊依] 自动读取/写回已加载：相关记忆进入同一主请求，不增加API调用；记录/整理专用请求自动绕过');
