@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon13';
+const RUNTIME_VERSION = 'memon14';
 
 async function loadOptional(label, path) {
     try {
@@ -15,8 +15,8 @@ async function loadOptional(label, path) {
     }
 }
 
-// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon13缓存实例。
-// 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：协调原始dataTable提示后使用tableEdit，并读取正文/reasoning，再进入同一严格事务执行器。
+// 核心Memo(index.js)先加载；Memo-N运行链统一使用memon14缓存实例。
+// 原生直连：同一次回复返回严格JSON信封；custom或reverse proxy中转站：协调原始dataTable提示后使用tableEdit，并在最后user消息再次强化收尾要求。
 // relayDebugLogger仅在中转站每轮回复后显示短诊断码Toast，不打印API Key或完整聊天正文。
 // 独立记录API仍是可选兼容模式；默认关闭，不参与Memo-N的一次API主链。
 const modules = [
@@ -39,4 +39,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon13 手机短诊断码运行时加载完成');
+console.log('[Memo-N][loader] memon14 中转站末尾user强化诊断版运行时加载完成');
