@@ -1,11 +1,11 @@
 import { APP, USER } from '../../core/manager.js';
 import { applyYiYiMemoryDelta, buildYiYiMemoryContext, getYiYiVault, saveYiYiVault } from './yiyiMemoryStore.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v2]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v3]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
-const ACTIVE_KEY = 'memo_n_yiyi_active_swipe_id';
+const LEDGER_KEY = 'memo_n_yiyi_tx_ledger_v1';
 const handled = new WeakMap();
 const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
 const SECTIONS = Object.freeze({
@@ -34,9 +34,11 @@ function inject(data) {
     data.messages.push({ role: 'system', content: contract(buildYiYiMemoryContext({ query, maxMemories: 16, maxChars: 650 })) });
 }
 function parseBlock(raw) {
-    const source = String(raw ?? ''); const start = source.lastIndexOf(START); if (start < 0) return null;
+    const source = String(raw ?? '');
+    const start = source.lastIndexOf(START); if (start < 0) return null;
     const end = source.indexOf(END, start + START.length); if (end < 0) return null;
-    const payload = source.slice(start + START.length, end).trim(); const tail = source.slice(end + END.length).trimStart();
+    const payload = source.slice(start + START.length, end).trim();
+    const tail = source.slice(end + END.length).trimStart();
     const cleaned = `${source.slice(0, start).trimEnd()}${tail ? `\n${tail}` : ''}`.trim();
     try { return { delta: JSON.parse(payload), cleaned }; } catch (error) { return { error, cleaned }; }
 }
@@ -54,25 +56,18 @@ function txFrom(before, after) {
     }
     return { version: 1, at: Date.now(), fields, memories };
 }
-function swipeExtra(chat, swipeId, create = false) {
-    if (!Array.isArray(chat?.swipe_info) || !Number.isInteger(swipeId) || swipeId < 0) return null;
-    if (!chat.swipe_info[swipeId] && create) chat.swipe_info[swipeId] = {};
-    const info = chat.swipe_info[swipeId]; if (!info) return null;
-    if ((!info.extra || typeof info.extra !== 'object') && create) info.extra = {};
-    return info.extra || null;
-}
-function getTx(chat, swipeId) { return swipeExtra(chat, swipeId, false)?.[TX_KEY] || null; }
-function setTx(chat, swipeId, tx) { const extra = swipeExtra(chat, swipeId, true); if (extra) extra[TX_KEY] = tx; }
 function applyTx(tx, direction) {
     if (!tx || tx.version !== 1) return false;
     const vault = getYiYiVault(); let changed = false;
-    const fromKey = direction === 'forward' ? 'before' : 'after'; const toKey = direction === 'forward' ? 'after' : 'before';
+    const fromKey = direction === 'forward' ? 'before' : 'after';
+    const toKey = direction === 'forward' ? 'after' : 'before';
     for (const field of tx.fields || []) {
         const target = vault?.[field.section]; if (!target || !(field.key in target)) continue;
         if (target[field.key] === field[fromKey] && target[field.key] !== field[toKey]) { target[field.key] = field[toKey]; changed = true; }
     }
     for (const change of tx.memories || []) {
-        const index = vault.memories.findIndex(item => item.id === change.id); const current = index >= 0 ? vault.memories[index] : null;
+        const index = vault.memories.findIndex(item => item.id === change.id);
+        const current = index >= 0 ? vault.memories[index] : null;
         if (!same(current, change[fromKey])) continue;
         const next = change[toKey];
         if (next === null && index >= 0) { vault.memories.splice(index, 1); changed = true; }
@@ -82,15 +77,76 @@ function applyTx(tx, direction) {
     if (changed) saveYiYiVault(vault);
     return changed;
 }
+function ledger(create = true) {
+    const meta = USER?.getContext?.()?.chatMetadata;
+    if (!meta) return null;
+    if ((!meta[LEDGER_KEY] || typeof meta[LEDGER_KEY] !== 'object') && create) meta[LEDGER_KEY] = { version: 1, messages: {} };
+    return meta[LEDGER_KEY] || null;
+}
+function entry(messageId, create = true) {
+    const book = ledger(create); if (!book) return null;
+    const key = String(Number(messageId));
+    if ((!book.messages[key] || typeof book.messages[key] !== 'object') && create) book.messages[key] = { activeSwipe: null, swipes: {} };
+    return book.messages[key] || null;
+}
+function getTx(messageId, swipeId) { return entry(messageId, false)?.swipes?.[String(Number(swipeId))] || null; }
+function setTx(messageId, swipeId, tx) {
+    const item = entry(messageId, true); if (!item) return;
+    item.swipes[String(Number(swipeId))] = tx;
+    item.activeSwipe = Number(swipeId);
+}
+function saveLedgerSoon() { try { USER.saveChat?.(); } catch (_) {} }
+function rollbackEntry(messageId) {
+    const item = entry(messageId, false); if (!item) return false;
+    const active = Number(item.activeSwipe);
+    const changed = Number.isInteger(active) && active >= 0 ? applyTx(item.swipes?.[String(active)], 'backward') : false;
+    item.activeSwipe = null;
+    return changed;
+}
+function deleteEntriesFrom(startId) {
+    const book = ledger(false); if (!book?.messages) return;
+    const ids = Object.keys(book.messages).map(Number).filter(id => Number.isInteger(id) && id >= Number(startId)).sort((a, b) => b - a);
+    for (const id of ids) { rollbackEntry(id); delete book.messages[String(id)]; }
+}
 async function switchSwipe(chatId) {
     const chat = USER?.getContext?.()?.chat?.[Number(chatId)]; if (!chat || chat.is_user === true) return;
     const target = Number(chat.swipe_id); if (!Number.isInteger(target) || target < 0) return;
-    const active = Number(chat[ACTIVE_KEY]);
-    if (Number.isInteger(active) && active >= 0 && active !== target) applyTx(getTx(chat, active), 'backward');
-    if (active !== target) applyTx(getTx(chat, target), 'forward');
-    chat[ACTIVE_KEY] = target;
+    const item = entry(chatId, true); const active = Number(item?.activeSwipe);
+    if (Number.isInteger(active) && active >= 0 && active !== target) applyTx(item.swipes?.[String(active)], 'backward');
+    if (active !== target) applyTx(item.swipes?.[String(target)], 'forward');
+    if (item) item.activeSwipe = target;
     try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] Swipe事务状态保存失败', error); }
-    console.log(`[Memo-N][伊依] Swipe事务切换：message=${chatId} ${Number.isInteger(active) ? active : '?'} -> ${target}`);
+}
+async function handleSwipeDeleted(payload) {
+    const messageId = Number(payload?.messageId), deleted = Number(payload?.swipeId), newSwipeId = Number(payload?.newSwipeId);
+    if (!Number.isInteger(messageId) || !Number.isInteger(deleted)) return;
+    const item = entry(messageId, false); if (!item) return;
+    const active = Number(item.activeSwipe);
+    if (active === deleted) applyTx(item.swipes?.[String(deleted)], 'backward');
+    const shifted = {};
+    for (const [key, tx] of Object.entries(item.swipes || {})) {
+        const id = Number(key); if (!Number.isInteger(id) || id === deleted) continue;
+        shifted[String(id > deleted ? id - 1 : id)] = tx;
+    }
+    item.swipes = shifted;
+    if (active === deleted) {
+        item.activeSwipe = null;
+        if (Number.isInteger(newSwipeId) && newSwipeId >= 0) { applyTx(shifted[String(newSwipeId)], 'forward'); item.activeSwipe = newSwipeId; }
+    } else if (Number.isInteger(active) && active > deleted) item.activeSwipe = active - 1;
+    try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] Swipe删除事务保存失败', error); }
+}
+async function handleMessageDeleted(newLength) {
+    const start = Number(newLength); if (!Number.isInteger(start) || start < 0) return;
+    deleteEntriesFrom(start);
+    try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] 删除消息后的事务账本保存失败', error); }
+}
+async function handleMessageEdited(messageId) {
+    const id = Number(messageId); if (!Number.isInteger(id) || id < 0) return;
+    const chat = USER?.getContext?.()?.chat;
+    const edited = Array.isArray(chat) ? chat[id] : null;
+    // 编辑玩家消息会使后续回复失去原因基础；编辑伊依/助手消息则连该消息自身记忆一起失效。
+    deleteEntriesFrom(edited?.is_user === true ? id + 1 : id);
+    try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] 编辑消息后的事务账本保存失败', error); }
 }
 async function processChat(chatId) {
     const chat = USER?.getContext?.()?.chat?.[Number(chatId)]; if (!chat || chat.is_user === true) return;
@@ -103,8 +159,7 @@ async function processChat(chatId) {
     if (!parsed.error) {
         try {
             const before = getYiYiVault(); const result = applyYiYiMemoryDelta(parsed.delta); const after = result.vault;
-            if (result.changed) setTx(chat, swipeId, txFrom(before, after)); else setTx(chat, swipeId, { version: 1, at: Date.now(), fields: [], memories: [] });
-            chat[ACTIVE_KEY] = swipeId;
+            setTx(chatId, swipeId, result.changed ? txFrom(before, after) : { version: 1, at: Date.now(), fields: [], memories: [] });
         } catch (error) { console.error('[Memo-N][伊依] 长期记忆写入失败', error); }
     } else console.warn('[Memo-N][伊依] 记忆增量JSON解析失败', parsed.error);
     try { await USER.saveChat?.(); } catch (error) { console.warn('[Memo-N][伊依] 聊天保存失败', error); }
@@ -113,13 +168,15 @@ async function processChat(chatId) {
 
 const settingsEvent = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
 APP.eventSource.on(settingsEvent, inject); APP.eventSource.makeFirst?.(settingsEvent, inject);
-const swipeEvent = APP.event_types.MESSAGE_SWIPED;
-if (swipeEvent) { APP.eventSource.on(swipeEvent, switchSwipe); APP.eventSource.makeFirst?.(swipeEvent, switchSwipe); }
+if (APP.event_types.MESSAGE_SWIPED) { APP.eventSource.on(APP.event_types.MESSAGE_SWIPED, switchSwipe); APP.eventSource.makeFirst?.(APP.event_types.MESSAGE_SWIPED, switchSwipe); }
+if (APP.event_types.MESSAGE_SWIPE_DELETED) APP.eventSource.on(APP.event_types.MESSAGE_SWIPE_DELETED, handleSwipeDeleted);
+if (APP.event_types.MESSAGE_DELETED) APP.eventSource.on(APP.event_types.MESSAGE_DELETED, handleMessageDeleted);
+if (APP.event_types.MESSAGE_EDITED) APP.eventSource.on(APP.event_types.MESSAGE_EDITED, handleMessageEdited);
 function onGenerationEnded() {
     const chat = USER?.getContext?.()?.chat; if (!Array.isArray(chat)) return;
     for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) { queueMicrotask(() => void processChat(i)); break; }
 }
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, onGenerationEnded); APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, onGenerationEnded);
 
-globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe });
-console.log('[Memo-N][伊依] 自动记忆v2已加载：Swipe/Regenerate使用逐字段CAS事务回滚，不覆盖其他聊天后来形成的记忆');
+globalThis.MemoNYiYiRuntime = Object.freeze({ inject, processChat, switchSwipe, handleSwipeDeleted, handleMessageDeleted, handleMessageEdited });
+console.log('[Memo-N][伊依] 自动记忆v3已加载：聊天级事务账本覆盖Swipe、删除Swipe、删除消息、编辑消息与Regenerate；CAS回滚不覆盖其他聊天后来形成的记忆');
