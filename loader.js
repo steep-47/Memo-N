@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon43';
+const RUNTIME_VERSION = 'memon44';
 
 async function loadOptional(label, path) {
     try {
@@ -17,7 +17,7 @@ async function loadOptional(label, path) {
 
 // 世界七表稳定主链冻结。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
-// CUSTOM/中转信封兼容层现在只对cell value做无歧义文本化：null->空串、boolean->文本、数组/对象->紧凑JSON字符串。
+// CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -47,4 +47,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon43 cell value安全归一版加载完成；世界记录事务与伊依记忆架构未改动');
+console.log('[Memo-N][loader] memon44 外层JSON安全恢复版加载完成；只修无歧义标点损坏，不放宽表格事务');
