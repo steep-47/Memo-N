@@ -9,45 +9,26 @@ function isIndex(value) {
 function normalizeCellValue(value, label) {
     if (typeof value === 'string') return value;
     if (typeof value === 'number' && Number.isFinite(value)) return value;
-
-    // Safe scalar compatibility only changes representation, never column or meaning.
-    // Explicit null is treated as an empty cell; booleans become literal text.
     if (value === null) return '';
     if (typeof value === 'boolean') return value ? 'true' : 'false';
-
-    // Some OpenAI-compatible relays/models occasionally wrap a textual cell value in
-    // an array/object despite the JSON Schema. A compact JSON string preserves the
-    // supplied value losslessly without guessing which nested field was "intended".
     if (Array.isArray(value) || (value && typeof value === 'object')) {
         try {
             const serialized = JSON.stringify(value);
             if (typeof serialized === 'string') return serialized;
         } catch (_) {}
     }
-
     throw new Error(`${label}值必须是字符串、有限数字或可安全转成文本的JSON值`);
 }
 
 function normalizeCellsContainer(value, label, allowEmpty) {
     if (Array.isArray(value)) return value;
     if (!value || typeof value !== 'object') throw new Error(`${label}.cells必须是数组`);
-
     const keys = Object.keys(value);
     if (!keys.length) {
         if (allowEmpty) return [];
         throw new Error(`${label}.cells不能为空`);
     }
-
-    // Safe compatibility #1: a relay/model emitted one cell object instead of [cell].
-    // No value or column is inferred; this only restores the missing array wrapper.
-    if (keys.every(key => ['column', 'value'].includes(key)) && keys.includes('column') && keys.includes('value')) {
-        return [value];
-    }
-
-    // Safe compatibility #2: a relay/model emitted the canonical column map
-    // {"0":"x","2":7} instead of [{column:0,value:"x"},{column:2,value:7}].
-    // Every key must itself be an exact non-negative integer column index. Values are
-    // normalized with the same lossless scalar policy used for ordinary cell arrays.
+    if (keys.every(key => ['column', 'value'].includes(key)) && keys.includes('column') && keys.includes('value')) return [value];
     const mapped = [];
     for (const key of keys) {
         if (!/^(0|[1-9]\d*)$/.test(key)) throw new Error(`${label}.cells必须是数组`);
@@ -94,9 +75,6 @@ function normalizeChange(change, index) {
     return { op: 'update', table: change.table, row: change.row, data: normalizeCells(change.cells, label) };
 }
 
-// Some OpenAI-compatible relays leave literal control characters inside JSON
-// strings. JSON has exactly one lossless representation for them: escapes.
-// This changes encoding only; it never repairs structure or table operations.
 function escapeControlCharsInsideJsonStrings(text) {
     let result = '';
     let inString = false;
@@ -107,42 +85,126 @@ function escapeControlCharsInsideJsonStrings(text) {
             if (char === '"') inString = true;
             continue;
         }
-        if (escaped) {
-            result += char;
-            escaped = false;
-            continue;
-        }
-        if (char === '\\') {
-            result += char;
-            escaped = true;
-            continue;
-        }
-        if (char === '"') {
-            result += char;
-            inString = false;
-            continue;
-        }
+        if (escaped) { result += char; escaped = false; continue; }
+        if (char === '\\') { result += char; escaped = true; continue; }
+        if (char === '"') { result += char; inString = false; continue; }
         const code = char.charCodeAt(0);
         if (code < 0x20) {
             const shortEscape = { 8: '\\b', 9: '\\t', 10: '\\n', 12: '\\f', 13: '\\r' }[code];
             result += shortEscape || `\\u${code.toString(16).padStart(4, '0')}`;
-        } else {
-            result += char;
-        }
+        } else result += char;
     }
     return result;
 }
 
+function findJsonKey(text, key) {
+    const needle = `"${key}"`;
+    const hits = [];
+    let from = 0;
+    while (true) {
+        const at = text.indexOf(needle, from);
+        if (at < 0) break;
+        let cursor = at + needle.length;
+        while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
+        if (text[cursor] === ':') hits.push({ keyStart: at, valueStart: cursor + 1 });
+        from = at + needle.length;
+    }
+    return hits;
+}
+
+function scanBalanced(text, start, open, close) {
+    if (text[start] !== open) return null;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === '"') inString = false;
+            continue;
+        }
+        if (ch === '"') { inString = true; continue; }
+        if (ch === open) depth++;
+        else if (ch === close) {
+            depth--;
+            if (depth === 0) return { start, end: i + 1, raw: text.slice(start, i + 1) };
+            if (depth < 0) return null;
+        }
+    }
+    return null;
+}
+
+function scanJsonString(text, start) {
+    if (text[start] !== '"') return null;
+    let escaped = false;
+    for (let i = start + 1; i < text.length; i++) {
+        const ch = text[i];
+        if (escaped) { escaped = false; continue; }
+        if (ch === '\\') { escaped = true; continue; }
+        if (ch === '"') return { start, end: i + 1, raw: text.slice(start, i + 1) };
+        if (ch.charCodeAt(0) < 0x20) return null;
+    }
+    return null;
+}
+
+function recoverCompleteEnvelopeFields(input) {
+    const text = String(input ?? '').trim();
+    const changeHits = findJsonKey(text, 'changes');
+    const replyHits = findJsonKey(text, 'reply');
+    if (changeHits.length !== 1 || replyHits.length !== 1) return null;
+
+    let c = changeHits[0].valueStart;
+    while (c < text.length && /\s/.test(text[c])) c++;
+    const changeToken = scanBalanced(text, c, '[', ']');
+    if (!changeToken) return null;
+
+    let r = replyHits[0].valueStart;
+    while (r < text.length && /\s/.test(text[r])) r++;
+    const replyToken = scanJsonString(text, r);
+    if (!replyToken) return null;
+
+    let changes;
+    let reply;
+    try {
+        changes = JSON.parse(escapeControlCharsInsideJsonStrings(changeToken.raw));
+        reply = JSON.parse(replyToken.raw);
+    } catch (_) { return null; }
+    if (!Array.isArray(changes) || typeof reply !== 'string' || !reply.trim()) return null;
+
+    // Outside the two complete values, only envelope punctuation/whitespace and the
+    // literal key names may remain. This permits a missing comma/brace but refuses
+    // arbitrary extra prose or unknown fields.
+    const spans = [
+        [changeHits[0].keyStart, changeToken.end],
+        [replyHits[0].keyStart, replyToken.end],
+    ].sort((a, b) => b[0] - a[0]);
+    let residue = text;
+    for (const [start, end] of spans) residue = `${residue.slice(0, start)}${residue.slice(end)}`;
+    residue = residue.replace(/[\s{},:]+/g, '');
+    if (residue) return null;
+
+    return { changes, reply, recovered: true };
+}
+
 export function parseRecordEnvelope(raw) {
     let value = raw;
+    let recovered = false;
     if (typeof value === 'string') {
         const text = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
         try {
             value = JSON.parse(text);
         } catch (error) {
             const normalized = escapeControlCharsInsideJsonStrings(text);
-            if (normalized === text) return { ok: false, error: `响应不是合法JSON：${error.message}` };
-            try { value = JSON.parse(normalized); } catch { return { ok: false, error: `响应不是合法JSON：${error.message}` }; }
+            try {
+                value = JSON.parse(normalized);
+            } catch (_) {
+                const rescue = recoverCompleteEnvelopeFields(normalized);
+                if (!rescue) return { ok: false, error: `响应不是合法JSON：${error.message}` };
+                value = { changes: rescue.changes, reply: rescue.reply };
+                recovered = true;
+            }
         }
     }
     try {
@@ -152,11 +214,9 @@ export function parseRecordEnvelope(raw) {
         if (typeof value.reply !== 'string' || !value.reply.trim()) throw new Error('reply必须是非空字符串');
         if (!Array.isArray(value.changes)) throw new Error('changes必须是数组');
         const changes = value.changes.map(normalizeChange);
-        return { ok: true, reply: value.reply.trim(), changes, noChange: changes.length === 0, error: '' };
+        return { ok: true, reply: value.reply.trim(), changes, noChange: changes.length === 0, error: '', recovered };
     } catch (error) {
-        const reply = value && typeof value === 'object' && !Array.isArray(value) && typeof value.reply === 'string' && value.reply.trim()
-            ? value.reply.trim()
-            : '';
+        const reply = value && typeof value === 'object' && !Array.isArray(value) && typeof value.reply === 'string' && value.reply.trim() ? value.reply.trim() : '';
         return { ok: false, error: error?.message || String(error), reply };
     }
 }
@@ -179,11 +239,8 @@ export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
     if (after) return { ok: false, error: '中转站记录块后存在额外内容', reply };
     const payload = text.slice(start + RELAY_TAG_START.length, end).trim();
     let changes;
-    try {
-        changes = JSON.parse(payload);
-    } catch (error) {
-        return { ok: false, error: `中转站记录块不是合法JSON数组：${error.message}`, reply };
-    }
+    try { changes = JSON.parse(payload); }
+    catch (error) { return { ok: false, error: `中转站记录块不是合法JSON数组：${error.message}`, reply }; }
     return parseRecordEnvelope({ reply, changes });
 }
 
@@ -196,4 +253,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue };
+export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields };
