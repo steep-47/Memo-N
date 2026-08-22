@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon42';
+const RUNTIME_VERSION = 'memon43';
 
 async function loadOptional(label, path) {
     try {
@@ -17,7 +17,7 @@ async function loadOptional(label, path) {
 
 // 世界七表稳定主链冻结。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
-// 伊依记忆面板使用原生dialog Top Layer，避免SillyTavern移动端抽屉transform/overflow裁切。
+// CUSTOM/中转信封兼容层现在只对cell value做无歧义文本化：null->空串、boolean->文本、数组/对象->紧凑JSON字符串。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -47,4 +47,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon42 伊依Top Layer弹窗修复版加载完成；世界记录主链与伊依记忆架构未改动');
+console.log('[Memo-N][loader] memon43 cell value安全归一版加载完成；世界记录事务与伊依记忆架构未改动');
