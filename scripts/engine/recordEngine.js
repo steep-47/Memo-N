@@ -1,5 +1,6 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon7';
+import { oai_settings } from '/scripts/openai.js';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon8';
 import { buildPresetCharacterRule } from './recordPolicy.js';
 import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope, RELAY_TAG_START, RELAY_TAG_END } from './recordEnvelope.js';
 
@@ -88,23 +89,30 @@ const schema = {
         }, required: ['reply', 'changes'],
     },
 };
+function relayRequestInfo(data) {
+    const source = String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
+    const customUrl = String(data?.custom_url ?? oai_settings?.custom_url ?? '').trim();
+    const reverseProxy = String(data?.reverse_proxy ?? oai_settings?.reverse_proxy ?? '').trim();
+    const relay = source === 'custom' || Boolean(customUrl) || Boolean(reverseProxy);
+    return { relay, source, customUrl: Boolean(customUrl), reverseProxy: Boolean(reverseProxy) };
+}
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') { restoreStreaming(); return; }
     const context = USER.getContext?.();
     const base = lastAssistant();
-    const custom = String(data.chat_completion_source ?? '').toLowerCase() === 'custom' || Boolean(data.custom_url);
-    pending = { at: Date.now(), type: armed.type, session: context?.chat, base, baseMes: String(base?.mes ?? ''), responseMode: custom ? 'relay_tagged' : 'json' };
+    const endpoint = relayRequestInfo(data);
+    pending = { at: Date.now(), type: armed.type, session: context?.chat, base, baseMes: String(base?.mes ?? ''), responseMode: endpoint.relay ? 'relay_tagged' : 'json' };
     armed = null;
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        data.messages.push({ role: 'system', content: custom ? relayContract() : finalContract() });
+        data.messages.push({ role: 'system', content: endpoint.relay ? relayContract() : finalContract() });
     }
-    if (custom) {
+    if (endpoint.relay) {
         delete data.json_schema;
-        console.log('[Memo-N] 已接管本轮一次API：中转站正文+隐藏changes块兼容协议');
+        console.log(`[Memo-N] 已接管本轮一次API：中转站兼容协议｜source=${endpoint.source || 'unknown'}｜customUrl=${endpoint.customUrl}｜reverseProxy=${endpoint.reverseProxy}`);
     } else {
         data.json_schema = structuredClone(schema);
-        console.log('[Memo-N] 已接管本轮一次API：json_schema变更信封');
+        console.log(`[Memo-N] 已接管本轮一次API：json_schema变更信封｜source=${endpoint.source || 'unknown'}`);
     }
 }
 function syncSwipe(chat) {
@@ -156,7 +164,7 @@ function selectEnvelope(chat, job, appendMode) {
         const taggedReasoning = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
         if (taggedReasoning?.ok) return { current, envelope: taggedReasoning, source: 'relay-reasoning', fingerprint };
 
-        // Some relays unexpectedly honor JSON despite being configured as custom.
+        // Some relays unexpectedly honor JSON despite being configured as a relay.
         // Accept the strict JSON envelope as a secondary path, but never weaken validation.
         const contentEnvelope = content ? parseRecordEnvelope(content) : null;
         if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content-json-fallback', fingerprint };
@@ -261,4 +269,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.makeFirst?.(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 
-console.log('[Memo-N] 一次API记录引擎已加载：原生JSON schema + 中转站隐藏changes块');
+console.log('[Memo-N] 一次API记录引擎已加载：原生JSON schema + custom/reverse-proxy中转站兼容');
