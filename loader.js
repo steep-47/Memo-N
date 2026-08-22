@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon38';
+const RUNTIME_VERSION = 'memon39';
 
 async function loadOptional(label, path) {
     try {
@@ -37,6 +37,7 @@ const modules = [
     ['伊依记忆维护引擎', './scripts/yiyi/yiyiMemoryMaintenance.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
+    ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
@@ -46,4 +47,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon38 伊依记忆维护/角色隔离版加载完成；世界记录主链未改动');
+console.log('[Memo-N][loader] memon39 伊依记忆工程收尾版加载完成；启动自检已启用，世界记录主链未改动');
