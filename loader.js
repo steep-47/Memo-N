@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon28';
+const RUNTIME_VERSION = 'memon29';
 
 async function loadOptional(label, path) {
     try {
@@ -18,6 +18,7 @@ async function loadOptional(label, path) {
 // 两条主路彻底分开：
 // 1) DeepSeek直连（api.deepseek.com）沿用原先稳定的一次API tableEdit记录链，不进入后来新增的CUSTOM中转站JSON Schema逻辑。
 // 2) 其他CUSTOM中转站沿用memon26稳定链：原生json_schema，changes先于reply；尾部截断时优先保全changes。
+// 3) recordEngine统一服从providerRoute：CUSTOM按JSON解析，DeepSeek/非CUSTOM relay按tableEdit解析。
 // 非CUSTOM reverse proxy继续使用纯文本哨兵兜底。三条协议只共享最终严格表格执行器。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -43,4 +44,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon28 双路隔离版运行时加载完成');
+console.log('[Memo-N][loader] memon29 Provider解析路由修正版运行时加载完成');
