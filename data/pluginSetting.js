@@ -1,8 +1,16 @@
-import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../core/manager.js';
-import {switchLanguage} from "../services/translate.js";
+import { EDITOR } from '../core/manager.js';
+import { switchLanguage } from '../services/translate.js';
 
 export async function filterTableDataPopup(originalData, title, warning) {
-    const confirmation = new EDITOR.Popup($('<div></div>').append($(`<span>${title}</span>`)).append('<br>').append($(`<span style="color: rgb(211, 39, 39)">${warning}</span>`)), EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: "继续", cancelButton: "取消" });
+    const confirmation = new EDITOR.Popup(
+        $('<div></div>')
+            .append($(`<span>${title}</span>`))
+            .append('<br>')
+            .append($(`<span style="color: rgb(211, 39, 39)">${warning}</span>`)),
+        EDITOR.POPUP_TYPE.CONFIRM,
+        '',
+        { okButton: '继续', cancelButton: '取消' },
+    );
     await confirmation.show();
     return { filterData: confirmation.result ? originalData : null, confirmation: !!confirmation.result };
 }
@@ -28,6 +36,7 @@ deleteRow(tableIndex:number,rowIndex:number)
 - updateRow只能使用当前表中真实存在的rowIndex；行不存在时不得把update当成insert，真正新增必须明确使用insertRow。
 - 表格内容第一列才是可用的rowIndex。看到“（此表格当前为空）”时，该表没有任何可更新/删除的行，禁止updateRow/deleteRow；首次记录必须使用insertRow。绝不能把表号、列号或预计新增后的行号当作rowIndex。
 - 同一对象已有记录时优先update，禁止因再次提及而重复insert。名称或称呼略有变化但上下文明显是同一对象时仍视为同一条记录。
+- NPC不区分“世界书人物”和“自动生成角色”的记录策略。只要是值得长期追踪的NPC，就按同一套人物主表/人物发展表规则维护；已有事实不重复抄写，只有首次确认或实际变化才写入。
 - 不猜测未知；未知信息留空。
 # NPC长期发展锚点
 - Memo不模拟NPC离线生活，只保存未来可重新推演的最后有效锚点；不得为了NPC成长额外编造事实或生成离线流水账。
@@ -48,8 +57,6 @@ deleteRow(tableIndex:number,rowIndex:number)
 - Memo-N会在最终请求阶段提供唯一JSON变更信封。按该信封同时返回完整正常正文reply与本轮事实变化changes。
 - changes只能使用结构化insert/update/delete对象，禁止函数文本、SQL、tableEdit和解释。
 - 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时changes为空数组。`,
-    preset_character_policy: 'changes_only',
-    pinned_character_names: [],
     isTableToChat: false,
     show_settings_in_extension_menu: true,
     alternate_switch: true,
