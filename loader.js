@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon56';
+const RUNTIME_VERSION = 'memon57';
 
 async function loadOptional(label, path) {
     try {
@@ -19,9 +19,9 @@ async function loadOptional(label, path) {
 // 所有NPC统一按已确认事实维护，不区分世界书来源或剧情自动生成来源。
 // 修炼记录保存角色自身种族/血脉、修炼体系/路径与原生修为文本，不换算成人族境界。
 // 伊依属于独立后台陪伴者，永远不进入世界七表；若模型误写，由世界表守卫清理。
+// 伊依长期记忆是全局独立库：直接伊依角色卡由原运行时维护；世界角色卡+伊依预设由预设桥维护，共用同一存储。
 // DeepSeek直连使用独立JSON Output适配器；中转站继续使用既有tableEdit稳定协议，互不串线。
 // JSON记录解析只容错响应外层包装、控制字符和无歧义外层标点；reply/changes结构仍严格校验，不猜业务内容。
-// 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
 // Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -42,6 +42,7 @@ const modules = [
     ['伊依独立召回引擎', './scripts/yiyi/yiyiRecallEngine.js'],
     ['伊依记忆维护引擎', './scripts/yiyi/yiyiMemoryMaintenance.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
+    ['伊依预设角色记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
@@ -53,4 +54,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon56 DeepSeek独立记录 + 伊依世界表硬隔离版加载完成');
+console.log('[Memo-N][loader] memon57 伊依预设角色长期记忆写回版加载完成');
