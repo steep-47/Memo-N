@@ -1,6 +1,6 @@
 import { APP, BASE, USER } from '../../core/manager.js';
 import { Cell } from '../../core/table/cell.js';
-import { saveMemoSnapshot } from './safeTableExecutor.js?v=memon56';
+import { saveMemoSnapshot } from './safeTableExecutor.js';
 
 const YIYI = '伊依';
 const TABLES = Object.freeze({
@@ -43,8 +43,12 @@ function deleteRow(target, row) {
 function withoutYiyi(value) {
     const raw = String(value ?? '').trim();
     if (!raw || !raw.includes(YIYI)) return raw;
-    const parts = raw.split(/[、,，;；/|\s]+/).map(part => part.trim()).filter(Boolean).filter(part => part !== YIYI);
-    return parts.join('、');
+    return raw
+        .split(/[、,，;；/|\s]+/)
+        .map(part => part.trim())
+        .filter(Boolean)
+        .filter(part => part !== YIYI)
+        .join('、');
 }
 
 function cleanPersonList(target, column) {
@@ -72,14 +76,10 @@ async function cleanWorldTables() {
     running = true;
     try {
         let changed = false;
-        // #0 当前场景人物
         changed = cleanPersonList(sheet(TABLES.scene), 3) || changed;
-        // #3 相关人物
         changed = cleanPersonList(sheet(TABLES.tasks), 1) || changed;
-        // #4/#5 伊依整行禁止存在
         changed = deleteYiyiRows(sheet(TABLES.people)) || changed;
         changed = deleteYiyiRows(sheet(TABLES.development)) || changed;
-        // #6 涉及人物
         changed = cleanPersonList(sheet(TABLES.history), 2) || changed;
 
         if (!changed) return;
@@ -95,16 +95,17 @@ async function cleanWorldTables() {
     }
 }
 
-function schedule() {
+function schedule(delay = 250) {
     clearTimeout(timer);
-    timer = setTimeout(cleanWorldTables, 350);
+    timer = setTimeout(() => void cleanWorldTables(), delay);
 }
 
-for (const event of [APP.event_types.GENERATION_ENDED, APP.event_types.MESSAGE_RECEIVED]) {
-    if (!event) continue;
-    APP.eventSource.on(event, schedule);
-    APP.eventSource.makeLast?.(event, schedule);
+// 只在插件加载和一轮生成完成后检查；不挂MESSAGE_RECEIVED等高频事件，避免无意义重复扫描。
+schedule(500);
+const ended = APP.event_types.GENERATION_ENDED;
+if (ended) {
+    APP.eventSource.on(ended, () => schedule());
+    APP.eventSource.makeLast?.(ended, () => schedule());
 }
 
-setTimeout(cleanWorldTables, 800);
-console.log('[Memo-N] 世界七表伊依硬隔离守卫已加载');
+console.log('[Memo-N] 世界七表伊依隔离守卫已加载');
