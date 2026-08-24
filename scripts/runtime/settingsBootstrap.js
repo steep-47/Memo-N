@@ -23,22 +23,32 @@ if (Array.isArray(defaultSettings.tableStructure)) {
     }
 }
 
-defaultSettings.message_template = String(defaultSettings.message_template || '')
-    .replace(/年龄或最后确认时间/g, '年龄、最后确认时间')
-    .replace(/年龄\/最后确认时间/g, '年龄、最后确认时间');
+const TRANSPORT_NEUTRAL_OPERATIONS = `# 记录动作语义
+- insert：当前表中没有该对象/事实且本轮首次明确确认时新增。
+- update：只更新当前表中真实存在的rowIndex；不得把不存在的row当成新增。
+- delete：只删除当前表中真实存在且已明确失效/消失的rowIndex。
+- 这里只定义记录语义，不定义本轮传输语法；最终JSON或中转哨兵格式只服从请求末尾由Memo-N一次API记录引擎注入的唯一协议。`;
+const TRANSPORT_NEUTRAL_OUTPUT = `# 输出
+- 本段只规定“应记录哪些事实”，不规定最终机器传输格式。
+- 最终传输格式只服从本轮请求末尾由Memo-N一次API记录引擎注入的唯一记录协议；不得自行混用JSON、tableEdit、哨兵或其他格式。
+- 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时按最终协议表示“无变化”。`;
 
-const DIRECT_OUTPUT_RULES = String(defaultSettings.message_template).split('# 输出\n')[1] || '';
-function migrateKnownSingleApiOutput(template) {
-    const source = String(template || '');
-    if (!source.includes('# 输出')) return source;
-    const knownOld = source.includes('一次API模式使用结构化双字段响应')
-        || source.includes('具体传输格式只服从API请求末尾最后出现的协议')
-        || source.includes('[一次API固定收尾协议]')
-        || source.includes('<tableEdit>')
-        || !source.includes('Memo-N会在最终请求阶段提供唯一JSON变更信封');
-    if (!knownOld) return source;
-    return `${source.split('# 输出')[0].trimEnd()}\n# 输出\n${DIRECT_OUTPUT_RULES}`.trim();
+function normalizeBaseTablePrompt(template) {
+    let source = String(template || '')
+        .replace(/年龄或最后确认时间/g, '年龄、最后确认时间')
+        .replace(/年龄\/最后确认时间/g, '年龄、最后确认时间');
+    if (!source.includes('# dataTable 世界状态记忆')) return source;
+    if (source.includes('# 操作') && source.includes('# 总原则')) {
+        source = source.replace(/# 操作[\s\S]*?(?=# 总原则)/, `${TRANSPORT_NEUTRAL_OPERATIONS}\n`);
+    } else if (!source.includes('# 记录动作语义') && source.includes('# 总原则')) {
+        source = source.replace('# 总原则', `${TRANSPORT_NEUTRAL_OPERATIONS}\n# 总原则`);
+    }
+    if (source.includes('# 输出')) source = `${source.split('# 输出')[0].trimEnd()}\n${TRANSPORT_NEUTRAL_OUTPUT}`.trim();
+    else source = `${source.trimEnd()}\n${TRANSPORT_NEUTRAL_OUTPUT}`.trim();
+    return source;
 }
+
+defaultSettings.message_template = normalizeBaseTablePrompt(defaultSettings.message_template);
 
 const REBUILD_MARKER = '[Memo七表整理v2]';
 const REBUILD_SYSTEM_PROMPT = `${REBUILD_MARKER}\n你是世界状态数据库整理器。根据当前七张表与最近聊天，返回七张表整理后的最终状态。只依据已确认事实，不猜测未知，不模拟NPC离线生活。人物主表负责NPC身份识别，人物发展表保存NPC最后有效发展锚点，历史表只保存影响未来推演的重要既成节点。最终只能输出一个合法JSON数组，不输出Markdown、代码块、tableEdit、解释或前后缀。`;
@@ -84,10 +94,10 @@ try {
         const store = root.memo_n_settings;
         for (const [key, value] of Object.entries(defaultSettings)) if (!(key in store)) store[key] = clone(value);
 
-        const migratedMessageTemplate = migrateKnownSingleApiOutput(store.message_template);
-        if (migratedMessageTemplate !== store.message_template) {
-            store.message_template = migratedMessageTemplate;
-            console.log('[Memo-N][settings] 已迁移旧输出规则到Memo-N JSON变更信封协议');
+        const normalizedMessageTemplate = normalizeBaseTablePrompt(store.message_template);
+        if (normalizedMessageTemplate !== store.message_template) {
+            store.message_template = normalizedMessageTemplate;
+            console.log('[Memo-N][settings] 已把基础七表提示归一为传输格式中立；最终格式只由一次API记录引擎决定');
         }
 
         if (needsStepPromptUpgrade(store.step_by_step_user_prompt)) {
@@ -102,7 +112,7 @@ try {
 
         store.step_by_step = false;
         applicationFunctionManager.saveSettingsDebounced?.();
-        console.log('[Memo][settings] 七表默认设置与独立记录协议已归一化');
+        console.log('[Memo][settings] 七表默认设置与一次API记录协议已归一化');
     }
 } catch (error) {
     console.warn('[Memo][settings] bootstrap normalization failed:', error);
