@@ -173,9 +173,6 @@ function recoverCompleteEnvelopeFields(input) {
     } catch (_) { return null; }
     if (!Array.isArray(changes) || typeof reply !== 'string' || !reply.trim()) return null;
 
-    // Outside the two complete values, only envelope punctuation/whitespace and the
-    // literal key names may remain. This permits a missing comma/brace but refuses
-    // arbitrary extra prose or unknown fields.
     const spans = [
         [changeHits[0].keyStart, changeToken.end],
         [replyHits[0].keyStart, replyToken.end],
@@ -186,6 +183,39 @@ function recoverCompleteEnvelopeFields(input) {
     if (residue) return null;
 
     return { changes, reply, recovered: true };
+}
+
+function isEnvelopeShape(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const keys = Object.keys(value);
+    return keys.length === 2 && keys.includes('reply') && keys.includes('changes')
+        && typeof value.reply === 'string' && Array.isArray(value.changes);
+}
+
+function extractWrappedEnvelope(input) {
+    const text = String(input ?? '');
+    const matches = [];
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === '"') inString = false;
+            continue;
+        }
+        if (ch === '"') { inString = true; continue; }
+        if (ch !== '{') continue;
+        const token = scanBalanced(text, i, '{', '}');
+        if (!token) continue;
+        let candidate;
+        try { candidate = JSON.parse(escapeControlCharsInsideJsonStrings(token.raw)); }
+        catch (_) { i = token.end - 1; continue; }
+        if (isEnvelopeShape(candidate)) matches.push(candidate);
+        i = token.end - 1;
+    }
+    return matches.length === 1 ? matches[0] : null;
 }
 
 export function parseRecordEnvelope(raw) {
@@ -200,10 +230,16 @@ export function parseRecordEnvelope(raw) {
             try {
                 value = JSON.parse(normalized);
             } catch (_) {
-                const rescue = recoverCompleteEnvelopeFields(normalized);
-                if (!rescue) return { ok: false, error: `响应不是合法JSON：${error.message}` };
-                value = { changes: rescue.changes, reply: rescue.reply };
-                recovered = true;
+                const wrapped = extractWrappedEnvelope(normalized);
+                if (wrapped) {
+                    value = wrapped;
+                    recovered = true;
+                } else {
+                    const rescue = recoverCompleteEnvelopeFields(normalized);
+                    if (!rescue) return { ok: false, error: `响应不是合法JSON：${error.message}` };
+                    value = { changes: rescue.changes, reply: rescue.reply };
+                    recovered = true;
+                }
             }
         }
     }
@@ -253,4 +289,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields };
+export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields, extractWrappedEnvelope };
