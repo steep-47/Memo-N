@@ -1,75 +1,6 @@
 import { APP, USER } from '../../core/manager.js';
 import { ROUTE, getProviderRoute } from './providerRoute.js';
 
-const TABLE_MARKER = '# dataTable 世界状态记忆';
-const RECORD_MARKER = '[Memo-N record envelope v1]';
-const OUTPUT_HEADING = '# 输出';
-
-const schema = {
-    name: 'memo_n_record_envelope',
-    strict: true,
-    value: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-            changes: {
-                type: 'array',
-                items: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                        op: { type: 'string', enum: ['insert', 'update', 'delete'] },
-                        table: { type: 'integer', minimum: 0 },
-                        row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
-                        cells: {
-                            type: 'array',
-                            items: {
-                                type: 'object',
-                                additionalProperties: false,
-                                properties: {
-                                    column: { type: 'integer', minimum: 0 },
-                                    value: { anyOf: [{ type: 'string' }, { type: 'number' }] },
-                                },
-                                required: ['column', 'value'],
-                            },
-                        },
-                    },
-                    required: ['op', 'table', 'row', 'cells'],
-                },
-            },
-            reply: { type: 'string' },
-        },
-        required: ['changes', 'reply'],
-    },
-};
-
-const OUTPUT = `# 输出\n- 本轮由Memo-N使用CUSTOM端点原生JSON Schema强约束。最终响应必须是一个JSON对象，JSON外不得出现任何字符。\n- 为保证记录链优先完整，字段顺序必须先changes、后reply：{"changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}],"reply":"完整正常正文"}。\n- changes必须先完整生成，只记录本轮正文已经明确确认的事实变化；没有变化时必须为[]。\n- reply随后生成，并完整保留原预设要求的正文、状态栏、选项、角色留言等全部结构。\n- insert的row必须为null；update/delete的row只能使用当前表格第一列真实存在的rowIndex；delete的cells必须为[]；空表首次记录只能insert。\n- cells中的column为列号整数，value只能是字符串或数字；不得重复column。\n- 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。\n- 不得输出tableEdit、MEMO_N_EDIT、SQL、Markdown代码围栏或额外字段。`;
-
-const CONTRACT = `${RECORD_MARKER}\n本轮使用SillyTavern CUSTOM OpenAI兼容端点的原生JSON Schema结构化输出。\n最终响应必须严格符合Memo-N已经附加到请求中的json_schema；JSON外不得出现任何字符。\n必须先完整生成changes字段，再生成reply字段。changes是记录链，优先级高于reply；禁止在changes完整闭合前开始reply。\nchanges只记录本轮正文已经明确确认的事实变化；没有变化时changes必须为[]。\nreply字段随后包含给用户看的完整正常回复，并完整保留原预设要求的正文、状态栏、选项和角色留言。\ninsert的row必须为null；update/delete的row必须是当前表格真实存在的整数rowIndex；delete的cells必须为[]；空表首次记录只能insert。\n日期、时间、地点、当前场景人物发生变化时必须维护表0。\n禁止输出tableEdit、MEMO_N_EDIT、SQL、Markdown代码围栏、解释或额外字段。`;
-
-function enforceNativeStructuredOutput(data) {
-    if (!data || typeof data !== 'object' || getProviderRoute(data) !== ROUTE.CUSTOM || !Array.isArray(data.messages)) return;
-
-    let tableCount = 0;
-    let contractCount = 0;
-    for (const message of data.messages) {
-        const content = String(message?.content ?? '');
-        if (content.includes(TABLE_MARKER)) {
-            const index = content.lastIndexOf(OUTPUT_HEADING);
-            message.content = index >= 0 ? `${content.slice(0, index).trimEnd()}\n${OUTPUT}` : `${content.trimEnd()}\n${OUTPUT}`;
-            tableCount++;
-        }
-        if (String(message?.content ?? '').includes(RECORD_MARKER)) {
-            message.content = CONTRACT;
-            contractCount++;
-        }
-    }
-
-    data.json_schema = structuredClone(schema);
-    globalThis.__memoNCustomStructured = { at: Date.now(), tableCount, contractCount, schema: true, recordFirst: true };
-    console.log(`[Memo-N] CUSTOM中转站原生JSON Schema（changes优先）｜tablePrompt=${tableCount}｜recordContract=${contractCount}`);
-}
-
 function findBalancedArray(text, start) {
     let depth = 0;
     let inString = false;
@@ -138,12 +69,8 @@ function recoverTruncatedEnvelope() {
     console.warn(`[Memo-N] CUSTOM响应尾部截断，但changes已完整：已重建信封并优先保全${changes.length}项记录`);
 }
 
-const requestEvent = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
-APP.eventSource.on(requestEvent, enforceNativeStructuredOutput);
-APP.eventSource.makeLast?.(requestEvent, enforceNativeStructuredOutput);
-
 const endEvent = APP.event_types.GENERATION_ENDED;
 APP.eventSource.on(endEvent, recoverTruncatedEnvelope);
 APP.eventSource.makeFirst?.(endEvent, recoverTruncatedEnvelope);
 
-console.log('[Memo-N] CUSTOM结构化输出桥已加载：只处理CUSTOM中转站；DeepSeek完全绕过');
+console.log('[Memo-N] CUSTOM恢复桥已加载：仅处理截断恢复，不再改写正常请求或JSON Schema');
