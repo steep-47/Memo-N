@@ -1,24 +1,10 @@
-export const PRESET_CHARACTER_POLICIES = Object.freeze({
-    FULL: 'full',
-    CHANGES_ONLY: 'changes_only',
-    SKIP: 'skip',
-});
-
-export function normalizeRecordPolicy(settings = {}) {
-    const requested = settings.preset_character_policy;
-    const presetCharacterPolicy = Object.values(PRESET_CHARACTER_POLICIES).includes(requested)
-        ? requested
-        : PRESET_CHARACTER_POLICIES.CHANGES_ONLY;
-    return { presetCharacterPolicy };
+// 世界七表只记录剧情世界内的实体与事实。
+// 世界书人物与剧情自动生成NPC没有来源差别：都只记录已经在剧情中确认的新事实或变化。
+// 伊依属于独立后台陪伴者，使用自己的长期记忆库，永远不是世界七表人物。
+export function normalizeRecordPolicy() {
+    return { npcPolicy: 'confirmed_changes_only', yiyiExcluded: true };
 }
 
-export function buildPresetCharacterRule(settings = {}) {
-    const { presetCharacterPolicy } = normalizeRecordPolicy(settings);
-    if (presetCharacterPolicy === PRESET_CHARACTER_POLICIES.FULL) {
-        return '预设人物允许完整记录：首次在剧情中实际出现或被明确引用时，可写入人物主表；后续状态写入人物发展表。不得只因世界书中存在就批量预填。';
-    }
-    if (presetCharacterPolicy === PRESET_CHARACTER_POLICIES.SKIP) {
-        return '预设人物禁止写入人物主表和人物发展表；只记录非预设NPC。与预设人物有关的任务或重大历史仍可写入对应任务表/历史表。';
-    }
-    return '预设人物只记录剧情变化：不得复制角色卡或世界书中的静态设定；仅在剧情明确改变其关系、地点、修为、状态、目标或重要事项时更新人物相关表。';
+export function buildPresetCharacterRule() {
+    return '人物记录不区分世界书人物与自动生成NPC：只记录剧情中已经确认的新事实或变化，不复制未发生作用的静态设定。伊依是后台陪伴者，不是剧情世界实体：禁止把“伊依”写入#0当前场景人物、#3任务相关人物、#4人物主表、#5人物发展表、#6历史事件涉及人物，也不得用世界七表保存伊依的关系、情绪或经历；这些只进入Memo-N的伊依独立长期记忆库。';
 }
