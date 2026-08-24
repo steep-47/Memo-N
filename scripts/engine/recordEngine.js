@@ -4,6 +4,8 @@ import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute
 import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope } from './recordEnvelope.js';
 
 const MARKER = '[Memo-N record envelope v1]';
+const RELAY_BEGIN = 'MEMO_N_EDIT_BEGIN';
+const RELAY_END = 'MEMO_N_EDIT_END';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -68,15 +70,15 @@ ${sharedRecordRules()}
 
 function relayContract() {
     return `${MARKER}
-本轮使用中转站兼容协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
-完整回复结束后必须追加且只追加一个<tableEdit>机器块，块后不得再输出任何字符：
-<tableEdit><!--
+本轮使用中转站纯文本记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
+完整回复结束后必须追加且只追加一个纯文本机器块，块后不得再输出任何字符：
+${RELAY_BEGIN}
 updateRow(0,0,{1:"08:30"})
---></tableEdit>
+${RELAY_END}
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。日期、时间、地点、当前场景人物发生变化时必须维护表0。
+没有任何事实变化时机器块正文只写NO_CHANGE。日期、时间、地点、当前场景人物发生变化时必须维护表0。
 ${sharedRecordRules()}
-不得使用SQL，不得解释机器块，不得把tableEdit放进代码围栏。`;
+不得使用JSON记录信封、XML/HTML标签、SQL、Markdown代码围栏或解释。${RELAY_END}之后不得再输出任何字符。`;
 }
 
 const schema = {
@@ -129,7 +131,7 @@ function inject(data) {
     } else if (tableEditMode) {
         delete data.json_schema;
         if (data.response_format?.type === 'json_object') delete data.response_format;
-        console.log(`[Memo-N] 已接管本轮一次API：中转站tableEdit记录协议｜source=${info.source || 'unknown'}`);
+        console.log(`[Memo-N] 已接管本轮一次API：中转站纯文本记录协议｜source=${info.source || 'unknown'}`);
     } else {
         data.json_schema = structuredClone(schema);
         console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}｜source=${info.source || 'unknown'}`);
@@ -267,8 +269,8 @@ async function unpack(chatId) {
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
     if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
-    if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站tableEdit');
-    if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站正文尾部读取tableEdit');
+    if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站记录块');
+    if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站正文尾部读取记录块');
     if (waited.source === 'relay-tagged-reasoning') console.log('[Memo-N] 已兼容读取旧版中转站隐藏changes块（reasoning）');
     if (waited.source === 'relay-tagged-content') console.log('[Memo-N] 已兼容读取旧版中转站隐藏changes块（content）');
     handled.set(chat, chat.mes);
@@ -333,4 +335,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek/CUSTOM/NATIVE走JSON；RELAY走tableEdit；统一使用当前真实0-based列号映射');
+console.log('[Memo-N] 一次API记录引擎已加载：统一生成记录协议；DeepSeek/CUSTOM/NATIVE走JSON，RELAY走纯文本哨兵');
