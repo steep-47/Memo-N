@@ -1,10 +1,10 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
 import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';
-import { buildPresetCharacterRule } from './recordPolicy.js';
 import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope } from './recordEnvelope.js';
 
 const MARKER = '[Memo-N record envelope v1]';
+const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
@@ -31,21 +31,42 @@ function arm(type, _options, dryRun) {
     if (armed) pending = null;
 }
 function preparePrompt() {
-    // Memo-N 不再修改 SillyTavern 的 stream_openai。流式/非流式完全服从用户原设置。
+    // Memo-N 不修改 SillyTavern 的流式设置。
 }
+
+function liveColumnMap() {
+    const sheets = BASE.getChatSheets?.() ?? [];
+    return WORLD_TABLE_NAMES.map((name, tableIndex) => {
+        const sheet = sheets.find(item => item?.name === name);
+        const headers = (sheet?.getHeader?.() ?? []).map(value => String(value ?? '').trim()).filter(Boolean);
+        if (!headers.length) return `#${tableIndex} ${name}：当前无法读取表头，本轮不得写此表`;
+        return `#${tableIndex} ${name}：${headers.map((header, column) => `${column}=${header}`).join('，')}；合法column范围0-${headers.length - 1}`;
+    }).join('\n');
+}
+
+function sharedRecordRules() {
+    return `
+[当前真实列号映射｜column严格从0开始]
+${liveColumnMap()}
+
+写cells前必须先在对应table的映射中找到列名，再抄左侧数字作为column；不得按“第1列=1”编号，不得写超出合法范围的column，不得创造不存在的列。没有对应列就不记录该字段。
+世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
+伊依是后台陪伴者，不是剧情世界实体：禁止把伊依写入#0/#3/#4/#5/#6；她只使用独立长期记忆库。`;
+}
+
 function finalContract() {
-    const policy = buildPresetCharacterRule(USER?.getSettings?.()?.memo_n_settings ?? {});
     return `${MARKER}
 本轮最终响应只能是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
 reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes只记录本轮正文已经明确确认的事实变化。
 每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。没有变化时changes必须是[]。
-row只能抄当前表格第一列真实存在的数字。空表只能insert。cells中的column是列号整数，value只能是字符串或数字；同一操作不得重复column。
-禁止输出函数、SQL、Markdown、tableEdit、解释或额外字段。日期、时间、地点、当前场景人物发生变化时必须维护表0。
-${policy}`;
+row只能抄当前表格第一列真实存在的数字。空表只能insert。value只能是字符串或有限数字；同一操作不得重复column。
+日期、时间、地点、当前场景人物发生变化时必须维护表0。
+${sharedRecordRules()}
+禁止输出函数、SQL、Markdown、tableEdit、解释或额外字段。`;
 }
+
 function relayContract() {
-    const policy = buildPresetCharacterRule(USER?.getSettings?.()?.memo_n_settings ?? {});
     return `${MARKER}
 本轮使用中转站兼容协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
 完整回复结束后必须追加且只追加一个<tableEdit>机器块，块后不得再输出任何字符：
@@ -53,10 +74,11 @@ function relayContract() {
 updateRow(0,0,{1:"08:30"})
 --></tableEdit>
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。不得使用SQL，不得解释机器块，不得把tableEdit放进代码围栏。
-日期、时间、地点、当前场景人物发生变化时必须维护表0。
-${policy}`;
+没有任何事实变化时必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。日期、时间、地点、当前场景人物发生变化时必须维护表0。
+${sharedRecordRules()}
+不得使用SQL，不得解释机器块，不得把tableEdit放进代码围栏。`;
 }
+
 const schema = {
     name: 'memo_n_record_envelope', strict: true,
     value: {
@@ -75,12 +97,13 @@ const schema = {
         }, required: ['reply', 'changes'],
     },
 };
+
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
     const context = USER.getContext?.();
     const base = lastAssistant();
     const route = getProviderRoute(data);
-    const tableEditMode = route === ROUTE.DEEPSEEK || route === ROUTE.RELAY;
+    const tableEditMode = route === ROUTE.RELAY;
     const info = providerDebug(data);
 
     pending = {
@@ -99,14 +122,20 @@ function inject(data) {
         data.messages.push({ role: 'system', content: tableEditMode ? relayContract() : finalContract() });
     }
 
-    if (tableEditMode) {
+    if (route === ROUTE.DEEPSEEK) {
         delete data.json_schema;
-        console.log(`[Memo-N] 已接管本轮一次API：tableEdit记录协议｜route=${route}｜source=${info.source || 'unknown'}`);
+        data.response_format = { type: 'json_object' };
+        console.log(`[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封｜source=${info.source || 'unknown'}`);
+    } else if (tableEditMode) {
+        delete data.json_schema;
+        if (data.response_format?.type === 'json_object') delete data.response_format;
+        console.log(`[Memo-N] 已接管本轮一次API：中转站tableEdit记录协议｜source=${info.source || 'unknown'}`);
     } else {
         data.json_schema = structuredClone(schema);
         console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}｜source=${info.source || 'unknown'}`);
     }
 }
+
 function syncSwipe(chat) {
     const id = Number(chat?.swipe_id);
     if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes;
@@ -304,4 +333,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：统一Provider路由；CUSTOM走JSON，DeepSeek/RELAY走tableEdit，等待GENERATION_ENDED后解析');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek/CUSTOM/NATIVE走JSON；RELAY走tableEdit；统一使用当前真实0-based列号映射');
