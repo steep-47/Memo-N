@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon54';
+const RUNTIME_VERSION = 'memon55';
 
 async function loadOptional(label, path) {
     try {
@@ -19,8 +19,8 @@ async function loadOptional(label, path) {
 // 所有NPC统一按已确认事实维护，不区分世界书来源或剧情自动生成来源。
 // 修炼记录保存角色自身种族/血脉、修炼体系/路径与原生修为文本，不换算成人族境界。
 // 旧存档人物表升级时按列名迁移，新增种族/血脉与修炼体系/路径字段，原数据原位保留，未知留空。
+// JSON记录解析只容错响应外层包装、控制字符和无歧义外层标点；reply/changes结构仍严格校验，不猜业务内容。
 // 伊依插件层只负责记忆工程：长期存储、召回排序、纠错/去重、写回与分支事务；人格/文风/表达方式留给预设。
-// CUSTOM兼容层仅在changes数组和reply字符串都能无歧义完整提取时修复外层JSON标点；不猜业务内容。
 // Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -50,4 +50,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon54 旧存档多种族表头迁移修正版加载完成');
+console.log('[Memo-N][loader] memon55 安全JSON包装容错版加载完成');
