@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon59';
+const RUNTIME_VERSION = 'memon60';
 
 async function loadOptional(label, path) {
     try {
@@ -15,16 +15,15 @@ async function loadOptional(label, path) {
     }
 }
 
-// 世界七表稳定主链冻结。
-// 所有NPC统一按已确认事实维护，不区分世界书来源或剧情自动生成来源。
-// 修炼记录保存角色自身种族/血脉、修炼体系/路径与原生修为文本，不换算成人族境界。
-// 一次API记录引擎是唯一正常请求协议入口：DeepSeek/CUSTOM/NATIVE走JSON，真正中转站走纯文本哨兵。
-// 所有记录协议都动态读取当前真实七表表头并使用0-based列号，不猜测、不静默纠正越界列。
-// 中转哨兵桥只做响应格式转换；CUSTOM恢复桥只在响应截断时救援，二者都不再改写正常请求。
-// 伊依属于独立后台陪伴者，永远不进入世界七表；若模型误写，由世界表守卫清理。
-// 伊依长期记忆是全局独立库：直接伊依角色卡由原运行时维护；世界角色卡+伊依预设由预设桥维护，共用同一存储。
-// JSON记录解析只容错响应外层包装、控制字符和无歧义外层标点；reply/changes结构仍严格校验，不猜业务内容。
-// Memo-N不检查、不补写预设规定的正文结构；行动选项等输出契约由预设负责。
+// Memo-N 当前稳定结构：
+// 1) recordEngine 是唯一正常请求协议入口。
+//    - DeepSeek / CUSTOM / NATIVE：JSON信封。
+//    - 真正中转站：纯文本哨兵，响应阶段再转换成内部tableEdit。
+// 2) 所有记录协议都从当前真实七表动态读取0-based列号映射；执行器只校验，不猜列号、不静默纠错。
+// 3) 七表结构只由现有表格/既有迁移工具负责，不在生成前额外常驻“自动修表”层。
+// 4) 伊依不属于世界七表；世界表守卫只负责隔离误写，伊依长期记忆使用独立全局库。
+// 5) Memo-N 不改写SillyTavern原始stream设置，不再保留历史stream补丁。
+// 6) 正文格式、行动选项、伊依人格与表达由预设负责，插件只负责记忆和记录工程。
 const modules = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
@@ -33,7 +32,6 @@ const modules = [
     ['Provider路由', './scripts/runtime/providerRoute.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
-    ['流式状态保护', './scripts/runtime/streamStateGuard.js'],
     ['中转哨兵响应转换', './scripts/runtime/relaySentinelBridge.js'],
     ['CUSTOM截断恢复', './scripts/runtime/customStructuredOutputBridge.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -54,4 +52,4 @@ const modules = [
 ];
 
 for (const [label, path] of modules) await loadOptional(label, path);
-console.log('[Memo-N][loader] memon59 统一记录链收口版加载完成');
+console.log('[Memo-N][loader] memon60 统一记录链清理版加载完成');
