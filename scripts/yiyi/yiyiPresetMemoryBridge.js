@@ -48,7 +48,7 @@ function recentQuery(messages) {
 }
 
 function contract(context) {
-    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆写回协议]\n伊依是后台陪伴者，不是剧情世界NPC；她的记忆只能写入本独立记忆库，绝不写入世界七表。\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮最终响应是Memo-N JSON信封，本块必须位于reply字符串末尾；如果是tableEdit模式，本块位于tableEdit之前。\nadd保存以后仍可能有用的共同经历、玩家明确长期信息、伊依形成并值得延续的看法或彼此之间重要互动，每轮最多2条；普通寒暄、一次性动作、纯世界事实不要add。importance只能为normal/high/core。\nupdate只更新本轮召回的#记忆ID，用于纠正旧认知、补充后续结果或更新currentView。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort；只有真实互动提供了新证据才更新，不使用好感度数值。\nemotion可用current/cause/residue/intensity/trajectory；intensity只能0/1/2/3，trajectory只能rising/steady/easing；没有实际变化就写{}。\nself可用understanding/changes，只记录以后仍有意义的自我理解变化。\n不得把剧情NPC认知、背包、能力、世界历史、世界地点或纯世界事件写入伊依独立记忆；除非它们构成伊依与玩家共同经历中以后仍有意义的关系背景。不得把推测写成事实。JSON必须严格合法。`;
+    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆写回协议]\n伊依是后台陪伴者，不是剧情世界NPC；她的记忆只能写入本独立记忆库，绝不写入世界七表。\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮最终响应是Memo-N JSON信封，本块必须位于reply字符串末尾；如果本轮使用中转站纯文本哨兵，本块必须位于MEMO_N_EDIT_BEGIN之前。无论哪种模式，本块都属于正常回复内容内部，不得放到最终机器记录块之后。\nadd保存以后仍可能有用的共同经历、玩家明确长期信息、伊依形成并值得延续的看法或彼此之间重要互动，每轮最多2条；普通寒暄、一次性动作、纯世界事实不要add。importance只能为normal/high/core。\nupdate只更新本轮召回的#记忆ID，用于纠正旧认知、补充后续结果或更新currentView。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort；只有真实互动提供了新证据才更新，不使用好感度数值。\nemotion可用current/cause/residue/intensity/trajectory；intensity只能0/1/2/3，trajectory只能rising/steady/easing；没有实际变化就写{}。\nself可用understanding/changes，只记录以后仍有意义的自我理解变化。\n不得把剧情NPC认知、背包、能力、世界历史、世界地点或纯世界事件写入伊依独立记忆；除非它们构成伊依与玩家共同经历中以后仍有意义的关系背景。不得把推测写成事实。JSON必须严格合法。`;
 }
 
 function inject(data) {
@@ -96,7 +96,6 @@ async function processLatest() {
     }
 
     let parsed = parseBlock(piece.mes);
-    // JSON信封可能尚未被世界记录主链拆开；仅在能无歧义读到reply字符串时等待下一微任务，不直接改写信封。
     const raw = String(piece.mes ?? '').trim();
     if (!parsed && raw.startsWith('{') && raw.includes('"reply"') && raw.includes('"changes"')) {
         queueMicrotask(() => void processLatest());
