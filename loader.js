@@ -2,7 +2,7 @@ import './index.js';
 
 const RUNTIME_VERSION = 'memon60';
 
-async function loadOptional(label, path) {
+async function loadRuntime(label, path) {
     try {
         await import(`${path}?v=${RUNTIME_VERSION}`);
         console.log(`[Memo][loader] ${label} loaded`);
@@ -15,30 +15,24 @@ async function loadOptional(label, path) {
     }
 }
 
-// Memo-N 当前稳定结构：
-// 1) recordEngine 是唯一正常请求协议入口。
-//    - DeepSeek / CUSTOM / NATIVE：JSON信封。
-//    - 真正中转站：纯文本哨兵，响应阶段再转换成内部tableEdit。
-// 2) 所有记录协议都从当前真实七表动态读取0-based列号映射；执行器只校验，不猜列号、不静默纠错。
-// 3) 七表结构只由现有表格/既有迁移工具负责，不在生成前额外常驻“自动修表”层。
-// 4) 伊依不属于世界七表；世界表守卫只负责隔离误写，伊依长期记忆使用独立全局库。
-// 5) Memo-N 不改写SillyTavern原始stream设置，不再保留历史stream补丁。
-// 6) 正文格式、行动选项、伊依人格与表达由预设负责，插件只负责记忆和记录工程。
-const modules = [
+// Memo-N 稳定运行边界：
+// - recordEngine 是唯一正常请求协议入口。
+//   DeepSeek/CUSTOM/NATIVE走JSON信封；真正中转站走纯文本哨兵。
+// - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
+// - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
+// - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
+// - Memo-N 不改SillyTavern原始stream设置。
+// - loader只启动“有运行时副作用”的入口模块；纯工具库由实际调用者import，避免重复模块实例。
+const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
-    ['严格表格执行器', './scripts/runtime/safeTableExecutor.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
-    ['Provider路由', './scripts/runtime/providerRoute.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['中转哨兵响应转换', './scripts/runtime/relaySentinelBridge.js'],
     ['CUSTOM截断恢复', './scripts/runtime/customStructuredOutputBridge.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
-    ['伊依独立长期记忆库', './scripts/yiyi/yiyiMemoryStore.js'],
-    ['伊依独立召回引擎', './scripts/yiyi/yiyiRecallEngine.js'],
-    ['伊依记忆维护引擎', './scripts/yiyi/yiyiMemoryMaintenance.js'],
     ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
     ['伊依预设角色记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
@@ -51,5 +45,5 @@ const modules = [
     ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
 ];
 
-for (const [label, path] of modules) await loadOptional(label, path);
+for (const [label, path] of runtimes) await loadRuntime(label, path);
 console.log('[Memo-N][loader] memon60 统一记录链清理版加载完成');
