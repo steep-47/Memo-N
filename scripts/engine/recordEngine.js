@@ -1,9 +1,11 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
 import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';
-import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope } from './recordEnvelope.js';
+import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';
 
 const MARKER = '[Memo-N record envelope v1]';
+const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
+const OUTPUT_HEADING = '# 输出';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -66,6 +68,21 @@ ${sharedRecordRules()}
 禁止输出函数、SQL、Markdown、tableEdit、解释或额外字段。`;
 }
 
+function relayOutputRules() {
+    return `# 输出
+- 本轮为Memo-N中转站tableEdit模式：完整正常正文结束后，必须追加且只追加一个<tableEdit>机器块；这是本轮回复的必需组成部分，不能省略。
+- 正文必须继续包含原本要求的状态栏、行动选项、伊依留言等结构；机器块不能替代正文。
+- 格式必须严格为：
+<tableEdit><!--
+updateRow(0,0,{1:"08:30"})
+--></tableEdit>
+- 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
+- updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
+- 七表确实没有任何事实变化时仍不得省略机器块，必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
+- tableEdit必须位于整轮回复最后；闭合标签之后不得再输出任何字符。不得输出JSON记录信封、额外哨兵、SQL、Markdown代码围栏或解释。
+- 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
+}
+
 function relayContract() {
     return `${MARKER}
 本轮使用中转站直接tableEdit记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
@@ -74,9 +91,24 @@ function relayContract() {
 updateRow(0,0,{1:"08:30"})
 --></tableEdit>
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时必须输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。日期、时间、地点、当前场景人物发生变化时必须维护表0。
+没有任何事实变化时仍必须输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。日期、时间、地点、当前场景人物发生变化时必须维护表0。
 ${sharedRecordRules()}
 不得使用JSON记录信封、额外哨兵、SQL、Markdown代码围栏或解释。tableEdit之后不得再输出任何字符。`;
+}
+
+function reinforceRelayTablePrompt(messages) {
+    let rewritten = 0;
+    const output = relayOutputRules();
+    for (const message of messages) {
+        const content = String(message?.content ?? '');
+        if (!content.includes(TABLE_PROMPT_MARKER)) continue;
+        const index = content.lastIndexOf(OUTPUT_HEADING);
+        message.content = index >= 0
+            ? `${content.slice(0, index).trimEnd()}\n${output}`
+            : `${content.trimEnd()}\n${output}`;
+        rewritten++;
+    }
+    return rewritten;
 }
 
 const schema = {
@@ -119,7 +151,9 @@ function inject(data) {
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
+        const reinforced = tableEditMode ? reinforceRelayTablePrompt(data.messages) : 0;
         data.messages.push({ role: 'system', content: tableEditMode ? relayContract() : finalContract() });
+        if (tableEditMode) console.log(`[Memo-N] 中转站tableEdit约束已同步强化到七表提示｜tablePrompt=${reinforced}`);
     }
 
     if (route === ROUTE.DEEPSEEK) {
@@ -206,18 +240,7 @@ function selectEnvelope(chat, job, appendMode) {
         if (contentTableEdit?.ok) return { current, envelope: contentTableEdit, source: 'relay-tableedit-content', fingerprint };
         const reasoningTableEdit = reasoning ? parseTableEditEnvelope(reasoning, content) : null;
         if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'relay-tableedit-reasoning', fingerprint };
-
-        const taggedContent = content ? parseRelayTaggedEnvelope(content) : null;
-        if (taggedContent?.ok) return { current, envelope: taggedContent, source: 'relay-tagged-content', fingerprint };
-        const taggedReasoning = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
-        if (taggedReasoning?.ok) return { current, envelope: taggedReasoning, source: 'relay-tagged-reasoning', fingerprint };
-
-        const contentEnvelope = content ? parseRecordEnvelope(content) : null;
-        if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content-json-fallback', fingerprint };
-        const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null;
-        if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning-json-fallback', fingerprint };
-
-        const envelope = contentTableEdit || reasoningTableEdit || taggedContent || taggedReasoning || contentEnvelope || reasoningEnvelope || parseTableEditEnvelope('');
+        const envelope = contentTableEdit || reasoningTableEdit || parseTableEditEnvelope('');
         return { current, envelope, source: 'relay-none', fingerprint };
     }
 
@@ -269,8 +292,6 @@ async function unpack(chatId) {
     if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
     if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站tableEdit');
     if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站正文尾部读取tableEdit');
-    if (waited.source === 'relay-tagged-reasoning') console.log('[Memo-N] 已兼容读取旧版中转站隐藏changes块（reasoning）');
-    if (waited.source === 'relay-tagged-content') console.log('[Memo-N] 已兼容读取旧版中转站隐藏changes块（content）');
     handled.set(chat, chat.mes);
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
@@ -333,4 +354,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek/NATIVE走JSON，中转站直接走tableEdit');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek/NATIVE走JSON，中转站走双重强化tableEdit');
