@@ -8,29 +8,49 @@ function tokenFor(chat,status){return`${Number(chat?.swipe_id??0)}\u241f${String
 function wasHandled(chat,token){return handled.get(chat)?.has(token)===true;}
 function markHandled(chat,token){let set=handled.get(chat);if(!set){set=new Set();handled.set(chat,set);}set.add(token);}
 
-async function finishSingleApi(chatId){
+function latestAssistant(){
+    const chat=USER?.getContext?.()?.chat;
+    if(!Array.isArray(chat))return null;
+    for(let i=chat.length-1;i>=0;i--)if(chat[i]?.is_user===false)return chat[i];
+    return null;
+}
+
+async function finishLatest(){
     if(independentEnabled())return;
-    const chat=USER?.getContext?.()?.chat?.[chatId];
-    if(!chat||chat.is_user===true)return;
+    const chat=latestAssistant();
+    if(!chat)return;
+
+    // recordEngine在GENERATION_ENDED时同步挂上这个Promise，真正的严格执行与saveChat在Promise内部完成。
+    // 成功提示必须等持久化完成后再读__memoStrictExecution，否则会在渲染阶段过早返回。
     const persistence=chat.__memoStrictPersistence;
-    if(persistence&&typeof persistence.then==='function'){try{if(await persistence!==true)return;}catch(_){return;}}
+    if(persistence&&typeof persistence.then==='function'){
+        try{if(await persistence!==true)return;}catch(_){return;}
+    }
+
     const status=chat.__memoStrictExecution;
     if(!status||status.ok!==true)return;
     if(Number(status.swipeId)!==Number(chat?.swipe_id??0))return;
     if(String(status.mes??'')!==String(chat.mes??''))return;
+
     const token=tokenFor(chat,status);
     if(wasHandled(chat,token))return;
     markHandled(chat,token);
-    if(status.noChange===true){EDITOR.info('Memo-N：本轮无需更新表格','',1500);return;}
+
+    if(status.noChange===true){
+        EDITOR.info('Memo-N：本轮无需更新表格','',1500);
+        return;
+    }
     if(status.changed!==true)return;
-    EDITOR.success(`Memo-N：已记录${status.count || ''}${status.count ? '项变化' : ''}`,'',2500);
+    EDITOR.success(`Memo-N：已记录${status.count||''}${status.count?'项变化':''}`,'',2500);
 }
 
-function scheduleFinish(chatId){
-    // Toasts still wait for the real persistence result, but the render event
-    // itself must finish immediately so it cannot hold SillyTavern's stop UI.
-    void finishSingleApi(chatId).catch(error=>console.error('[Memo-N] 写入提示任务异常',error));
+function scheduleFinish(){
+    void finishLatest().catch(error=>console.error('[Memo-N] 写入提示任务异常',error));
 }
 
-APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED,scheduleFinish);
-console.log('[Memo-N] 写入提示已加载：只相信严格事务和聊天保存的真实结果');
+// 统一记录链在GENERATION_ENDED才开始严格执行和持久化；提示也必须绑定同一生命周期尾端。
+const endEvent=APP.event_types.GENERATION_ENDED;
+APP.eventSource.on(endEvent,scheduleFinish);
+APP.eventSource.makeLast?.(endEvent,scheduleFinish);
+
+console.log('[Memo-N] 写入提示已加载：等待严格事务与聊天保存完成后再提示');
