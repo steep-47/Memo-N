@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon60';
+const RUNTIME_VERSION = 'memon61';
 
 async function loadRuntime(label, path) {
     try {
@@ -22,6 +22,7 @@ async function loadRuntime(label, path) {
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
 // - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
 // - Memo-N 不改SillyTavern原始stream设置。
+// - 成功提示只在严格执行与saveChat真正完成后显示，避免渲染阶段过早判断。
 // - loader只启动“有运行时副作用”的入口模块；纯工具库由实际调用者import，避免重复模块实例。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -46,4 +47,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon60 统一记录链清理版加载完成');
+console.log('[Memo-N][loader] memon61 成功提示时序修复版加载完成');
