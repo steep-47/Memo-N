@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon68';
+const RUNTIME_VERSION = 'memon69';
 
 async function loadRuntime(label, path) {
     try {
@@ -47,4 +47,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon68 记录接口设置面板稳定挂载版加载完成');
+console.log('[Memo-N][loader] memon69 记录接口UI无副作用重挂载版加载完成');
