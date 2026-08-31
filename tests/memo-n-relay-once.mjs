@@ -89,6 +89,6 @@ assert.equal(legacy.ok, true);
 assert.equal(legacy.reply, '旧正文');
 assert.equal(legacy.noChange, true);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon74'/u);
-assert.equal(manifest.version, '0.1.0-memon.74');
+assert.match(loader, /RUNTIME_VERSION = 'memon75'/u);
+assert.equal(manifest.version, '0.1.0-memon.75');
 console.log('memo-n-relay-once: all assertions passed');
