@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon71';
+const RUNTIME_VERSION = 'memon72';
 
 async function loadRuntime(label, path) {
     try {
@@ -18,7 +18,8 @@ async function loadRuntime(label, path) {
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一正常请求协议与记录执行入口。
 // - DeepSeek/中转站不再自动识别；记录协议由 Memo-N 设置中的“记录接口”手动指定。
-// - 普通一次API：DeepSeek走JSON记录信封；中转站走可持久化的纯文本哨兵JSON变更块，避免HTML注释被渲染链清理。
+// - 普通一次API：DeepSeek走JSON记录信封；中转站先输出纯文本哨兵JSON变更块，再输出完整正文，避免长回复把记录块截断。
+// - 中转站协议同时强化七表提示、最终system和最后user消息；仍由同一个recordEngine统一注入、解析、执行。
 // - 独立API/手动立即填表保留原插件的纯tableEdit记录请求，并继续走严格执行器。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
@@ -39,4 +40,4 @@ const runtimes = [
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
 
-console.log('[Memo-N][loader] memon71 中转站记录哨兵持久化修复版加载完成');
+console.log('[Memo-N][loader] memon72 中转站前置记录块与请求强化版加载完成');
