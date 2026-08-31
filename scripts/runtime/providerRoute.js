@@ -1,4 +1,5 @@
 import { oai_settings } from '/scripts/openai.js';
+import { USER } from '../../core/manager.js';
 
 export const ROUTE = Object.freeze({
     DEEPSEEK: 'deepseek',
@@ -9,9 +10,7 @@ const ROUTE_KEY = 'record_provider_route';
 const DEFAULT_ROUTE = ROUTE.DEEPSEEK;
 
 function settingsStore() {
-    const root = globalThis?.SillyTavern?.getContext?.()?.extensionSettings
-        ?? globalThis?.extensionSettings
-        ?? null;
+    const root = USER?.getSettings?.();
     if (!root) return null;
     if (!root.memo_n_settings || typeof root.memo_n_settings !== 'object') root.memo_n_settings = {};
     return root.memo_n_settings;
@@ -20,8 +19,7 @@ function settingsStore() {
 function manualRoute(data) {
     const explicit = String(data?.memo_n_record_provider ?? '').trim().toLowerCase();
     const stored = String(settingsStore()?.[ROUTE_KEY] ?? '').trim().toLowerCase();
-    const value = explicit || stored || DEFAULT_ROUTE;
-    return value === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
+    return explicit === ROUTE.RELAY || stored === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
 }
 
 function sourceOf(data) {
