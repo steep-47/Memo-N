@@ -9,6 +9,8 @@ const template = fs.readFileSync(new URL('../assets/templates/index.html', impor
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const modeRuntime = fs.readFileSync(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
 const structureRepair = fs.readFileSync(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
+const presetBridge = fs.readFileSync(new URL('../scripts/yiyi/yiyiPresetMemoryBridge.js', import.meta.url), 'utf8');
+const standalone = fs.readFileSync(new URL('../scripts/settings/standaloneAPI.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
 assert.match(template, /id="memo-record-provider-route"/u);
@@ -45,15 +47,27 @@ assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过�
 assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon82'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.82'/u);
-assert.match(loader, /\.\/scripts\/runtime\/memoryContentRules\.js/u, '七表职责与请求前结构校验runtime不可遗漏');
-assert.match(loader, /\.\/scripts\/runtime\/cleanupButtonBridge\.js/u, '严格表格整理按钮桥接runtime不可遗漏');
-assert.match(loader, /\.\/scripts\/ui\/personTableSplit\.js/u, '旧人物虚拟拆分残留清理runtime不可遗漏');
-assert.match(loader, /\.\/scripts\/ui\/fillStatusColor\.js/u, '填表提示颜色与时长runtime不可遗漏');
-assert.match(loader, /\.\/scripts\/ui\/pinchZoom\.js/u, '必须加载统一横滑与双指缩放 runtime');
+assert.match(loader, /RUNTIME_VERSION = 'memon83'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.83'/u);
+for (const modulePath of [
+    './scripts/runtime/memoryContentRules.js',
+    './scripts/runtime/cleanupButtonBridge.js',
+    './scripts/ui/personTableSplit.js',
+    './scripts/ui/fillStatusColor.js',
+    './scripts/ui/pinchZoom.js',
+    './scripts/ui/yiyiMemoryPanel.js',
+    './scripts/yiyi/yiyiPresetMemoryBridge.js',
+    './scripts/yiyi/yiyiMemoryRuntime.js',
+]) assert.ok(loader.includes(modulePath), `loader遗漏运行时：${modulePath}`);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.82');
+assert.equal(manifest.version, '0.1.0-memon.83');
+
+for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) {
+    assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`), `standaloneAPI遗漏导出：${name}`);
+}
+assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u, '伊依预设桥仍引用废弃中转协议');
+assert.match(presetBridge, /前置<tableEdit>/u);
+assert.match(presetBridge, /reply字符串末尾/u);
 
 assert.match(managerTemplate, /id="contentContainer" class="memory-table-pinch-area"/u, '数据页必须保留统一触摸画布');
 assert.match(simpleCss, /#contentContainer\.memory-table-pinch-area\s*\{[\s\S]*?overflow-x:\s*auto/u, '统一画布必须承担横向滚动');
