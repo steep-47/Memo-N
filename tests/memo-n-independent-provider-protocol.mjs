@@ -6,6 +6,7 @@ const source = fs.readFileSync(new URL('../scripts/runtime/separateTableUpdate.j
 const provider = fs.readFileSync(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
 const ui = fs.readFileSync(new URL('../scripts/ui/apiModeToggle.js', import.meta.url), 'utf8');
 const template = fs.readFileSync(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
+const bootstrap = fs.readFileSync(new URL('../scripts/runtime/settingsBootstrap.js', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
@@ -58,11 +59,14 @@ assert.match(source, /return 'stale'/u);
 assert.match(source, /prepareAutoBaseline/u);
 assert.match(source, /restorePieceState/u);
 
-// 模式入口只保留“填表行为发生在”。
+// 模式入口只保留“填表行为发生在”，并迁移旧 step_by_step 一次。
 assert.match(ui, /bindFillTime/u);
 assert.match(ui, /independent_record_api_enabled/u);
 assert.doesNotMatch(template, /id="memory-independent-record-api"/u);
+assert.match(bootstrap, /hasOwnProperty\.call\(store, 'independent_record_api_enabled'\)/u);
+assert.match(bootstrap, /store\.independent_record_api_enabled = store\.step_by_step === true/u);
+assert.match(bootstrap, /store\.step_by_step = false/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon75'/u);
-assert.equal(manifest.version, '0.1.0-memon.75');
+assert.match(loader, /RUNTIME_VERSION = 'memon76'/u);
+assert.equal(manifest.version, '0.1.0-memon.76');
 console.log('memo-n-independent-provider-protocol: all assertions passed');
