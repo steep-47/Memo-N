@@ -28,6 +28,10 @@ function applyIndependentMode(enabled, save = true) {
     const store = getStore();
     if (!store) return;
     store[PREF_KEY] = enabled === true;
+    // 原插件自己的 #fill_table_time change handler 仍会把旧 step_by_step 写成持久状态。
+    // Memo-N 模式的唯一持久真值是 independent_record_api_enabled，因此用户切换后立即把旧字段归零；
+    // 真正构建主聊天 prompt 时由 modeRuntimeControl 只在事件分发期间临时桥接。
+    if (USER?.tableBaseSetting) USER.tableBaseSetting.step_by_step = false;
     syncModeSections(document.querySelector('#fill_table_time'));
     if (save) USER.saveSettings?.();
     console.log(`[Memo] 填表模式：${enabled ? '收到消息后独立记录' : '聊天同时填表'}`);
