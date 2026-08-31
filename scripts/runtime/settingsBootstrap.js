@@ -27,10 +27,10 @@ const TRANSPORT_NEUTRAL_OPERATIONS = `# 记录动作语义
 - insert：当前表中没有该对象/事实且本轮首次明确确认时新增。
 - update：只更新当前表中真实存在的rowIndex；不得把不存在的row当成新增。
 - delete：只删除当前表中真实存在且已明确失效/消失的rowIndex。
-- 这里只定义记录语义，不定义本轮传输语法；最终JSON或中转哨兵格式只服从请求末尾由Memo-N一次API记录引擎注入的唯一协议。`;
+- 这里只定义记录语义，不定义本轮传输语法；最终JSON或tableEdit格式只服从请求末尾由Memo-N记录引擎注入的唯一协议。`;
 const TRANSPORT_NEUTRAL_OUTPUT = `# 输出
 - 本段只规定“应记录哪些事实”，不规定最终机器传输格式。
-- 最终传输格式只服从本轮请求末尾由Memo-N一次API记录引擎注入的唯一记录协议；不得自行混用JSON、tableEdit、哨兵或其他格式。
+- 最终传输格式只服从本轮请求末尾由Memo-N记录引擎注入的唯一记录协议；不得自行混用JSON、tableEdit或其他格式。
 - 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时按最终协议表示“无变化”。`;
 
 function normalizeBaseTablePrompt(template) {
@@ -94,10 +94,17 @@ try {
         const store = root.memo_n_settings;
         for (const [key, value] of Object.entries(defaultSettings)) if (!(key in store)) store[key] = clone(value);
 
+        // memon75：新的持久化模式字段只在第一次出现时从旧 step_by_step 迁移。
+        // 之后 step_by_step 仅作为运行时瞬时标志，不再决定持久化模式。
+        if (!Object.prototype.hasOwnProperty.call(store, 'independent_record_api_enabled')) {
+            store.independent_record_api_enabled = store.step_by_step === true;
+            console.log(`[Memo-N][settings] 已迁移旧填表时机：${store.independent_record_api_enabled ? '收到消息后独立记录' : '聊天同时填表'}`);
+        }
+
         const normalizedMessageTemplate = normalizeBaseTablePrompt(store.message_template);
         if (normalizedMessageTemplate !== store.message_template) {
             store.message_template = normalizedMessageTemplate;
-            console.log('[Memo-N][settings] 已把基础七表提示归一为传输格式中立；最终格式只由一次API记录引擎决定');
+            console.log('[Memo-N][settings] 已把基础七表提示归一为传输格式中立；最终格式只由记录引擎决定');
         }
 
         if (needsStepPromptUpgrade(store.step_by_step_user_prompt)) {
@@ -112,7 +119,7 @@ try {
 
         store.step_by_step = false;
         applicationFunctionManager.saveSettingsDebounced?.();
-        console.log('[Memo][settings] 七表默认设置与一次API记录协议已归一化');
+        console.log('[Memo][settings] 七表默认设置、模式迁移与记录协议已归一化');
     }
 } catch (error) {
     console.warn('[Memo][settings] bootstrap normalization failed:', error);
