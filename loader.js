@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon69';
+const RUNTIME_VERSION = 'memon70';
 
 async function loadRuntime(label, path) {
     try {
@@ -18,8 +18,8 @@ async function loadRuntime(label, path) {
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一正常请求协议与记录执行入口。
 // - DeepSeek/中转站不再自动识别；记录协议由 Memo-N 设置中的“记录接口”手动指定。
-// - DeepSeek走JSON记录信封；中转站走tableEdit。
-// - 中转tableEdit约束由recordEngine统一注入与解析，不引入第二个协调模块。
+// - 普通一次API：DeepSeek走JSON记录信封；中转站走隐藏JSON变更块。
+// - 独立API/手动立即填表保留原插件的纯tableEdit记录请求，并继续走严格执行器。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
 // - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
@@ -47,4 +47,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon69 记录接口UI无副作用重挂载版加载完成');
+console.log('[Memo-N][loader] memon70 中转站一次API隐藏JSON记录版加载完成');
