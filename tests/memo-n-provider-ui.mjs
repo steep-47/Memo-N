@@ -48,8 +48,8 @@ assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过�
 assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon84'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.84'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon85'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.85'/u);
 for (const modulePath of [
     './scripts/runtime/memoryContentRules.js',
     './scripts/runtime/cleanupButtonBridge.js',
@@ -61,7 +61,7 @@ for (const modulePath of [
     './scripts/yiyi/yiyiMemoryRuntime.js',
 ]) assert.ok(loader.includes(modulePath), `loader遗漏运行时：${modulePath}`);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.84');
+assert.equal(manifest.version, '0.1.0-memon.85');
 
 for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) {
     assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`), `standaloneAPI遗漏导出：${name}`);
@@ -69,6 +69,8 @@ for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateToke
 assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u, '伊依预设桥仍引用废弃中转协议');
 assert.match(presetBridge, /前置<tableEdit>/u);
 assert.match(presetBridge, /reply字符串末尾/u);
+assert.match(presetBridge, /let processing = false/u, '伊依预设桥缺少串行互斥');
+assert.match(presetBridge, /scheduleProcessLatest/u, '伊依预设桥必须复用同一GENERATION_ENDED处理器');
 assert.match(yiyiRuntime, /waitRecordPersistence\(chat\)/u, '伊依直接角色必须等待表格记录持久化');
 assert.doesNotMatch(yiyiRuntime, /CHARACTER_MESSAGE_RENDERED,\s*onMessage/u, '伊依不得在JSON信封拆包前提前剥离记忆块');
 assert.match(yiyiRuntime, /ledger\(chat\)\[ledgerKey\(chat\)\]/u, '伊依Swipe事务必须记入当前Swipe台账');
