@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon78';
-const PUBLIC_VERSION = '0.1.0-memon.78';
+const RUNTIME_VERSION = 'memon79';
+const PUBLIC_VERSION = '0.1.0-memon.79';
 
 async function loadRuntime(label, path) {
     try {
@@ -22,9 +22,8 @@ async function loadRuntime(label, path) {
 // - 普通一次API：DeepSeek走JSON reply+changes；中转站统一走前置tableEdit，再输出完整正文，避免长回复把机器块截断。
 // - 独立API/手动立即填表：DeepSeek走记录专用JSON reply="RECORD_ONLY"+changes；中转站走唯一tableEdit。
 // - “填表行为发生在”是唯一模式选择：聊天同时填表 / 收到消息后独立记录；不再额外显示重复独立开关或旧主/自定义API路由开关。
-// - 老用户旧 step_by_step 只在新模式字段首次不存在时迁移一次，之后旧字段仅作运行时瞬时标志。
+// - 老用户旧 step_by_step 只在新模式字段首次不存在时迁移一次；独立模式从 GENERATION_STARTED 到 SETTINGS_READY 临时桥接旧主体的只读提示分支，随后立即归零。
 // - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
-// - 内部模块使用无版本query的静态import；缓存失效只由本loader的RUNTIME_VERSION统一负责，避免旧memon6/memon52子模块常驻。
 // - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
@@ -70,4 +69,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon78 填表模式瞬时桥接版加载完成');
+console.log('[Memo-N][loader] memon79 generation生命周期兼容版加载完成');
