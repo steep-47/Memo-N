@@ -230,19 +230,13 @@ function patchTextObject(target, patch, allowed) {
 function patchEmotion(target, patch) {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return false;
     let changed = patchTextObject(target, patch, ['current', 'cause', 'residue']);
-    if ('intensity' in patch) {
-        const next = emotionIntensity(patch.intensity);
-        if (target.intensity !== next) { target.intensity = next; changed = true; }
-    }
-    if ('trajectory' in patch) {
-        const next = emotionTrajectory(patch.trajectory);
-        if (target.trajectory !== next) { target.trajectory = next; changed = true; }
-    }
+    if ('intensity' in patch) { const next = emotionIntensity(patch.intensity); if (target.intensity !== next) { target.intensity = next; changed = true; } }
+    if ('trajectory' in patch) { const next = emotionTrajectory(patch.trajectory); if (target.trajectory !== next) { target.trajectory = next; changed = true; } }
     if (changed) target.updatedAt = nowIso();
     return changed;
 }
 
-export function applyYiYiMemoryDelta(delta) {
+export function applyYiYiMemoryDelta(delta, { persist = true } = {}) {
     if (!delta || typeof delta !== 'object' || Array.isArray(delta)) return { changed: false, vault: getYiYiVault() };
     const vault = getYiYiVault();
     let changed = false;
@@ -271,7 +265,7 @@ export function applyYiYiMemoryDelta(delta) {
     changed = patchEmotion(vault.emotion, delta.emotion) || changed;
     changed = patchTextObject(vault.self, delta.self, ['understanding', 'changes']) || changed;
 
-    return { changed, vault: changed ? saveYiYiVault(vault) : vault };
+    return { changed, vault: changed && persist ? saveYiYiVault(vault) : vault };
 }
 
 export const YiYiMemoryStore = Object.freeze({
