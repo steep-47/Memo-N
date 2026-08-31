@@ -14,7 +14,7 @@ const yiyi = fs.readFileSync(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', imp
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
-// memon73：普通一次 API 的中转站重新与独立/手动记录统一为 tableEdit。
+// 普通一次 API 的中转站统一为前置 tableEdit。
 assert.match(engine, /parseRelayTableEditEnvelope/u);
 assert.match(engine, /responseMode:\s*relayMode\s*\?\s*'relay_tableedit'/u);
 assert.match(engine, /统一走前置tableEdit/u);
@@ -29,10 +29,13 @@ assert.match(engine, /parseRelayTaggedEnvelope/u);
 assert.equal(RELAY_TAG_START, 'MEMO_N_CHANGES_V1');
 assert.equal(RELAY_TAG_END, 'MEMO_N_CHANGES_END');
 
-// 独立/手动记录继续使用原插件 tableEdit，因此中转 API 记录协议是一致的。
+// 独立/手动链必须真正服从同一手动 route：DeepSeek JSON，中转站 tableEdit。
+assert.match(independent, /getManualProviderRoute\(\)/u);
+assert.match(independent, /route === ROUTE\.DEEPSEEK/u);
+assert.match(independent, /DEEPSEEK_RECORD_CONTRACT/u);
+assert.match(independent, /parseRecordEnvelope\(rawContent\)/u);
 assert.match(independent, /getTableEditTag\(rawContent\)/u);
-assert.match(independent, /模型必须且只能返回1个<tableEdit>/u);
-assert.match(independent, /runIndependentApi/u);
+assert.match(independent, /中转站模型必须且只能返回1个<tableEdit>/u);
 
 // 伊依必须位于前置 tableEdit 之后的正常正文内。
 assert.match(yiyi, /中转站普通一次API/u);
@@ -41,22 +44,18 @@ assert.match(yiyi, /绝不能放到前置<tableEdit>之前/u);
 
 const longReply = '第一段剧情。\n\n' + '很长的正文。'.repeat(500) + '\n\n1. 选项一\n2. 选项二';
 const machine = '<tableEdit><!--\nupdateRow(0,0,{1:"08:30"})\n--></tableEdit>';
-
-// 新协议：tableEdit 在开头，长正文在后面。解析后只留下正文，机器块完整交给严格执行器。
 const leading = parseRelayTableEditEnvelope(`${machine}\n${longReply}`);
 assert.equal(leading.ok, true);
 assert.equal(leading.reply, longReply);
 assert.equal(leading.tableEdit, machine);
 assert.equal(leading.noChange, false);
 
-// YiYi 块属于正常正文，中转解析器不得误删。
 const yiyiBlock = '<yiyiMemory>{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}</yiyiMemory>';
 const withYiYi = parseRelayTableEditEnvelope(`<tableEdit><!-- NO_CHANGE --></tableEdit>\n正文\n${yiyiBlock}`);
 assert.equal(withYiYi.ok, true);
 assert.equal(withYiYi.reply, `正文\n${yiyiBlock}`);
 assert.equal(withYiYi.noChange, true);
 
-// 兼容模型偶尔仍把 tableEdit 放尾部或中间：都能剥离并保留可见正文。
 const trailing = parseRelayTableEditEnvelope(`正常正文\n\n${machine}`);
 assert.equal(trailing.ok, true);
 assert.equal(trailing.reply, '正常正文');
@@ -65,7 +64,6 @@ const middle = parseRelayTableEditEnvelope(`正文前半\n${machine}\n正文后�
 assert.equal(middle.ok, true);
 assert.equal(middle.reply, '正文前半\n\n正文后半');
 
-// reasoning fallback 可传入正文作为 fallbackReply。
 const reasoning = parseRelayTableEditEnvelope('<tableEdit><!-- NO_CHANGE --></tableEdit>', '正文来自content');
 assert.equal(reasoning.ok, true);
 assert.equal(reasoning.reply, '正文来自content');
@@ -86,13 +84,11 @@ assert.equal(missing.ok, false);
 assert.match(missing.error, /未找到中转站tableEdit记录块/u);
 assert.equal(missing.reply, '只有正文，没有任何机器记录块');
 
-// memon70-72 tagged JSON 旧回复仍可读，避免升级后旧未完成消息失去兼容。
 const legacy = parseRelayTaggedEnvelope(`${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}\n旧正文`);
 assert.equal(legacy.ok, true);
 assert.equal(legacy.reply, '旧正文');
 assert.equal(legacy.noChange, true);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon73'/u);
-assert.equal(manifest.version, '0.1.0-memon.73');
-
+assert.match(loader, /RUNTIME_VERSION = 'memon74'/u);
+assert.equal(manifest.version, '0.1.0-memon.74');
 console.log('memo-n-relay-once: all assertions passed');
