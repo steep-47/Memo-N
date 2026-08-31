@@ -113,7 +113,7 @@ const tolerantTag = channels.getMemoTableEditChannel({ mes: '正文', extra: { r
 if (tolerantTag.source !== 'reasoning' || tolerantTag.matches.length !== 1) throw new Error('未兼容推理区标签大小写/属性');
 console.log('response-channel audit PASS: reasoning-recovery=1, content-priority=1, swipe-reasoning=1, bare-text-rejected=1, tolerant-tag=1');
 
-// 当前 memon70 架构静态边界审计。
+// 当前 memon72 架构静态边界审计。
 const independentText = await fs.readFile(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
 const finishText = await fs.readFile(new URL('../scripts/runtime/singleApiFinish.js', import.meta.url), 'utf8');
 const loaderText = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
@@ -126,7 +126,7 @@ const yiyiText = await fs.readFile(new URL('../scripts/yiyi/yiyiMemoryRuntime.js
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的结构化/提示改写层');
-if (!loaderText.includes("RUNTIME_VERSION = 'memon70'") || manifest.version !== '0.1.0-memon.70') throw new Error('memon70 Loader/manifest版本未同步');
+if (!loaderText.includes("RUNTIME_VERSION = 'memon72'") || manifest.version !== '0.1.0-memon.72') throw new Error('memon72 Loader/manifest版本未同步');
 
 if (!indexText.includes('CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady') || !indexText.includes('CHARACTER_MESSAGE_RENDERED, onMessageReceived')) throw new Error('原作者直接注入/直接解析事件链缺失');
 if (!indexText.includes('executeMemoTableEdit(matches, piece)')) throw new Error('原作者直接记录入口未接严格事务执行器');
@@ -142,17 +142,20 @@ if (!bootstrapText.includes('TRANSPORT_NEUTRAL_OUTPUT') || !bootstrapText.includ
 if (!bootstrapText.includes('STEP_BY_STEP_PROMPT') || !bootstrapText.includes('最终只输出一个完整<tableEdit>')) throw new Error('独立记录默认提示未保留纯tableEdit职责');
 
 if (!engineText.includes("responseMode: relayMode ? 'relay_tagged' : 'json'")) throw new Error('普通中转一次API未切到relay_tagged');
-if (!engineText.includes('parseRelayTaggedEnvelope') || !engineText.includes('RELAY_TAG_START') || !engineText.includes('RELAY_TAG_END')) throw new Error('普通中转一次API缺少隐藏JSON记录协议');
+if (!engineText.includes('parseRelayTaggedEnvelope') || !engineText.includes('RELAY_TAG_START') || !engineText.includes('RELAY_TAG_END')) throw new Error('普通中转一次API缺少tagged JSON记录协议');
+if (!engineText.includes('第一段必须先输出且只输出一个Memo-N记录块') || !engineText.includes('reinforceRelayLastUser')) throw new Error('memon72缺少中转前置记录块或最终user强化');
+if (!engineText.includes('__memoNLastRequestProbe') || !engineText.includes('lastUserReinforced')) throw new Error('memon72缺少无敏感信息请求注入探针');
 if (engineText.includes('relay_tableedit') || engineText.includes('parseTableEditEnvelope') || engineText.includes('未找到中转站tableEdit记录块')) throw new Error('普通中转一次API仍残留旧tableEdit协议');
 if (!engineText.includes("data.response_format = { type: 'json_object' }") || !engineText.includes('changesToStrictCalls(envelope.changes)')) throw new Error('DeepSeek JSON或统一严格事务编译缺失');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
-if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'relay-tagged-reasoning'")) throw new Error('中转站缺少当前Swipe reasoning隐藏记录块回退');
+if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'relay-tagged-reasoning'")) throw new Error('中转站缺少当前Swipe reasoning记录块回退');
 if (!engineText.includes('聊天保存失败') || !engineText.includes('restoreMemoSnapshot(copySnapshot(baselineSnapshot))')) throw new Error('Memo-N缺少聊天保存失败后的表格回滚');
 if (!engineText.includes('__memoStrictPersistence') || !finishText.includes('await persistence')) throw new Error('Memo-N写入提示未等待真实保存结果');
 if (!engineText.includes('void persistence.catch') || !engineText.includes('CHARACTER_MESSAGE_RENDERED, handleRendered') || !engineText.includes('GENERATION_ENDED, handleGenerationEnded')) throw new Error('普通一次API持久化生命周期未保持后台执行/渲染释放');
 if (!engineText.includes('await BASE.refreshContextView?.()')) throw new Error('Memo-N成功写表后未刷新活动表格视图');
 
 if (!envelopeText.includes('parseRelayTaggedEnvelope') || !envelopeText.includes('escapeControlCharsInsideJsonStrings')) throw new Error('记录信封层缺少中转tagged JSON或控制字符规范化');
+if (!envelopeText.includes('joinVisibleRelayText')) throw new Error('memon72中转解析器未支持前置/中间/尾部机器块剥离');
 if (!envelopeText.includes("return ['NO_CHANGE']")) throw new Error('空changes未编译成严格NO_CHANGE');
 
 if (!independentText.includes('getTableEditTag(rawContent)') || !independentText.includes('模型必须且只能返回1个<tableEdit>')) throw new Error('独立/手动记录不再保持纯tableEdit协议');
@@ -164,6 +167,6 @@ const independentExecute = independentText.indexOf('const result=executeMemoTabl
 if (detachedGate < 0 || independentExecute < 0 || detachedGate > independentExecute) throw new Error('独立记录缺少执行前聊天会话身份门控');
 
 if (!finishText.includes("if(status.noChange===true){") || !finishText.includes('await persistence')) throw new Error('NO_CHANGE提示或真实持久化等待缺失');
-if (!yiyiText.includes('MEMO_N_CHANGES_V1') || !yiyiText.includes('隐藏记录块之前')) throw new Error('伊依与中转隐藏记录块输出顺序未对齐');
+if (!yiyiText.includes('中转站前置记录块') || !yiyiText.includes('先输出并闭合该记录块') || !yiyiText.includes('属于正常正文的一部分')) throw new Error('伊依与memon72前置中转记录块输出顺序未对齐');
 
-console.log('memo-n engine audit PASS: manual-route=1, deepseek-json=1, relay-tagged=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, independent-tableedit=1, yiyi-order=1');
+console.log('memo-n engine audit PASS: manual-route=1, deepseek-json=1, relay-leading-tagged=1, relay-user-reinforce=1, request-probe=1, strict-executor=1, session-gate=1, persistence-rollback=1, independent-tableedit=1, yiyi-order=1');
