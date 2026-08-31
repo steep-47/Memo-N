@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 const ui = fs.readFileSync(new URL('../scripts/ui/apiModeToggle.js', import.meta.url), 'utf8');
 const template = fs.readFileSync(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
+const modeRuntime = fs.readFileSync(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
+const structureRepair = fs.readFileSync(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
 assert.match(template, /id="memo-record-provider-route"/u, 'Memo-N 设置模板必须直接包含记录接口选择器');
@@ -33,9 +35,13 @@ assert.doesNotMatch(mountBody, /tableBaseSetting\.step_by_step_use_main_api\s*=/
 assert.match(mountBody, /getManualProviderRoute\(\)/u, 'mount() 应从统一手动 route 读取当前接口');
 assert.match(mountBody, /syncModeSections\(fillTime\)/u, 'mount() 必须根据持久化模式恢复正确区域显隐');
 
-assert.match(loader, /RUNTIME_VERSION = 'memon76'/u, 'Loader 缓存版本必须为 memon76');
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.76'/u, 'Loader 必须同步公开版本号');
+// memon77：内部静态模块不得再自行钉死旧 memon6/memon52 query；缓存失效由 loader 唯一控制。
+assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u, 'modeRuntimeControl 不得钉死旧子模块版本');
+assert.doesNotMatch(structureRepair, /\?v=memon\d+/u, 'tableStructureRepair 不得钉死旧迁移模块版本');
+assert.match(loader, /RUNTIME_VERSION = 'memon77'/u, 'Loader 缓存版本必须为 memon77');
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.77'/u, 'Loader 必须同步公开版本号');
+assert.match(loader, /内部模块使用无版本query的静态import/u, 'Loader 必须声明唯一缓存版本所有权');
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u, 'Loader 必须覆盖旧 index.js 暴露的版本号');
 assert.match(loader, /DOMContentLoaded/u, '公开版本同步必须覆盖晚初始化时序');
-assert.equal(manifest.version, '0.1.0-memon.76', 'manifest 版本必须为 memon76');
+assert.equal(manifest.version, '0.1.0-memon.77', 'manifest 版本必须为 memon77');
 console.log('memo-n-provider-ui: all assertions passed');
