@@ -106,7 +106,7 @@ if (recovered.source !== 'reasoning' || recovered.matches.length !== 1) throw ne
 const bareReasoning = channels.getMemoTableEditChannel({ mes: '正文', extra: { reasoning: '考虑调用 updateRow(0,0,{1:"09:00"})' } });
 if (bareReasoning.source !== 'none' || bareReasoning.matches.length) throw new Error('错误接受了推理区裸函数猜测');
 
-// memon73 架构静态边界审计。
+// memon74 架构静态边界审计。
 const independentText = await fs.readFile(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
 const finishText = await fs.readFile(new URL('../scripts/runtime/singleApiFinish.js', import.meta.url), 'utf8');
 const loaderText = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
@@ -118,7 +118,7 @@ const providerText = await fs.readFile(new URL('../scripts/runtime/providerRoute
 const yiyiText = await fs.readFile(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 
-if (!loaderText.includes("RUNTIME_VERSION = 'memon73'") || manifest.version !== '0.1.0-memon.73') throw new Error('memon73 Loader/manifest版本未同步');
+if (!loaderText.includes("RUNTIME_VERSION = 'memon74'") || manifest.version !== '0.1.0-memon.74') throw new Error('memon74 Loader/manifest版本未同步');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的旧协议层');
 if (!loaderText.includes('Memo-N一次API记录引擎') || !indexText.includes('__memoNRecordEngineActive')) throw new Error('recordEngine未成为普通一次API唯一执行入口');
 
@@ -129,26 +129,35 @@ for (const forbidden of ['chat_completion_source', 'custom_url', 'reverse_proxy'
 }
 
 if (!bootstrapText.includes('TRANSPORT_NEUTRAL_OUTPUT') || !bootstrapText.includes('最终传输格式只服从本轮请求末尾')) throw new Error('基础七表提示未保持传输协议中立');
-if (!bootstrapText.includes('STEP_BY_STEP_PROMPT') || !bootstrapText.includes('最终只输出一个完整<tableEdit>')) throw new Error('独立记录默认提示未保持tableEdit职责');
 
+// 普通一次 API：DeepSeek JSON / 中转前置 tableEdit。
 if (!engineText.includes("responseMode: relayMode ? 'relay_tableedit' : 'json'")) throw new Error('普通中转一次API未统一为relay_tableedit');
 if (!engineText.includes('parseRelayTableEditEnvelope')) throw new Error('普通中转一次API缺少tableEdit解析器');
-if (!engineText.includes('第一段必须先输出且只输出一个完整<tableEdit>机器块') || !engineText.includes('reinforceRelayLastUser')) throw new Error('缺少前置tableEdit或最终user强化');
-if (!engineText.includes('__memoNLastRequestProbe') || !engineText.includes('relayTableEditPresent') || !engineText.includes("responseMode: relayMode ? 'relay_tableedit_leading' : 'json'")) throw new Error('请求探针未反映前置tableEdit协议');
-if (!engineText.includes('envelope.tableEdit ? envelope.tableEdit : changesToStrictCalls(envelope.changes)')) throw new Error('relay/DeepSeek未汇入统一严格执行器入口');
+if (!engineText.includes('第一段必须先输出且只输出一个完整<tableEdit>机器块') || !engineText.includes('reinforceRelayLastUser')) throw new Error('普通中转缺少前置tableEdit或最终user强化');
+if (!engineText.includes('__memoNLastRequestProbe') || !engineText.includes('relayTableEditPresent') || !engineText.includes("responseMode: relayMode ? 'relay_tableedit_leading' : 'json'")) throw new Error('普通请求探针未反映前置tableEdit协议');
+if (!engineText.includes('envelope.tableEdit ? envelope.tableEdit : changesToStrictCalls(envelope.changes)')) throw new Error('普通 relay/DeepSeek 未汇入统一严格执行器入口');
+if (!engineText.includes("data.response_format = { type: 'json_object' }")) throw new Error('普通 DeepSeek JSON object约束缺失');
 if (!engineText.includes('parseRelayTaggedEnvelope') || !engineText.includes('仅兼容 memon70-72')) throw new Error('memon70-72旧tagged回复兼容缺失');
-if (!engineText.includes("data.response_format = { type: 'json_object' }")) throw new Error('DeepSeek JSON object约束缺失');
-if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'relay-tableedit-reasoning'")) throw new Error('relay当前Swipe reasoning回退缺失');
-if (!engineText.includes('preserveFailureBaseline') || !engineText.includes('聊天保存失败') || !engineText.includes('restoreMemoSnapshot(copySnapshot(baselineSnapshot))')) throw new Error('失败基线/保存失败回滚缺失');
+if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineText.includes("source: 'relay-tableedit-reasoning'")) throw new Error('普通中转当前Swipe reasoning回退缺失');
+if (!engineText.includes('preserveFailureBaseline') || !engineText.includes('聊天保存失败') || !engineText.includes('restoreMemoSnapshot(copySnapshot(baselineSnapshot))')) throw new Error('普通一次API失败基线/保存失败回滚缺失');
 if (!engineText.includes('__memoStrictPersistence') || !finishText.includes('await persistence')) throw new Error('成功提示未等待真实持久化');
 
 if (!envelopeText.includes('parseRelayTableEditEnvelope') || !envelopeText.includes('joinVisibleRelayText')) throw new Error('前置/尾部tableEdit剥离解析能力缺失');
 if (!envelopeText.includes('parseRelayTaggedEnvelope') || !envelopeText.includes('旧回复兼容')) throw new Error('旧tagged兼容解析缺失');
 
-if (!independentText.includes('getTableEditTag(rawContent)') || !independentText.includes('模型必须且只能返回1个<tableEdit>')) throw new Error('独立/手动记录不再使用tableEdit');
+// 独立/手动 API：同一手动 route 真正同时决定 Provider 与协议。
+if (!independentText.includes("import { getManualProviderRoute, ROUTE } from './providerRoute.js'")) throw new Error('独立记录未直接读取统一手动route');
+if (!independentText.includes("route===ROUTE.DEEPSEEK")) throw new Error('独立记录缺少DeepSeek分支');
+if (!independentText.includes('buildDeepSeekIndependentMessages')) throw new Error('独立DeepSeek缺少JSON记录prompt');
+if (!independentText.includes("reply必须固定为\"RECORD_ONLY\"")) throw new Error('独立DeepSeek缺少RECORD_ONLY JSON契约');
+if (!independentText.includes('parseRecordEnvelope(rawContent)')) throw new Error('独立DeepSeek未使用统一JSON容错解析器');
+if (!independentText.includes('changesToStrictCalls(envelope.changes)')) throw new Error('独立DeepSeek changes 未编译为严格调用');
+if (!independentText.includes('getTableEditTag(rawContent)') || !independentText.includes('模型必须且只能返回1个<tableEdit>')) throw new Error('独立中转未保持tableEdit协议');
+if (!independentText.includes('executeMemoTableEdit(machine,referencePiece)')) throw new Error('独立两种协议未汇入同一个严格执行器');
+if (!independentText.includes('const useMain=route===ROUTE.DEEPSEEK')) throw new Error('独立Provider未由手动route直接决定');
 if (!independentText.includes('if(!prepareAutoBaseline') || !independentText.includes('if(!baselineReady)throw new Error')) throw new Error('独立记录基线门控缺失');
 if (!independentText.includes('!sessionChat.includes(initialPiece)')) throw new Error('手动记录聊天归属校验缺失');
 
 if (!yiyiText.includes('先输出并闭合前置<tableEdit>机器块') || !yiyiText.includes('绝不能放到前置<tableEdit>之前')) throw new Error('伊依与前置tableEdit输出顺序未对齐');
 
-console.log('memo-n engine audit PASS: manual-route=1, deepseek-json=1, relay-leading-tableedit=1, relay-user-reinforce=1, request-probe=1, strict-executor=1, rollback=1, independent-tableedit=1, legacy-tagged-compat=1, yiyi-order=1');
+console.log('memo-n engine audit PASS: manual-route=1, normal-deepseek-json=1, normal-relay-leading-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1, legacy-tagged-compat=1, yiyi-order=1');
