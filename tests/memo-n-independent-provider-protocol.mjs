@@ -4,6 +4,8 @@ import { parseRecordEnvelope, changesToStrictCalls } from '../scripts/engine/rec
 
 const source = fs.readFileSync(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
 const provider = fs.readFileSync(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
+const ui = fs.readFileSync(new URL('../scripts/ui/apiModeToggle.js', import.meta.url), 'utf8');
+const template = fs.readFileSync(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
@@ -11,6 +13,8 @@ const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.m
 assert.match(source, /getManualProviderRoute\(\)/u);
 assert.match(source, /const useMain = route === ROUTE\.DEEPSEEK/u);
 assert.doesNotMatch(source, /const useMain\s*=\s*USER\.tableBaseSetting\.step_by_step_use_main_api/u);
+assert.doesNotMatch(ui, /step_by_step_use_main_api\s*=/u);
+assert.doesNotMatch(template, /id="step_by_step_use_main_api"/u);
 for (const forbidden of ['chat_completion_source', 'custom_url', 'reverse_proxy', 'modelOf', 'sourceOf', 'isDirectDeepSeek']) {
     assert.doesNotMatch(provider, new RegExp(forbidden, 'u'));
 }
@@ -54,6 +58,11 @@ assert.match(source, /return 'stale'/u);
 assert.match(source, /prepareAutoBaseline/u);
 assert.match(source, /restorePieceState/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon74'/u);
-assert.equal(manifest.version, '0.1.0-memon.74');
+// 模式入口只保留“填表行为发生在”。
+assert.match(ui, /bindFillTime/u);
+assert.match(ui, /independent_record_api_enabled/u);
+assert.doesNotMatch(template, /id="memory-independent-record-api"/u);
+
+assert.match(loader, /RUNTIME_VERSION = 'memon75'/u);
+assert.equal(manifest.version, '0.1.0-memon.75');
 console.log('memo-n-independent-provider-protocol: all assertions passed');
