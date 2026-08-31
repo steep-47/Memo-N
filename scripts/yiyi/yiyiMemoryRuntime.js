@@ -3,13 +3,13 @@ import { applyYiYiMemoryDelta, getYiYiVault, saveYiYiVault } from './yiyiMemoryS
 import { buildYiYiRecallContext } from './yiyiRecallEngine.js';
 import { maintainYiYiMemoryVault } from './yiyiMemoryMaintenance.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v9]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v10]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
 const LEDGER_KEY = 'memo_n_yiyi_tx_ledger_v1';
 const handled = new WeakMap();
-const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
+const RECORD_ONLY_MARKERS = ['[Memo七表独立记录v3]', '[Memo七表独立记录v4]', '[Memo七表整理', '世界状态数据库整理器', 'Memo世界状态表格整理器', '只维护表格，不输出剧情正文'];
 const SECTIONS = Object.freeze({
     relationship: ['stage', 'summary', 'sharedUnderstanding', 'boundaries', 'unresolved', 'expectations', 'trustBasis', 'interactionPattern', 'initiative', 'comfort'],
     emotion: ['current', 'cause', 'residue', 'intensity', 'trajectory'],
@@ -116,23 +116,35 @@ async function waitRecordPersistence(chat) {
 async function process(chat) {
     if (!chat || chat.is_user || handled.get(chat) === chat.mes) return;
     await waitRecordPersistence(chat);
-    const parsed = parseBlock(chat.mes);
+    const originalMes = String(chat.mes ?? '');
+    const originalExtra = clone(chat.extra ?? {});
+    const id = Number(chat.swipe_id);
+    const originalSwipe = Array.isArray(chat.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length ? chat.swipes[id] : undefined;
+    const parsed = parseBlock(originalMes);
     if (!parsed) return;
+
     const before = getYiYiVault();
     let after = before;
     if (!parsed.error) after = maintainYiYiMemoryVault(applyYiYiMemoryDelta(before, parsed.delta));
     const tx = parsed.error ? null : txFrom(before, after);
     if (!parsed.error && !same(before, after)) await saveYiYiVault(after);
+
     chat.mes = parsed.cleaned;
-    const id = Number(chat.swipe_id);
     if (Array.isArray(chat.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes;
     if (tx && (tx.fields.length || tx.memories.length)) {
         setTransaction(chat, tx);
         ledger(chat)[ledgerKey(chat)] = clone(tx);
     }
-    handled.set(chat, chat.mes);
-    try { await USER.saveChat(); } catch (error) {
+
+    try {
+        await USER.saveChat();
+        handled.set(chat, chat.mes);
+    } catch (error) {
+        // 聊天保存失败时长期记忆与正文必须一起回到处理前状态，不能出现“记忆已提交但聊天还带机器块/台账半写入”。
         if (tx) await rollback(chat, tx);
+        chat.mes = originalMes;
+        chat.extra = originalExtra;
+        if (Array.isArray(chat.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = originalSwipe ?? originalMes;
         throw error;
     }
 }
@@ -183,4 +195,4 @@ APP.eventSource.makeLast?.(ended, scheduleGenerationEnded);
 APP.eventSource.on(APP.event_types.MESSAGE_SWIPED, onSwipe);
 APP.eventSource.on(APP.event_types.MESSAGE_DELETED, onDelete);
 
-console.log('[Memo-N] 伊依长期记忆运行时已加载：等待记录引擎持久化后处理正文记忆块');
+console.log('[Memo-N] 伊依长期记忆运行时已加载：等待记录引擎持久化，聊天保存失败时回滚正文与记忆事务');
