@@ -106,7 +106,7 @@ if (recovered.source !== 'reasoning' || recovered.matches.length !== 1) throw ne
 const bareReasoning = channels.getMemoTableEditChannel({ mes: '正文', extra: { reasoning: '考虑调用 updateRow(0,0,{1:"09:00"})' } });
 if (bareReasoning.source !== 'none' || bareReasoning.matches.length) throw new Error('错误接受了推理区裸函数猜测');
 
-// memon75 架构静态边界审计。
+// memon76 架构静态边界审计。
 const independentText = await fs.readFile(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
 const finishText = await fs.readFile(new URL('../scripts/runtime/singleApiFinish.js', import.meta.url), 'utf8');
 const loaderText = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
@@ -120,7 +120,7 @@ const uiText = await fs.readFile(new URL('../scripts/ui/apiModeToggle.js', impor
 const templateText = await fs.readFile(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 
-if (!loaderText.includes("RUNTIME_VERSION = 'memon75'") || !loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.75'") || manifest.version !== '0.1.0-memon.75') throw new Error('memon75 版本未同步');
+if (!loaderText.includes("RUNTIME_VERSION = 'memon76'") || !loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.76'") || manifest.version !== '0.1.0-memon.76') throw new Error('memon76 版本未同步');
 if (!loaderText.includes('window.memoN.VERSION = PUBLIC_VERSION') || !loaderText.includes('DOMContentLoaded')) throw new Error('公开版本号晚初始化覆盖保护缺失');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的旧协议层');
 if (!loaderText.includes('Memo-N一次API记录引擎') || !indexText.includes('__memoNRecordEngineActive')) throw new Error('recordEngine未成为普通一次API唯一执行入口');
@@ -132,6 +132,7 @@ for (const forbidden of ['chat_completion_source', 'custom_url', 'reverse_proxy'
 }
 
 if (!bootstrapText.includes('TRANSPORT_NEUTRAL_OUTPUT') || !bootstrapText.includes('最终传输格式只服从本轮请求末尾')) throw new Error('基础七表提示未保持传输协议中立');
+if (!bootstrapText.includes("hasOwnProperty.call(store, 'independent_record_api_enabled')") || !bootstrapText.includes('store.independent_record_api_enabled = store.step_by_step === true') || !bootstrapText.includes('store.step_by_step = false')) throw new Error('旧填表时机到新独立模式的一次性迁移缺失');
 
 // UI：唯一模式选择 + 唯一Provider选择。
 if (!templateText.includes('id="fill_table_time"')) throw new Error('唯一填表模式选择器缺失');
@@ -169,4 +170,4 @@ if (!independentText.includes("return 'detached'") || !independentText.includes(
 
 if (!yiyiText.includes('先输出并闭合前置<tableEdit>机器块') || !yiyiText.includes('绝不能放到前置<tableEdit>之前')) throw new Error('伊依与前置tableEdit输出顺序未对齐');
 
-console.log('memo-n engine audit PASS: version=75, single-mode-ui=1, manual-route=1, normal-deepseek-json=1, normal-relay-leading-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1, legacy-tagged-compat=1, yiyi-order=1');
+console.log('memo-n engine audit PASS: version=76, migration=1, single-mode-ui=1, manual-route=1, normal-deepseek-json=1, normal-relay-leading-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1, legacy-tagged-compat=1, yiyi-order=1');
