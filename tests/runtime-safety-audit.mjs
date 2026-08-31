@@ -106,8 +106,10 @@ if (recovered.source !== 'reasoning' || recovered.matches.length !== 1) throw ne
 const bareReasoning = channels.getMemoTableEditChannel({ mes: '正文', extra: { reasoning: '考虑调用 updateRow(0,0,{1:"09:00"})' } });
 if (bareReasoning.source !== 'none' || bareReasoning.matches.length) throw new Error('错误接受了推理区裸函数猜测');
 
-// memon76 架构静态边界审计。
+// memon77 架构静态边界审计。
 const independentText = await fs.readFile(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
+const modeRuntimeText = await fs.readFile(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
+const structureRepairText = await fs.readFile(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
 const finishText = await fs.readFile(new URL('../scripts/runtime/singleApiFinish.js', import.meta.url), 'utf8');
 const loaderText = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
 const indexText = await fs.readFile(new URL('../index.js', import.meta.url), 'utf8');
@@ -120,8 +122,10 @@ const uiText = await fs.readFile(new URL('../scripts/ui/apiModeToggle.js', impor
 const templateText = await fs.readFile(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 
-if (!loaderText.includes("RUNTIME_VERSION = 'memon76'") || !loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.76'") || manifest.version !== '0.1.0-memon.76') throw new Error('memon76 版本未同步');
+if (!loaderText.includes("RUNTIME_VERSION = 'memon77'") || !loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.77'") || manifest.version !== '0.1.0-memon.77') throw new Error('memon77 版本未同步');
 if (!loaderText.includes('window.memoN.VERSION = PUBLIC_VERSION') || !loaderText.includes('DOMContentLoaded')) throw new Error('公开版本号晚初始化覆盖保护缺失');
+if (!loaderText.includes('内部模块使用无版本query的静态import')) throw new Error('loader未声明唯一缓存版本所有权');
+if (/\?v=memon\d+/.test(modeRuntimeText) || /\?v=memon\d+/.test(structureRepairText)) throw new Error('运行时仍存在旧子模块缓存版本钉死');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的旧协议层');
 if (!loaderText.includes('Memo-N一次API记录引擎') || !indexText.includes('__memoNRecordEngineActive')) throw new Error('recordEngine未成为普通一次API唯一执行入口');
 
@@ -170,4 +174,4 @@ if (!independentText.includes("return 'detached'") || !independentText.includes(
 
 if (!yiyiText.includes('先输出并闭合前置<tableEdit>机器块') || !yiyiText.includes('绝不能放到前置<tableEdit>之前')) throw new Error('伊依与前置tableEdit输出顺序未对齐');
 
-console.log('memo-n engine audit PASS: version=76, migration=1, single-mode-ui=1, manual-route=1, normal-deepseek-json=1, normal-relay-leading-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1, legacy-tagged-compat=1, yiyi-order=1');
+console.log('memo-n engine audit PASS: version=77, cache-owner=loader, migration=1, single-mode-ui=1, manual-route=1, normal-deepseek-json=1, normal-relay-leading-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1, legacy-tagged-compat=1, yiyi-order=1');
