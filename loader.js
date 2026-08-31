@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon73';
+const RUNTIME_VERSION = 'memon74';
 
 async function loadRuntime(label, path) {
     try {
@@ -16,17 +16,16 @@ async function loadRuntime(label, path) {
 }
 
 // Memo-N 稳定运行边界：
-// - recordEngine 是唯一正常请求协议与记录执行入口。
-// - DeepSeek/中转站不再自动识别；记录协议由 Memo-N 设置中的“记录接口”手动指定。
-// - 普通一次API：DeepSeek走JSON记录信封；中转站统一走前置tableEdit，再输出完整正文，避免长回复把机器块截断。
-// - 中转tableEdit协议同时强化七表提示、最终system和最后user消息；仍由同一个recordEngine统一注入、解析、严格执行。
-// - 独立API/手动立即填表继续使用原插件的纯tableEdit记录请求，因此所有中转记录入口协议一致。
+// - recordEngine 是唯一普通一次API协议与记录执行入口。
+// - DeepSeek/中转站不再自动识别；所有API记录协议都由 Memo-N 设置中的“记录接口”手动指定。
+// - 普通一次API：DeepSeek走JSON reply+changes；中转站统一走前置tableEdit，再输出完整正文，避免长回复把机器块截断。
+// - 独立API/手动立即填表：DeepSeek走记录专用JSON reply="RECORD_ONLY"+changes；中转站走唯一tableEdit。
+// - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
+// - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
-// - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
-// - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
-// - Memo-N 不改SillyTavern原始stream设置。
-// - 成功提示只在严格执行与saveChat真正完成后显示。
+// - 伊依不属于世界七表；她使用独立全局长期记忆库。
+// - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
@@ -40,4 +39,4 @@ const runtimes = [
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
 
-console.log('[Memo-N][loader] memon73 中转站统一前置tableEdit版加载完成');
+console.log('[Memo-N][loader] memon74 全记录入口手动协议统一版加载完成');
