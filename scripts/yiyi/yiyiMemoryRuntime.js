@@ -3,7 +3,7 @@ import { applyYiYiMemoryDelta, getYiYiVault, saveYiYiVault } from './yiyiMemoryS
 import { buildYiYiRecallContext } from './yiyiRecallEngine.js';
 import { maintainYiYiMemoryVault } from './yiyiMemoryMaintenance.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi memory runtime v8]';
+const PROMPT_MARKER = '[Memo-N YiYi memory runtime v9]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const TX_KEY = 'memo_n_yiyi_transaction_v1';
@@ -65,24 +65,27 @@ function txFrom(before, after) {
     }
     return { fields, memories };
 }
-function inverseTransaction(vault, tx) {
+function mutateTransaction(vault, tx, direction) {
     const next = clone(vault);
     let changed = false;
+    const fromKey = direction === 'forward' ? 'before' : 'after';
+    const toKey = direction === 'forward' ? 'after' : 'before';
     for (const item of tx?.fields || []) {
         const current = next?.[item.section]?.[item.key];
-        if (!same(current, item.after)) continue;
+        if (!same(current, item[fromKey])) continue;
         next[item.section] ??= {};
-        next[item.section][item.key] = clone(item.before);
+        next[item.section][item.key] = clone(item[toKey]);
         changed = true;
     }
     for (const item of tx?.memories || []) {
         const index = (next.memories || []).findIndex(memory => memory.id === item.id);
         const current = index >= 0 ? next.memories[index] : null;
-        if (!same(current, item.after)) continue;
-        if (item.before === null) {
+        if (!same(current, item[fromKey])) continue;
+        const target = item[toKey];
+        if (target === null) {
             if (index >= 0) { next.memories.splice(index, 1); changed = true; }
-        } else if (index >= 0) { next.memories[index] = clone(item.before); changed = true; }
-        else { next.memories.push(clone(item.before)); changed = true; }
+        } else if (index >= 0) { next.memories[index] = clone(target); changed = true; }
+        else { next.memories.push(clone(target)); changed = true; }
     }
     return changed ? next : null;
 }
@@ -90,15 +93,29 @@ function ledgerKey(chat) { return `${Number(chat?.swipe_id ?? 0)}\u241f${String(
 function ledger(chat) { chat.extra ??= {}; chat.extra[LEDGER_KEY] ??= {}; return chat.extra[LEDGER_KEY]; }
 function currentTransaction(chat) { return chat?.extra?.[TX_KEY] || null; }
 function setTransaction(chat, tx) { chat.extra ??= {}; if (tx) chat.extra[TX_KEY] = tx; else delete chat.extra[TX_KEY]; }
-async function rollback(chat, tx) {
+async function rollback(_chat, tx) {
     if (!tx) return false;
-    const next = inverseTransaction(getYiYiVault(), tx);
+    const next = mutateTransaction(getYiYiVault(), tx, 'backward');
     if (!next) return false;
     await saveYiYiVault(next);
     return true;
 }
+async function applyForward(tx) {
+    if (!tx) return false;
+    const next = mutateTransaction(getYiYiVault(), tx, 'forward');
+    if (!next) return false;
+    await saveYiYiVault(next);
+    return true;
+}
+async function waitRecordPersistence(chat) {
+    const persistence = chat?.__memoStrictPersistence;
+    if (persistence && typeof persistence.then === 'function') {
+        try { await persistence; } catch (_) {}
+    }
+}
 async function process(chat) {
     if (!chat || chat.is_user || handled.get(chat) === chat.mes) return;
+    await waitRecordPersistence(chat);
     const parsed = parseBlock(chat.mes);
     if (!parsed) return;
     const before = getYiYiVault();
@@ -109,15 +126,25 @@ async function process(chat) {
     chat.mes = parsed.cleaned;
     const id = Number(chat.swipe_id);
     if (Array.isArray(chat.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes;
-    if (tx && (tx.fields.length || tx.memories.length)) setTransaction(chat, tx);
+    if (tx && (tx.fields.length || tx.memories.length)) {
+        setTransaction(chat, tx);
+        ledger(chat)[ledgerKey(chat)] = clone(tx);
+    }
     handled.set(chat, chat.mes);
     try { await USER.saveChat(); } catch (error) {
         if (tx) await rollback(chat, tx);
         throw error;
     }
 }
-async function onMessage(chatId) {
-    const chat = USER?.getContext?.()?.chat?.[Number(chatId)];
+function latestAssistant() {
+    const chat = USER?.getContext?.()?.chat;
+    if (!Array.isArray(chat)) return null;
+    for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) return chat[i];
+    return null;
+}
+async function onGenerationEnded() {
+    if (!isYiYiSession()) return;
+    const chat = latestAssistant();
     if (chat) await process(chat);
 }
 async function onSwipe(chatId) {
@@ -126,11 +153,18 @@ async function onSwipe(chatId) {
     const key = ledgerKey(chat);
     const map = ledger(chat);
     const previous = currentTransaction(chat);
-    if (previous && !map[key]) await rollback(chat, previous);
-    if (map[key]) setTransaction(chat, map[key]); else setTransaction(chat, null);
+    const target = map[key] || null;
+    if (previous && !same(previous, target)) await rollback(chat, previous);
+    if (target) {
+        await applyForward(target);
+        setTransaction(chat, target);
+    } else {
+        setTransaction(chat, null);
+    }
     await process(chat);
     const current = currentTransaction(chat);
     if (current) map[ledgerKey(chat)] = clone(current);
+    try { await USER.saveChat(); } catch (error) { console.warn('[Memo-N][伊依] Swipe事务状态保存失败', error); }
 }
 async function onDelete(chatId) {
     const chat = USER?.getContext?.()?.chat?.[Number(chatId)];
@@ -140,8 +174,10 @@ async function onDelete(chatId) {
 
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
-APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, onMessage);
+const ended = APP.event_types.GENERATION_ENDED;
+APP.eventSource.on(ended, () => void onGenerationEnded().catch(error => console.error('[Memo-N][伊依] 生成后记忆处理失败', error)));
+APP.eventSource.makeLast?.(ended, () => void onGenerationEnded().catch(error => console.error('[Memo-N][伊依] 生成后记忆处理失败', error)));
 APP.eventSource.on(APP.event_types.MESSAGE_SWIPED, onSwipe);
 APP.eventSource.on(APP.event_types.MESSAGE_DELETED, onDelete);
 
-console.log('[Memo-N] 伊依长期记忆运行时已加载');
+console.log('[Memo-N] 伊依长期记忆运行时已加载：等待记录引擎持久化后处理正文记忆块');
