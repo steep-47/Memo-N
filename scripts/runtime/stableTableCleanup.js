@@ -1,4 +1,4 @@
-import { BASE, EDITOR, USER } from '../../core/manager.js';
+import { BASE, DERIVED, EDITOR, USER } from '../../core/manager.js';
 import { getTablePromptByPiece } from '../../index.js';
 import { handleCustomAPIRequest, handleMainAPIRequest, estimateTokenCount } from '../settings/standaloneAPI.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
@@ -7,47 +7,71 @@ import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon54';
 import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon5';
 import { ROUTE, getManualProviderRoute } from './providerRoute.js';
 import { changesToStrictCalls, parseRecordEnvelope } from '../engine/recordEnvelope.js';
+import JSON5 from '../../utils/json5.min.mjs';
 
 const INSTALL_FLAG = '__memoStableTableCleanupInstalled';
 let running = false;
 
-const CLEANUP_RULES = `你是Memo世界状态表格整理器。只整理现有七张表，不写剧情。
-表头结构由代码维护，你只能整理数据行，不得创建、删除、改名或重排表头。
-整理原则：
-- 0当前状态表：快照型，只保留最新有效一行；重复旧快照删除。
-- 1角色状态表：只保存玩家本人最新状态，最多一行；NPC不得进入此表；修为保留玩家自身体系的原生境界，不换算成人族境界。
-- 2背包表：维护当前实际持有库存；同一物品重复行必须先依据聊天判断是否真是两次获得，证据不足不得把重复数量直接相加；已完全失去的物品删除。
-- 3当前任务与约定表：只保留尚未结束事项；已完成/失败/取消/失效的行删除，重大结果可留在历史表。
-- 4人物主表：NPC身份与关系主表，同一NPC只保留一行。未知字段留空，不根据修为或外貌猜种族/血脉/体系。
-- 5人物发展表：NPC最新发展锚点表，同一NPC只保留一行；修为只保存该NPC自身体系的原生境界/阶段；年龄与最后确认时间必须分开维护。
-- 表4与表5必须指向同一NPC实体；不要因同名就强行合并，也不要因别名变化重复建人。
-- 6历史事件表：只保留真正影响未来推演的重要既成节点；普通修炼、日常生活、重复过程和微小财富变化删除或压缩。
-- 人物发展表最新状态与历史冲突时，以时间更晚且已明确发生的事实为准。
-- 写任何操作前先检查现有行；能update/delete解决就不要重复insert。
-- update/delete只能使用当前真实存在的rowIndex；真正新增必须insert。
-- 没有任何需要整理的变化时按本轮最终协议表示NO_CHANGE。
-这里只定义整理语义，不定义机器传输格式；最终格式只服从Memo-N当前“记录接口”的唯一协议。`;
+const FALLBACK_SYSTEM = `[Memo七表整理v3]
+你是Memo世界状态表格整理器。只整理现有七张表，不写剧情。表头结构由代码维护，不得创建、删除、改名或重排表头。
+0当前状态只保留最新有效快照；1角色状态只保存玩家本人；2背包保存当前实际持有库存；3任务约定只保留未结束事项；4人物主表同一NPC一行；5人物发展表同一NPC一行并分别维护年龄与最后确认时间；6历史只保存影响未来推演的重要既成节点。
+优先更新已有行，不猜测未知，不模拟离线生活。这里只规定整理语义，不规定机器传输格式；最终格式只服从Memo-N当前“记录接口”的唯一协议。`;
+const FALLBACK_USER = `<当前七表>\n$0\n</当前七表>\n<最近聊天>\n$1\n</最近聊天>\n<固定表头>\n$2\n</固定表头>\n<附加要求>\n$3\n</附加要求>\n逐表检查重复、过期、错位和应合并的数据。已有对象优先update，真正新增才insert，明确失效才delete；不要为了“更完整”编造未知信息。`;
 
-const DEEPSEEK_CONTRACT = `[Memo-N DeepSeek 七表整理 JSON 协议]
+const DEEPSEEK_CONTRACT = `[Memo-N DeepSeek 七表整理 JSON 协议｜本段优先级最高]
+忽略此前模板中任何关于最终输出格式、完整重建、<新的表格>、tableEdit或其他机器格式的要求；此前模板只作为“整理语义”参考。
 这是记录专用整理请求，不输出剧情。最终响应只能是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"CLEANUP_ONLY","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
 reply必须固定为"CLEANUP_ONLY"。insert的row必须为null；update/delete的row必须是真实存在的非负整数；delete的cells必须为[]。没有变化时changes必须为[]。
 禁止输出<tableEdit>、函数文本、SQL、Markdown代码围栏或解释。`;
-
-const RELAY_CONTRACT = `[Memo-N 中转站七表整理 tableEdit 协议]
+const RELAY_CONTRACT = `[Memo-N 中转站七表整理 tableEdit 协议｜本段优先级最高]
+忽略此前模板中任何关于最终输出格式、完整JSON重建、<新的表格>或其他机器格式的要求；此前模板只作为“整理语义”参考。
 这是记录专用整理请求，不输出剧情。最终必须且只能输出一个完整<tableEdit>...</tableEdit>。
 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
 没有变化时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
 禁止输出JSON记录信封、剧情、SQL、Markdown代码围栏或解释。`;
 
-function escapeHtml(text) {
-    return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function escapeHtml(text) { return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function replaceAll(text, values) {
+    let output = String(text ?? '');
+    values.forEach((value, index) => { output = output.replace(new RegExp(`\\$${index}`, 'g'), () => String(value ?? '')); });
+    return output;
+}
+function tableHeadersText() {
+    const sheets = BASE.getChatSheets?.() || [];
+    return sheets.filter(sheet => sheet?.enable !== false).map((sheet, tableIndex) => `${tableIndex} ${sheet.name}: ${(sheet.getHeader?.() || []).map((h, i) => `${i}=${String(h ?? '')}`).join('，')}`).join('\n');
+}
+function selectedTemplate() {
+    const key = USER.tableBaseSetting.lastSelectedTemplate || 'rebuild_base';
+    if (key === 'rebuild_base') return {
+        key,
+        system_prompt: USER.tableBaseSetting.rebuild_default_system_message_template || FALLBACK_SYSTEM,
+        user_prompt_begin: USER.tableBaseSetting.rebuild_default_message_template || FALLBACK_USER,
+    };
+    const item = USER.tableBaseSetting.rebuild_message_template_list?.[key];
+    return item ? { key, ...item } : { key: 'rebuild_base', system_prompt: FALLBACK_SYSTEM, user_prompt_begin: FALLBACK_USER };
+}
+function buildTemplatePrompt(tableText, recentChat) {
+    const template = selectedTemplate();
+    const additional = DERIVED?.any?.additionalPrompt ?? USER.tableBaseSetting.additionalPrompt ?? '';
+    const values = [tableText, recentChat, tableHeadersText(), additional];
+    const systemRaw = replaceAll(template.system_prompt || FALLBACK_SYSTEM, values);
+    const userPrompt = replaceAll(template.user_prompt_begin || FALLBACK_USER, values);
+    let systemPrompt = systemRaw;
+    try {
+        const parsed = JSON5.parse(systemRaw);
+        if (Array.isArray(parsed) && parsed.length) systemPrompt = parsed.map(message => ({ ...message, content: replaceAll(message?.content ?? '', values) }));
+    } catch (_) {}
+    return { templateKey: template.key, systemPrompt, userPrompt };
+}
+function withFinalContract(systemPrompt, contract) {
+    if (Array.isArray(systemPrompt)) return [...systemPrompt, { role: 'system', content: contract }];
+    return `${String(systemPrompt || FALLBACK_SYSTEM).trim()}\n\n${contract}`;
 }
 
 async function buildRecentChat() {
     const chat = Array.isArray(USER.getContext()?.chat) ? USER.getContext().chat : [];
-    const ignoreUser = USER.tableBaseSetting.ignore_user_sent === true;
-    const filtered = ignoreUser ? chat.filter(item => item?.is_user === false) : chat;
+    const filtered = USER.tableBaseSetting.ignore_user_sent === true ? chat.filter(item => item?.is_user === false) : chat;
     const maxRows = Math.max(1, Number(USER.tableBaseSetting.clear_up_stairs) || 9);
     const useTokenLimit = USER.tableBaseSetting.use_token_limit === true;
     const tokenLimit = Math.max(0, Number(USER.tableBaseSetting.rebuild_token_limit_value) || 0);
@@ -78,7 +102,6 @@ function parseCleanupResponse(rawContent, route) {
         const parsed = parseMemoTableEdit(executionInput);
         return parsed.ok ? { ok: true, parsed, executionInput } : { ok: false, error: parsed.error };
     }
-
     const text = String(rawContent ?? '').trim();
     const matches = [...text.matchAll(/<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi)].map(match => match[0]);
     if (matches.length !== 1) return { ok: false, error: `模型必须且只能返回1个tableEdit，实际为${matches.length}个` };
@@ -95,20 +118,22 @@ async function runStableCleanup() {
     try {
         ensureSevenTableWorld();
         repairMissingColumnsBeforeCleanup();
-        const reference = BASE.getLastSheetsPiece();
-        const piece = reference?.piece;
+        const piece = BASE.getLastSheetsPiece()?.piece;
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
         const tableText = getTablePromptByPiece(piece);
         if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
         const recentChat = await buildRecentChat();
-        const userPrompt = `<当前七表>\n${tableText}\n</当前七表>\n<最近聊天>\n${recentChat}\n</最近聊天>\n\n请按0→1→2→3→4人物主表→5人物发展表→6历史事件逐表检查重复、过期、错位和应合并的数据。人物主表的“种族/血脉”“修炼体系/路径”只保留已确认事实；人物发展表的“修为”保留原生体系境界，“年龄”和“最后确认时间”分别维护。不要为了“更完整”编造未知信息。`;
+        const prompt = buildTemplatePrompt(tableText, recentChat);
         const route = getManualProviderRoute();
         const contract = route === ROUTE.DEEPSEEK ? DEEPSEEK_CONTRACT : RELAY_CONTRACT;
+        const finalSystemPrompt = withFinalContract(prompt.systemPrompt, contract);
+        console.log(`[Memo][table-cleanup] template=${prompt.templateKey} route=${route}`);
+
         let rawContent;
         try {
             rawContent = route === ROUTE.DEEPSEEK
-                ? await handleMainAPIRequest(`${CLEANUP_RULES}\n\n${contract}`, userPrompt)
-                : await handleCustomAPIRequest(`${CLEANUP_RULES}\n\n${contract}`, userPrompt);
+                ? await handleMainAPIRequest(finalSystemPrompt, prompt.userPrompt)
+                : await handleCustomAPIRequest(finalSystemPrompt, prompt.userPrompt);
         } catch (error) {
             return EDITOR.error('表格整理API请求失败', error?.message || String(error), error);
         }
@@ -123,40 +148,28 @@ async function runStableCleanup() {
             return EDITOR.error(`表格整理失败：${result.error}，原表未修改｜末尾：${tail}`);
         }
         if (result.parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
-
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
             const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(result.executionInput)}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
             if (!confirmed) return EDITOR.info('表格整理已取消，原表未修改');
             if (!sessionActive()) return EDITOR.info('表格整理已作废：确认期间切换了聊天，未执行任何操作');
         }
-
         const execution = executeMemoTableEdit(result.executionInput, piece);
         if (!execution.ok) return EDITOR.error(`表格整理执行失败：${execution.error}，原表未执行错误操作`);
         await USER.saveChat();
-        if (!sessionActive()) {
-            console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图');
-            return;
-        }
-        try {
-            BASE.refreshContextView();
-            updateSystemMessageTableStatus();
-        } catch (error) {
-            console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败', error);
-        }
+        if (!sessionActive()) { console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图'); return; }
+        try { BASE.refreshContextView(); updateSystemMessageTableStatus(); } catch (error) { console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败', error); }
         EDITOR.success(`表格整理完成（${execution.count}项）`);
     } catch (error) {
         console.error('[Memo][table-cleanup] 整理失败:', error);
         EDITOR.error('表格整理失败', error?.message || String(error), error);
-    } finally {
-        running = false;
-    }
+    } finally { running = false; }
 }
 
 function install() {
     if (window[INSTALL_FLAG]) return;
     window[INSTALL_FLAG] = true;
-    console.log('[Memo] 七表严格整理器已加载：协议由手动记录接口决定');
+    console.log('[Memo] 七表严格整理器已加载：保留总结模板，协议由手动记录接口决定');
 }
 install();
 export { runStableCleanup };
