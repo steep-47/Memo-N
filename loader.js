@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon65';
+const RUNTIME_VERSION = 'memon66';
 
 async function loadRuntime(label, path) {
     try {
@@ -47,4 +47,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon65 手动记录接口版加载完成');
+console.log('[Memo-N][loader] memon66 全部记录接口手动选择版加载完成');
