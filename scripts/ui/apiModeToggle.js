@@ -1,4 +1,4 @@
-import { USER } from '../../core/manager.js';
+import { EDITOR, USER } from '../../core/manager.js';
 import { getManualProviderRoute, ROUTE, setManualProviderRoute } from '../runtime/providerRoute.js';
 
 const TOGGLE_ID = 'memory-independent-record-api';
@@ -38,7 +38,7 @@ function applyMode(enabled, save = true) {
 
 function applyProviderRoute(value, save = true) {
     const route = setManualProviderRoute(value);
-    const select = document.querySelector(`#${ROUTE_ID}`);
+    const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = route;
     if (save) USER.saveSettings?.();
     EDITOR?.success?.(route === ROUTE.RELAY ? '记录接口：中转站' : '记录接口：DeepSeek');
@@ -103,7 +103,7 @@ function mount() {
     if (!document.getElementById(TOGGLE_ID)) host.insertBefore(createToggle(), fillTime.nextSibling);
 
     applyMode(readEnabled(), false);
-    const select = document.querySelector(`#${ROUTE_ID}`);
+    const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = getManualProviderRoute();
     keepConfigSectionsVisible();
     requestAnimationFrame(keepConfigSectionsVisible);
