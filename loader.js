@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon80';
-const PUBLIC_VERSION = '0.1.0-memon.80';
+const RUNTIME_VERSION = 'memon81';
+const PUBLIC_VERSION = '0.1.0-memon.81';
 
 async function loadRuntime(label, path) {
     try {
@@ -25,6 +25,7 @@ async function loadRuntime(label, path) {
 // - 老用户旧 step_by_step 只在新模式字段首次不存在时迁移一次；独立模式从 GENERATION_STARTED 到 SETTINGS_READY 临时桥接旧主体的只读提示分支，随后立即归零。
 // - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
 // - stale结果和过期排队任务只安全作废，不自动重算，避免额外API调用与重复扣费。
+// - 数据页保持一个统一横向画布：单指左右滑动同步移动全部表格，双指缩放由 pinchZoom runtime 处理。
 // - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
@@ -38,6 +39,7 @@ const runtimes = [
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录接口设置', './scripts/ui/apiModeToggle.js'],
+    ['表格统一横滑与双指缩放', './scripts/ui/pinchZoom.js'],
     ['伊依长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
 ];
 
@@ -70,4 +72,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon80 独立记录禁止自动重算版加载完成');
+console.log('[Memo-N][loader] memon81 表格统一横滑与双指缩放恢复版加载完成');
