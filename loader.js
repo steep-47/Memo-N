@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon77';
-const PUBLIC_VERSION = '0.1.0-memon.77';
+const RUNTIME_VERSION = 'memon78';
+const PUBLIC_VERSION = '0.1.0-memon.78';
 
 async function loadRuntime(label, path) {
     try {
@@ -70,4 +70,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon77 内部缓存版本统一版加载完成');
+console.log('[Memo-N][loader] memon78 填表模式瞬时桥接版加载完成');
