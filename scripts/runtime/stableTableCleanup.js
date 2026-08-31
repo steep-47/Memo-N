@@ -96,9 +96,7 @@ function parseCleanupResponse(rawContent, route) {
         const envelope = parseRecordEnvelope(rawContent);
         if (!envelope.ok) return { ok: false, error: envelope.error || 'DeepSeek整理JSON解析失败' };
         if (String(envelope.reply || '') !== 'CLEANUP_ONLY') return { ok: false, error: 'DeepSeek整理reply必须为CLEANUP_ONLY' };
-        const compiled = changesToStrictCalls(envelope.changes);
-        if (!compiled.ok) return { ok: false, error: compiled.error || 'DeepSeek整理changes编译失败' };
-        const executionInput = compiled.tableEdit;
+        const executionInput = changesToStrictCalls(envelope.changes);
         const parsed = parseMemoTableEdit(executionInput);
         return parsed.ok ? { ok: true, parsed, executionInput } : { ok: false, error: parsed.error };
     }
@@ -149,7 +147,7 @@ async function runStableCleanup() {
         }
         if (result.parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
-            const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(result.executionInput)}</pre><p>确认后才会修改当前表格。</p></div>`;
+            const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(Array.isArray(result.executionInput) ? result.executionInput.join('\n') : result.executionInput)}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
             if (!confirmed) return EDITOR.info('表格整理已取消，原表未修改');
             if (!sessionActive()) return EDITOR.info('表格整理已作废：确认期间切换了聊天，未执行任何操作');
