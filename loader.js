@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon82';
-const PUBLIC_VERSION = '0.1.0-memon.82';
+const RUNTIME_VERSION = 'memon83';
+const PUBLIC_VERSION = '0.1.0-memon.83';
 
 async function loadRuntime(label, path) {
     try {
@@ -19,19 +19,15 @@ async function loadRuntime(label, path) {
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一普通一次API协议与记录执行入口。
 // - DeepSeek/中转站不再自动识别；所有API记录协议都由 Memo-N 设置中的“记录接口”手动指定。
-// - 普通一次API：DeepSeek走JSON reply+changes；中转站统一走前置tableEdit，再输出完整正文，避免长回复把机器块截断。
+// - 普通一次API：DeepSeek走JSON reply+changes；中转站统一走前置tableEdit，再输出完整正文。
 // - 独立API/手动立即填表：DeepSeek走记录专用JSON reply="RECORD_ONLY"+changes；中转站走唯一tableEdit。
-// - “填表行为发生在”是唯一模式选择：聊天同时填表 / 收到消息后独立记录；不再额外显示重复独立开关或旧主/自定义API路由开关。
-// - 老用户旧 step_by_step 只在新模式字段首次不存在时迁移一次；独立模式从 GENERATION_STARTED 到 SETTINGS_READY 临时桥接旧主体的只读提示分支，随后立即归零。
-// - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
-// - stale结果和过期排队任务只安全作废，不自动重算，避免额外API调用与重复扣费。
-// - 数据页保持一个统一横向画布：单指左右滑动同步移动全部表格，双指缩放由 pinchZoom runtime 处理。
-// - 七表职责/结构校验在请求前继续执行；表格整理按钮继续走严格tableEdit整理器，不回退到旧整表重建入口。
-// - 旧人物虚拟拆分残留会在启动时清理；Memo-N填表提示颜色/时长补丁继续生效。
-// - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
-// - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
-// - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
-// - 伊依不属于世界七表；她使用独立全局长期记忆库。
+// - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
+// - 所有记录最终进入同一个严格事务执行器；stale/过期任务只安全作废，不自动重算或重试。
+// - 数据页保持统一横向画布：单指横滑同步全部表格，双指缩放整个tableContainer。
+// - 七表职责/结构校验继续在请求前执行；表格整理按钮继续走严格tableEdit整理器。
+// - standaloneAPI保留原插件公开表格导出、模型列表与token估算能力，同时记录请求保持单次网络尝试。
+// - 伊依直接角色与预设桥共享独立长期记忆库；中转普通回复顺序固定为前置tableEdit→正文→正文末尾yiyiMemory。
+// - memon70-72 tagged JSON仅保留旧回复兼容解析，不用于新请求。
 // - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
@@ -46,7 +42,9 @@ const runtimes = [
     ['旧人物虚拟拆分残留清理', './scripts/ui/personTableSplit.js'],
     ['填表提示颜色与时长', './scripts/ui/fillStatusColor.js'],
     ['表格统一横滑与双指缩放', './scripts/ui/pinchZoom.js'],
-    ['伊依长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
+    ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
+    ['伊依预设长期记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
+    ['伊依直接角色长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
@@ -78,4 +76,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon82 辅助运行时完整性恢复版加载完成');
+console.log('[Memo-N][loader] memon83 完整运行面恢复版加载完成');
