@@ -99,13 +99,14 @@ function schedule(delay = 250) {
     clearTimeout(timer);
     timer = setTimeout(() => void cleanWorldTables(), delay);
 }
+function scheduleAfterGeneration() { schedule(); }
 
-// 只在插件加载和一轮生成完成后检查；不挂MESSAGE_RECEIVED等高频事件，避免无意义重复扫描。
+// 只在插件加载和一轮生成完成后检查；同一个命名监听器先on再makeLast，EventEmitter会移动而不是复制。
 schedule(500);
 const ended = APP.event_types.GENERATION_ENDED;
 if (ended) {
-    APP.eventSource.on(ended, () => schedule());
-    APP.eventSource.makeLast?.(ended, () => schedule());
+    APP.eventSource.on(ended, scheduleAfterGeneration);
+    APP.eventSource.makeLast?.(ended, scheduleAfterGeneration);
 }
 
 console.log('[Memo-N] 世界七表伊依隔离守卫已加载');
