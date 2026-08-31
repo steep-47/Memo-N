@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon76';
-const PUBLIC_VERSION = '0.1.0-memon.76';
+const RUNTIME_VERSION = 'memon77';
+const PUBLIC_VERSION = '0.1.0-memon.77';
 
 async function loadRuntime(label, path) {
     try {
@@ -24,6 +24,7 @@ async function loadRuntime(label, path) {
 // - “填表行为发生在”是唯一模式选择：聊天同时填表 / 收到消息后独立记录；不再额外显示重复独立开关或旧主/自定义API路由开关。
 // - 老用户旧 step_by_step 只在新模式字段首次不存在时迁移一次，之后旧字段仅作运行时瞬时标志。
 // - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
+// - 内部模块使用无版本query的静态import；缓存失效只由本loader的RUNTIME_VERSION统一负责，避免旧memon6/memon52子模块常驻。
 // - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
@@ -69,4 +70,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon76 模式迁移与全记录入口手动协议版加载完成');
+console.log('[Memo-N][loader] memon77 内部缓存版本统一版加载完成');
