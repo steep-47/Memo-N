@@ -31,7 +31,6 @@ function currentChatId(chat){const list=USER?.getContext?.()?.chat;return Array.
 function makeJob(chatId,chat,generationInfo,{forceFull=false}={}){const visible=visibleMes(chat);return{chatId:Number(chatId),chat,generationInfo:{...(generationInfo||{})},visible,todoChats:String(chat?.mes??''),token:tokenFor(chat),forceFull:forceFull===true,createdAt:Date.now()};}
 function queueLatest(job){if(!job?.chat)return;const previous=queuedJobs.get(job.chat);const sameAsActive=activeJob?.chat===job.chat;const next={...job,forceFull:job.forceFull||!!previous||sameAsActive};queuedJobs.set(job.chat,next);console.log(`[Memo] 独立记录已排队：message=${job.chatId} swipe=${Number(job.chat?.swipe_id??0)}${next.forceFull?'｜完整重算':''}`);}
 function drainQueue(){if(independentRunActive||!queuedJobs.size||!readEnabled())return;const first=queuedJobs.entries().next().value;if(!first)return;const[chat,job]=first;queuedJobs.delete(chat);queueMicrotask(()=>startIndependentJob(job));}
-function enqueueCurrentVersion(chat,baseInfo={}){if(!chat||chat.is_user===true)return;const id=currentChatId(chat);if(id<0)return;const token=tokenFor(chat);if(hasAttempted(chat,token)&&!queuedJobs.has(chat))return;queueLatest(makeJob(id,chat,{...baseInfo,generationType:'normal',baseMes:''},{forceFull:true}));}
 
 function startIndependentJob(job){
     if(!job?.chat||!readEnabled()||!USER?.tableBaseSetting){drainQueue();return;}
@@ -39,7 +38,7 @@ function startIndependentJob(job){
     const liveId=currentChatId(chat);
     if(liveId<0||chat.is_user===true){drainQueue();return;}
     const liveToken=tokenFor(chat);
-    if(liveToken!==job.token){queueLatest(makeJob(liveId,chat,{generationType:'normal',baseMes:''},{forceFull:true}));drainQueue();return;}
+    if(liveToken!==job.token){console.log('[Memo] 独立记录排队任务已过期；为避免额外API调用直接作废，不自动重算');drainQueue();return;}
     if(hasAttempted(chat,job.token)){drainQueue();return;}
 
     markAttempted(chat,job.token);
@@ -53,7 +52,7 @@ function startIndependentJob(job){
         .then(result=>{
             if(result===true){EDITOR.success('独立填表完成！');console.log(`[Memo] 独立记录 API：message=${liveId} swipe=${Number(chat?.swipe_id??0)} ${options.forceFull?'完整重算':options.generationType||'normal'}完成`);return;}
             if(result==='detached'){console.log('[Memo] 独立记录任务因聊天切换安全作废；不写入、不恢复、不自动重试');return;}
-            if(result==='stale'){console.log('[Memo] 独立记录旧结果已作废：正文在API期间变化，排队重算最新版本');enqueueCurrentVersion(chat,options);return;}
+            if(result==='stale'){console.log('[Memo] 独立记录旧结果已作废：正文在API期间变化；为避免额外扣费不自动重算，可手动立即填表');EDITOR.warning('独立记录结果已过期：正文在API期间发生变化，因此未写入。不会自动重试；如需记录请手动立即填表。');return;}
             console.warn('[Memo] 独立记录 API：本版本未完成写入；为避免重复扣费不会自动重试同一版本');EDITOR.warning('独立记录未完成：本轮未成功写入。不会自动重试；可手动立即填表或重新生成。');
         })
         .catch(error=>{console.error('[Memo] 独立记录 API 执行异常:',error);EDITOR.warning(`独立记录执行异常：${error?.message||error}。不会自动重试。`);})
@@ -78,4 +77,4 @@ APP.eventSource.on(renderedEvent,beforeRendered);APP.eventSource.on(renderedEven
 if(typeof APP.eventSource.makeFirst==='function')APP.eventSource.makeFirst(renderedEvent,beforeRendered);
 if(typeof APP.eventSource.makeLast==='function')APP.eventSource.makeLast(renderedEvent,triggerIndependentRecord);
 forceNormalMode();
-console.log('[Memo] 独立记录 API：持久模式独立存储 + generation生命周期旧step桥接 + 消息版本队列 + stale丢弃 + Swipe快照');
+console.log('[Memo] 独立记录 API：持久模式独立存储 + generation生命周期旧step桥接 + 消息版本队列 + stale直接作废不重试 + Swipe快照');
