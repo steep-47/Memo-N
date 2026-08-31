@@ -1,14 +1,13 @@
 import { APP, BASE, USER } from '../../core/manager.js';
-import { Cell } from '../../core/table/cell.js';
-import { saveMemoSnapshot } from './safeTableExecutor.js';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './safeTableExecutor.js';
 
 const YIYI = '伊依';
 const TABLES = Object.freeze({
-    scene: '当前状态表',
-    tasks: '当前任务与约定表',
-    people: '人物主表',
-    development: '人物发展表',
-    history: '历史事件表',
+    scene: { name: '当前状态表', index: 0, column: 3 },
+    tasks: { name: '当前任务与约定表', index: 3, column: 1 },
+    people: { name: '人物主表', index: 4 },
+    development: { name: '人物发展表', index: 5 },
+    history: { name: '历史事件表', index: 6, column: 2 },
 });
 
 let running = false;
@@ -17,29 +16,12 @@ let timer = null;
 function sheet(name) {
     return (BASE.getChatSheets?.() ?? []).find(item => item?.name === name) ?? null;
 }
-
 function dataRowCount(target) {
     return Math.max(0, (Number(target?.getRowCount?.()) || 0) - 1);
 }
-
 function valueAt(target, row, column) {
     return String(target?.findCellByPosition?.(row + 1, column + 1)?.data?.value ?? '').trim();
 }
-
-function editAt(target, row, column, value) {
-    const cell = target?.findCellByPosition?.(row + 1, column + 1);
-    if (!cell) return false;
-    cell.newAction(Cell.CellAction.editCell, { value }, false);
-    return true;
-}
-
-function deleteRow(target, row) {
-    const cell = target?.findCellByPosition?.(row + 1, 0);
-    if (!cell) return false;
-    cell.newAction(Cell.CellAction.deleteSelfRow, {}, false);
-    return true;
-}
-
 function withoutYiyi(value) {
     const raw = String(value ?? '').trim();
     if (!raw || !raw.includes(YIYI)) return raw;
@@ -50,44 +32,78 @@ function withoutYiyi(value) {
         .filter(part => part !== YIYI)
         .join('、');
 }
-
-function cleanPersonList(target, column) {
-    if (!target) return false;
-    let changed = false;
-    for (let row = 0; row < dataRowCount(target); row++) {
-        const before = valueAt(target, row, column);
-        const after = withoutYiyi(before);
-        if (before !== after) changed = editAt(target, row, column, after) || changed;
-    }
-    return changed;
+function copyHash(value) {
+    if (!value || typeof value !== 'object') return null;
+    try { return BASE.copyHashSheets(value); }
+    catch (_) { try { return structuredClone(value); } catch (_) { return null; } }
 }
-
-function deleteYiyiRows(target) {
-    if (!target) return false;
-    let changed = false;
-    for (let row = dataRowCount(target) - 1; row >= 0; row--) {
-        if (valueAt(target, row, 0) === YIYI) changed = deleteRow(target, row) || changed;
+function latestAssistant() {
+    const chat = USER?.getContext?.()?.chat;
+    if (!Array.isArray(chat)) return null;
+    for (let index = chat.length - 1; index >= 0; index--) if (chat[index]?.is_user === false) return chat[index];
+    return null;
+}
+async function waitStrictPersistence(piece) {
+    const persistence = piece?.__memoStrictPersistence;
+    if (persistence && typeof persistence.then === 'function') {
+        try { await persistence; } catch (_) {}
     }
-    return changed;
+}
+function buildCleanupCalls() {
+    const calls = [];
+    for (const spec of [TABLES.scene, TABLES.tasks, TABLES.history]) {
+        const target = sheet(spec.name);
+        if (!target) continue;
+        for (let row = 0; row < dataRowCount(target); row++) {
+            const before = valueAt(target, row, spec.column);
+            const after = withoutYiyi(before);
+            if (before !== after) calls.push(`updateRow(${spec.index},${row},${JSON.stringify({ [spec.column]: after })})`);
+        }
+    }
+    for (const spec of [TABLES.people, TABLES.development]) {
+        const target = sheet(spec.name);
+        if (!target) continue;
+        for (let row = dataRowCount(target) - 1; row >= 0; row--) {
+            if (valueAt(target, row, 0) === YIYI) calls.push(`deleteRow(${spec.index},${row})`);
+        }
+    }
+    return calls;
 }
 
 async function cleanWorldTables() {
     if (running) return;
     running = true;
+    const session = USER?.getContext?.()?.chat;
     try {
-        let changed = false;
-        changed = cleanPersonList(sheet(TABLES.scene), 3) || changed;
-        changed = cleanPersonList(sheet(TABLES.tasks), 1) || changed;
-        changed = deleteYiyiRows(sheet(TABLES.people)) || changed;
-        changed = deleteYiyiRows(sheet(TABLES.development)) || changed;
-        changed = cleanPersonList(sheet(TABLES.history), 2) || changed;
+        const latest = latestAssistant();
+        await waitStrictPersistence(latest);
+        if (session !== USER?.getContext?.()?.chat) return;
 
-        if (!changed) return;
-        const chat = USER?.getChatPiece?.()?.piece ?? USER?.getContext?.()?.chat?.at?.(-1);
-        if (chat) saveMemoSnapshot(chat);
-        await USER?.saveChat?.();
-        globalThis.__memoNWorldTableGuard = { at: Date.now(), cleaned: true };
-        console.warn('[Memo-N] 世界表守卫已清理误写的伊依世界记录');
+        const piece = USER?.getChatPiece?.()?.piece ?? latest;
+        if (!piece?.memo_n_hash_sheets) return;
+        const calls = buildCleanupCalls();
+        if (!calls.length) return;
+
+        const baseline = copyHash(piece.memo_n_hash_sheets);
+        if (!baseline) {
+            console.warn('[Memo-N] 世界表守卫缺少可靠回滚基线，本次清理跳过');
+            return;
+        }
+        const execution = executeMemoTableEdit(calls, piece);
+        if (!execution.ok) {
+            console.error('[Memo-N] 世界表守卫严格清理失败，原表未部分写入', execution.error);
+            return;
+        }
+        try {
+            await USER?.saveChat?.();
+        } catch (error) {
+            const restored = restoreMemoSnapshot(copyHash(baseline));
+            try { if (restored.ok) saveMemoSnapshot(piece); } catch (snapshotError) { console.error('[Memo-N] 世界表守卫回滚快照保存失败', snapshotError); }
+            console.error('[Memo-N] 世界表守卫聊天保存失败，已尝试回滚', error, restored);
+            return;
+        }
+        globalThis.__memoNWorldTableGuard = { at: Date.now(), cleaned: true, count: execution.count };
+        console.warn(`[Memo-N] 世界表守卫已严格清理误写的伊依世界记录：${execution.count}项`);
     } catch (error) {
         console.error('[Memo-N] 世界表守卫清理失败', error);
     } finally {
@@ -101,7 +117,6 @@ function schedule(delay = 250) {
 }
 function scheduleAfterGeneration() { schedule(); }
 
-// 只在插件加载和一轮生成完成后检查；同一个命名监听器先on再makeLast，EventEmitter会移动而不是复制。
 schedule(500);
 const ended = APP.event_types.GENERATION_ENDED;
 if (ended) {
@@ -109,4 +124,4 @@ if (ended) {
     APP.eventSource.makeLast?.(ended, scheduleAfterGeneration);
 }
 
-console.log('[Memo-N] 世界七表伊依隔离守卫已加载');
+console.log('[Memo-N] 世界七表伊依隔离守卫已加载：等待严格记录持久化后再事务清理');
