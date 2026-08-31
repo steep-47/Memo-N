@@ -1,6 +1,5 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
-// 不使用 HTML comment。SillyTavern/主题/渲染链可能在消息进入记录引擎前清理注释，
-// 导致模型明明输出了记录块，运行时却只能看到正文。
+// memon70-72 的 tagged JSON 哨兵仅保留兼容解析；当前中转一次 API 已重新统一回 tableEdit。
 const RELAY_TAG_START = 'MEMO_N_CHANGES_V1';
 const RELAY_TAG_END = 'MEMO_N_CHANGES_END';
 
@@ -264,6 +263,36 @@ function joinVisibleRelayText(before, after, fallbackReply = '') {
     return visible || String(fallbackReply || '').trim();
 }
 
+export function parseRelayTableEditEnvelope(raw, fallbackReply = '') {
+    const text = String(raw ?? '');
+    const open = /<tableEdit\b[^>]*>/i.exec(text);
+    if (!open) return { ok: false, error: '未找到中转站tableEdit记录块', reply: String(fallbackReply || text).trim() };
+    const regex = /<tableEdit\b[^>]*>([\s\S]*?)<\/tableEdit>/ig;
+    const matches = [...text.matchAll(regex)];
+    if (!matches.length) {
+        const reply = text.slice(0, open.index).trim() || String(fallbackReply || '').trim();
+        return { ok: false, error: '中转站tableEdit记录块尚未闭合', reply };
+    }
+    if (matches.length !== 1) {
+        const reply = text.replace(regex, '').trim() || String(fallbackReply || '').trim();
+        return { ok: false, error: '中转站tableEdit记录块重复', reply };
+    }
+    const match = matches[0];
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + match[0].length);
+    const reply = joinVisibleRelayText(before, after, fallbackReply);
+    const body = String(match[1] ?? '').trim();
+    if (!body) return { ok: false, error: '中转站tableEdit记录块为空', reply };
+    return {
+        ok: true,
+        reply,
+        tableEdit: match[0],
+        noChange: /\bNO_CHANGE\b/i.test(body),
+        error: '',
+    };
+}
+
+// 兼容 memon70-72 已经生成但尚未处理完的 tagged JSON；新请求不再使用这套协议。
 export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
     const text = String(raw ?? '');
     const start = text.indexOf(RELAY_TAG_START);
