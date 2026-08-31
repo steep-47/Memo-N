@@ -23,12 +23,6 @@ function keepConfigSectionsVisible() {
     if (stepOptions) stepOptions.style.display = '';
 }
 
-function syncIndependentApiRoute(route) {
-    USER.tableBaseSetting.step_by_step_use_main_api = route === ROUTE.DEEPSEEK;
-    const checkbox = document.querySelector('#step_by_step_use_main_api');
-    if (checkbox) checkbox.checked = route === ROUTE.DEEPSEEK;
-}
-
 function syncModeUi() {
     const checkbox = document.querySelector(`#${TOGGLE_ID} input[type="checkbox"]`);
     if (checkbox) checkbox.checked = readEnabled();
@@ -39,6 +33,8 @@ function applyMode(enabled, save = true) {
     const store = getStore();
     if (!store) return;
     store[PREF_KEY] = value;
+    // 新独立记录模式与原插件 step_by_step 不能同时作为自动触发入口，
+    // 仅在用户主动切换“独立记录 API”时关闭旧自动分步开关。
     USER.tableBaseSetting.step_by_step = false;
     syncModeUi();
     keepConfigSectionsVisible();
@@ -48,12 +44,11 @@ function applyMode(enabled, save = true) {
 
 function applyProviderRoute(value, save = true) {
     const route = setManualProviderRoute(value);
-    syncIndependentApiRoute(route);
     const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = route;
     if (save) USER.saveSettings?.();
     EDITOR?.success?.(route === ROUTE.RELAY ? '记录接口：中转站' : '记录接口：DeepSeek');
-    console.log(`[Memo] 记录接口已手动设为：${route}；独立记录API同步使用${route === ROUTE.RELAY ? '自定义API' : '主API'}`);
+    console.log(`[Memo] 记录接口已手动设为：${route}；全部API记录入口将直接读取此设置决定Provider与协议`);
 }
 
 function createRouteSelector() {
@@ -135,10 +130,9 @@ function mount() {
     bindRouteSelector(select);
     bindIndependentToggle(toggleInput);
 
-    // 重挂载只同步 UI，不得改写 step_by_step / 独立记录配置。
+    // 重挂载只同步 UI，不得改写 step_by_step、step_by_step_use_main_api 或独立记录配置。
     syncModeUi();
     const route = getManualProviderRoute();
-    syncIndependentApiRoute(route);
     if (select) select.value = route;
     if (toggleInput) toggleInput.checked = readEnabled();
     keepConfigSectionsVisible();
