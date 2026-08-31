@@ -23,6 +23,12 @@ function keepConfigSectionsVisible() {
     if (stepOptions) stepOptions.style.display = '';
 }
 
+function syncIndependentApiRoute(route) {
+    USER.tableBaseSetting.step_by_step_use_main_api = route === ROUTE.DEEPSEEK;
+    const checkbox = document.querySelector('#step_by_step_use_main_api');
+    if (checkbox) checkbox.checked = route === ROUTE.DEEPSEEK;
+}
+
 function applyMode(enabled, save = true) {
     const value = enabled === true;
     const store = getStore();
@@ -38,11 +44,12 @@ function applyMode(enabled, save = true) {
 
 function applyProviderRoute(value, save = true) {
     const route = setManualProviderRoute(value);
+    syncIndependentApiRoute(route);
     const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = route;
     if (save) USER.saveSettings?.();
     EDITOR?.success?.(route === ROUTE.RELAY ? '记录接口：中转站' : '记录接口：DeepSeek');
-    console.log(`[Memo] 记录接口已手动设为：${route}`);
+    console.log(`[Memo] 记录接口已手动设为：${route}；独立记录API同步使用${route === ROUTE.RELAY ? '自定义API' : '主API'}`);
 }
 
 function createRouteSelector() {
@@ -65,7 +72,7 @@ function createRouteSelector() {
 
     const hint = document.createElement('small');
     hint.className = 'toggle-description justifyLeft';
-    hint.textContent = '手动指定记录协议，不再自动识别';
+    hint.textContent = '手动指定全部记录API的接口，不再自动识别';
 
     wrapper.append(text, select, hint);
     return wrapper;
@@ -103,8 +110,10 @@ function mount() {
     if (!document.getElementById(TOGGLE_ID)) host.insertBefore(createToggle(), fillTime.nextSibling);
 
     applyMode(readEnabled(), false);
+    const route = getManualProviderRoute();
+    syncIndependentApiRoute(route);
     const select = document.querySelector(`#${ROUTE_ID} select`);
-    if (select) select.value = getManualProviderRoute();
+    if (select) select.value = route;
     keepConfigSectionsVisible();
     requestAnimationFrame(keepConfigSectionsVisible);
     setTimeout(keepConfigSectionsVisible, 100);
@@ -120,4 +129,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 10000);
 }
 
-console.log('[Memo] 记录接口手动选择已加载：DeepSeek / 中转站；自动识别已关闭');
+console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；自动识别已关闭');
