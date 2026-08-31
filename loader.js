@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon86';
-const PUBLIC_VERSION = '0.1.0-memon.86';
+const RUNTIME_VERSION = 'memon87';
+const PUBLIC_VERSION = '0.1.0-memon.87';
 
 async function loadRuntime(label, path) {
     try {
@@ -24,6 +24,7 @@ async function loadRuntime(label, path) {
 // - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
 // - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
 // - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
+// - Swipe严格快照恢复后，旧index Swipe/编辑监听必须被安全隔离，禁止再次按旧基线重放覆盖新快照。
 // - 所有记录最终进入同一个严格事务执行器；stale/过期任务只安全作废，不自动重算或重试。
 // - 数据页保持统一横向画布：单指横滑同步全部表格，双指缩放整个tableContainer。
 // - 七表职责/结构校验继续在请求前执行；表格整理按钮走严格增量整理器。
@@ -35,6 +36,7 @@ const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['七表职责与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
+    ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
@@ -78,4 +80,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon86 模板与整理链完整性修复版加载完成');
+console.log('[Memo-N][loader] memon87 全运行面审计与旧事件隔离恢复版加载完成');
