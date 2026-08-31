@@ -1,6 +1,7 @@
 import './index.js';
 
 const RUNTIME_VERSION = 'memon74';
+const PUBLIC_VERSION = '0.1.0-memon.74';
 
 async function loadRuntime(label, path) {
     try {
@@ -38,5 +39,21 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
+
+function syncPublicVersion() {
+    try {
+        if (globalThis.window?.memoN && typeof globalThis.window.memoN === 'object') globalThis.window.memoN.VERSION = PUBLIC_VERSION;
+        const tag = globalThis.document?.querySelector?.('#tableUpdateTag');
+        if (tag) {
+            tag.style.display = '';
+            tag.textContent = `v${PUBLIC_VERSION}`;
+        }
+    } catch (error) {
+        console.warn('[Memo-N][loader] 同步公开版本号失败', error);
+    }
+}
+
+syncPublicVersion();
+queueMicrotask(syncPublicVersion);
 
 console.log('[Memo-N][loader] memon74 全记录入口手动协议统一版加载完成');
