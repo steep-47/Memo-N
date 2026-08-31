@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon83';
-const PUBLIC_VERSION = '0.1.0-memon.83';
+const RUNTIME_VERSION = 'memon84';
+const PUBLIC_VERSION = '0.1.0-memon.84';
 
 async function loadRuntime(label, path) {
     try {
@@ -26,7 +26,7 @@ async function loadRuntime(label, path) {
 // - 数据页保持统一横向画布：单指横滑同步全部表格，双指缩放整个tableContainer。
 // - 七表职责/结构校验继续在请求前执行；表格整理按钮继续走严格tableEdit整理器。
 // - standaloneAPI保留原插件公开表格导出、模型列表与token估算能力，同时记录请求保持单次网络尝试。
-// - 伊依直接角色与预设桥共享独立长期记忆库；中转普通回复顺序固定为前置tableEdit→正文→正文末尾yiyiMemory。
+// - 伊依直接角色与预设桥共享独立长期记忆库；中转普通回复顺序固定为前置tableEdit→正文→正文末尾yiyiMemory；直接角色在记录引擎持久化后再处理记忆块。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不用于新请求。
 // - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
@@ -76,4 +76,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon83 完整运行面恢复版加载完成');
+console.log('[Memo-N][loader] memon84 完整运行面与伊依持久化顺序修复版加载完成');
