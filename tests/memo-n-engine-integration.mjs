@@ -96,7 +96,7 @@ globalThis.__memoNMocks = {
     },
 };
 
-await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine-memon74`);
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine-memon75`);
 
 const run = async (event, ...args) => {
     for (const handler of handlers.get(event) || []) await handler(...args);
