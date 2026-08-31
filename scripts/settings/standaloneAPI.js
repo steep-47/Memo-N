@@ -1,13 +1,13 @@
 // standaloneAPI.js
-import {EDITOR, USER} from '../../core/manager.js';
+import { BASE, EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from "../../services/llmApi.js";
-import {PopupConfirm} from "../../components/popupConfirm.js";
+import { PopupConfirm } from "../../components/popupConfirm.js";
 
 let loadingToast = null;
 let currentApiKeyIndex = 0;
 
 export function encryptXor(rawKey, deviceId) {
-    const keys = rawKey.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    const keys = String(rawKey ?? '').split(',').map(k => k.trim()).filter(k => k.length > 0);
     const uniqueKeys = [...new Set(keys)];
     const uniqueKeyString = uniqueKeys.join(',');
     const encrypted = Array.from(uniqueKeyString).map((c, i) => c.charCodeAt(0) ^ deviceId.charCodeAt(i % deviceId.length)).map(c => c.toString(16).padStart(2, '0')).join('');
@@ -16,17 +16,17 @@ export function encryptXor(rawKey, deviceId) {
 
 export function processApiKey(rawKey, deviceId) {
     try {
-        const keys = rawKey.split(',').map(k => k.trim()).filter(k => k.length > 0);
-        const invalidKeysCount = rawKey.split(',').length - keys.length;
+        const parts = String(rawKey ?? '').split(',');
+        const keys = parts.map(k => k.trim()).filter(k => k.length > 0);
+        const invalidKeysCount = parts.length - keys.length;
         const encryptedResult = encryptXor(rawKey, deviceId);
         const encrypted = typeof encryptedResult === 'string' ? encryptedResult : encryptedResult.encrypted;
         const duplicatesRemoved = typeof encryptedResult === 'string' ? 0 : (encryptedResult.duplicatesRemoved || 0);
-        const totalKeys = rawKey.split(',').length;
-        const remainingKeys = totalKeys - duplicatesRemoved;
+        const remainingKeys = [...new Set(keys)].length;
         const removedParts = [];
         if (duplicatesRemoved > 0) removedParts.push(`${duplicatesRemoved}个重复Key`);
         if (invalidKeysCount > 0) removedParts.push(`${invalidKeysCount}个空值`);
-        return { encryptedResult, encrypted, duplicatesRemoved, invalidKeysCount, remainingKeys, totalKeys, message: `已更新API Key，共${remainingKeys}个Key${removedParts.length ? `（已去除${removedParts.join('，')}）` : ''}` };
+        return { encryptedResult, encrypted, duplicatesRemoved, invalidKeysCount, remainingKeys, totalKeys: parts.length, message: `已更新API Key，共${remainingKeys}个Key${removedParts.length ? `（已去除${removedParts.join('，')}）` : ''}` };
     } catch (error) {
         console.error('API Key 处理失败:', error);
         throw error;
@@ -56,7 +56,7 @@ async function createLoadingToast(isUseMainAPI = true, isSilent = false) {
 
 export async function handleMainAPIRequest(systemPrompt, userPrompt, isSilent = false) {
     let suspended = false;
-    createLoadingToast(true, isSilent).then(r => { suspended = r; });
+    void createLoadingToast(true, isSilent).then(r => { suspended = r; });
     try {
         if (Array.isArray(systemPrompt)) {
             if (!globalThis.TavernHelper) throw new Error('酒馆助手未安装，总结功能依赖于酒馆助手插件，请安装后刷新');
@@ -66,7 +66,8 @@ export async function handleMainAPIRequest(systemPrompt, userPrompt, isSilent = 
         const response = await EDITOR.generateRaw({ prompt: userPrompt, systemPrompt, trimNames: false });
         return suspended ? 'suspended' : response;
     } finally {
-        loadingToast?.close(); loadingToast = null;
+        loadingToast?.close();
+        loadingToast = null;
     }
 }
 
@@ -88,7 +89,9 @@ export async function testApiConnection(apiUrl, apiKeys, modelName) {
             const response = await service.callLLM("Say 'test'");
             if (!response) throw new Error('Invalid or empty response received.');
             results.push({ keyIndex: i, success: true });
-        } catch (error) { results.push({ keyIndex: i, success: false, error: error?.message || String(error) }); }
+        } catch (error) {
+            results.push({ keyIndex: i, success: false, error: error?.message || String(error) });
+        }
     }
     return results;
 }
@@ -106,7 +109,7 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, _isStepBy
     if (!keys.length) { EDITOR.error('API key解密失败或未设置，请检查API key设置！'); return; }
 
     let suspended = false;
-    createLoadingToast(false, isSilent).then(r => { suspended = r; });
+    void createLoadingToast(false, isSilent).then(r => { suspended = r; });
     const keyIndex = currentApiKeyIndex % keys.length;
     currentApiKeyIndex = (currentApiKeyIndex + 1) % keys.length;
     if (loadingToast) loadingToast.text = `正在使用第 ${keyIndex + 1}/${keys.length} 个自定义API Key...`;
@@ -120,7 +123,6 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, _isStepBy
             system_prompt: Array.isArray(promptData) ? '' : systemPrompt,
             temperature: USER.tableBaseSetting.custom_temperature,
         });
-        // 独立记录只需要最终机器块；非流式避免流解析遗漏隐藏字段，同时不改变正常聊天的流式设置。
         const response = await service.callLLM(promptData);
         return suspended ? 'suspended' : response;
     } catch (error) {
@@ -128,6 +130,103 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, _isStepBy
         EDITOR.error(`自定义API调用失败：${error?.message || error}。不会自动重试。`);
         return `错误: ${error?.message || error}`;
     } finally {
-        loadingToast?.close(); loadingToast = null;
+        loadingToast?.close();
+        loadingToast = null;
     }
+}
+
+function maskApiKey(key) {
+    const value = String(key ?? '');
+    if (!value.length) return '[空密钥]';
+    if (value.length <= 8) return value.substring(0, Math.ceil(value.length / 2)) + '...';
+    return value.substring(0, 4) + '...' + value.substring(value.length - 4);
+}
+
+/** 请求模型列表。保留原设置页能力；该操作由用户主动触发，不属于记录请求重试链。 */
+export async function updateModelList() {
+    const apiUrl = String($('#custom_api_url').val() ?? '').trim();
+    const decryptedApiKeysString = await getDecryptedApiKey();
+    if (!decryptedApiKeysString) { EDITOR.error('API key解密失败或未设置，请检查API key设置！'); return; }
+    if (!apiUrl) { EDITOR.error('请输入API URL'); return; }
+    const apiKeys = decryptedApiKeysString.split(',').map(k => k.trim()).filter(Boolean);
+    if (!apiKeys.length) { EDITOR.error('未找到有效的API Key，请检查输入。'); return; }
+
+    let modelsUrl;
+    try {
+        const normalizedUrl = new URL(apiUrl);
+        normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/$/, '') + '/models';
+        modelsUrl = normalizedUrl.href;
+    } catch (error) {
+        EDITOR.error(`无效的API URL: ${apiUrl}`, '', error);
+        return;
+    }
+
+    const $selector = $('#model_selector');
+    const invalidKeysInfo = [];
+    let models = null;
+    for (let i = 0; i < apiKeys.length; i++) {
+        try {
+            const response = await fetch(modelsUrl, { headers: { Authorization: `Bearer ${apiKeys[i]}`, 'Content-Type': 'application/json' } });
+            if (!response.ok) throw new Error(`请求失败: ${response.status} - ${await response.text()}`);
+            const data = await response.json();
+            if (!Array.isArray(data?.data) || !data.data.length) throw new Error('请求成功但未返回有效模型列表');
+            if (!models) models = data.data;
+        } catch (error) {
+            invalidKeysInfo.push({ index: i + 1, key: apiKeys[i], error: error?.message || String(error) });
+        }
+    }
+
+    if (models) {
+        $selector.empty();
+        for (const model of models) $selector.append($('<option>', { value: model.id, text: model.id }));
+        const selected = USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name;
+        if (models.some(model => model.id === selected)) $selector.val(selected);
+        EDITOR.success(`成功获取 ${models.length} 个模型并更新列表 (共检查 ${apiKeys.length} 个Key)`);
+    } else {
+        $selector.empty().append($('<option>', { value: '', text: '未能获取模型列表' }));
+        EDITOR.error('未能使用任何提供的API Key获取模型列表');
+    }
+    if (invalidKeysInfo.length) {
+        const details = invalidKeysInfo.map(item => `第${item.index}个Key (${maskApiKey(item.key)}) 无效: ${item.error}`).join('\n');
+        EDITOR.error(`以下API Key无效:\n${details}`);
+    }
+}
+
+export function estimateTokenCount(text) {
+    const value = String(text ?? '');
+    const chineseCount = (value.match(/[\u4e00-\u9fff]/g) || []).length;
+    const englishCount = (value.match(/\b\w+\b/g) || []).length;
+    return chineseCount + Math.floor(englishCount * 1.2);
+}
+
+/** Public compatibility API used by index.js / external-data-adapter consumers. */
+export function ext_getAllTables() {
+    const { piece } = BASE.getLastSheetsPiece();
+    if (!piece?.memo_n_hash_sheets) return [];
+    const tables = BASE.hashSheetsToSheets(piece.memo_n_hash_sheets) || [];
+    return tables.filter(table => table?.enable !== false).map(table => ({
+        name: table.name,
+        data: [table.getHeader(), ...table.getBody()],
+    }));
+}
+
+export function ext_exportAllTablesAsJson() {
+    const { piece } = BASE.getLastSheetsPiece();
+    if (!piece?.memo_n_hash_sheets) return {};
+    const tables = BASE.hashSheetsToSheets(piece.memo_n_hash_sheets) || [];
+    const exportData = {};
+    for (const table of tables) {
+        if (table?.enable === false) continue;
+        try {
+            const rawContent = table.getContent(true) || [];
+            exportData[table.uid] = {
+                uid: table.uid,
+                name: table.name,
+                content: rawContent.map(row => Array.isArray(row) ? row.map(cell => String(cell ?? '')) : []),
+            };
+        } catch (error) {
+            console.error(`[Memory Enhancement] 导出表格 ${table?.name} (UID: ${table?.uid}) 时出错:`, error);
+        }
+    }
+    return exportData;
 }
