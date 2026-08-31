@@ -76,37 +76,38 @@ ${sharedRecordRules()}
 
 function relayOutputRules() {
     return `# 输出
-- 本轮为Memo-N中转站隐藏JSON记录模式：先输出完整正常正文，正文后必须追加且只追加一个隐藏记录块。
-- 正文必须继续包含原本要求的状态栏、行动选项、伊依留言等结构；隐藏记录块不能替代正文。
-- 隐藏记录块格式必须严格为：
+- 本轮为Memo-N中转站前置JSON记录模式。先在内部规划完整正文与本轮明确变化，不输出规划过程。
+- 实际输出时，第一段必须先输出且只输出一个Memo-N记录块，然后立刻继续完整正常正文；不要等正文写完后再补记录块。
+- 记录块格式必须严格为：
 ${RELAY_TAG_START}
 [{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:30"}]}]
 ${RELAY_TAG_END}
 - 记录块内部只能是一个JSON数组；数组元素固定使用op/table/row/cells，语义与DeepSeek changes完全一致。
 - insert的row必须为null；update/delete的row必须是真实存在的非负整数；delete的cells必须为[]。
-- 七表确实没有任何事实变化时仍不得省略记录块，必须输出空数组：
+- 七表确实没有任何事实变化时也必须先输出空数组记录块：
 ${RELAY_TAG_START}
 []
 ${RELAY_TAG_END}
-- 隐藏记录块必须位于整轮回复最后；${RELAY_TAG_END}之后不得再输出任何字符。
+- ${RELAY_TAG_END}之后立即开始原本要求的完整正文、状态栏、行动选项和伊依留言等结构；记录块不能替代正文。
 - 不得输出<tableEdit>、JSON信封根对象、SQL、Markdown代码围栏或解释。
 - 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
 }
 
 function relayContract() {
     return `${MARKER}
-本轮使用Memo-N中转站隐藏JSON记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
-完整回复结束后必须追加且只追加一个隐藏记录块，结束标记后不得再输出任何字符：
+本轮使用Memo-N中转站前置JSON记录协议。你可以先在内部规划完整正常回复及其已经明确成立的事实变化，但不要输出规划过程。
+真正开始输出时，第一段必须先给出且只给出一个记录块；记录块闭合后再输出给用户看的完整正常回复。这样即使正文较长，也不能把机器记录拖到回复末尾：
 ${RELAY_TAG_START}
 [{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:30"}]}]
 ${RELAY_TAG_END}
+随后立刻继续正常正文、状态栏、选项和角色留言，不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
 隐藏块内部只能是changes JSON数组。每个变更固定包含op/table/row/cells；insert的row必须为null；update/delete的row只能使用当前表格第一列真实存在的rowIndex；delete的cells必须为[]。空表首次记录只能insert。
-没有任何事实变化时仍必须输出：
+没有任何事实变化时第一段仍必须输出：
 ${RELAY_TAG_START}
 []
 ${RELAY_TAG_END}
 ${sharedRecordRules()}
-不得使用<tableEdit>、JSON信封根对象、额外哨兵、SQL、Markdown代码围栏或解释。${RELAY_TAG_END}之后不得再输出任何字符。`;
+不得使用<tableEdit>、JSON信封根对象、额外哨兵、SQL、Markdown代码围栏或解释。`;
 }
 
 function reinforceRelayTablePrompt(messages) {
@@ -122,6 +123,18 @@ function reinforceRelayTablePrompt(messages) {
         rewritten++;
     }
     return rewritten;
+}
+
+function reinforceRelayLastUser(messages) {
+    if (!Array.isArray(messages)) return false;
+    const reminder = `\n\n[Memo-N输出硬约束：实际回复第一段必须是 ${RELAY_TAG_START} → changes JSON数组 → ${RELAY_TAG_END}，然后才输出完整正常正文；无变化也先输出空数组记录块。]`;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        const message = messages[index];
+        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
+        if (!message.content.includes(RELAY_TAG_START)) message.content = `${message.content.trimEnd()}${reminder}`;
+        return true;
+    }
+    return false;
 }
 
 const schema = {
@@ -150,6 +163,8 @@ function inject(data) {
     const route = getProviderRoute(data);
     const relayMode = route === ROUTE.RELAY;
     const info = providerDebug(data);
+    let reinforced = 0;
+    let userReinforced = false;
 
     pending = {
         at: Date.now(),
@@ -164,9 +179,10 @@ function inject(data) {
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        const reinforced = relayMode ? reinforceRelayTablePrompt(data.messages) : 0;
+        reinforced = relayMode ? reinforceRelayTablePrompt(data.messages) : 0;
+        userReinforced = relayMode ? reinforceRelayLastUser(data.messages) : false;
         data.messages.push({ role: 'system', content: relayMode ? relayContract() : finalContract() });
-        if (relayMode) console.log(`[Memo-N] 中转站隐藏JSON约束已同步强化到七表提示｜tablePrompt=${reinforced}`);
+        if (relayMode) console.log(`[Memo-N] 中转站前置JSON约束已注入｜tablePrompt=${reinforced}｜lastUser=${userReinforced}`);
     }
 
     if (route === ROUTE.DEEPSEEK) {
@@ -176,11 +192,25 @@ function inject(data) {
     } else if (relayMode) {
         delete data.json_schema;
         if (data.response_format?.type === 'json_object') delete data.response_format;
-        console.log(`[Memo-N] 已接管本轮一次API：中转站隐藏JSON记录块｜route=${info.route}`);
+        console.log(`[Memo-N] 已接管本轮一次API：中转站前置JSON记录块｜route=${info.route}`);
     } else {
         data.json_schema = structuredClone(schema);
         console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}`);
     }
+
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const last = messages.at(-1);
+    globalThis.__memoNLastRequestProbe = Object.freeze({
+        at: Date.now(),
+        route,
+        responseMode: relayMode ? 'relay_tagged_leading' : 'json',
+        messageCount: messages.length,
+        markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
+        relayTagPresent: relayMode && messages.some(message => String(message?.content ?? '').includes(RELAY_TAG_START)),
+        tablePromptReinforced: reinforced,
+        lastUserReinforced: userReinforced,
+        finalRole: String(last?.role ?? ''),
+    });
 }
 
 function syncSwipe(chat) {
@@ -282,8 +312,8 @@ async function unpack(chatId) {
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
     if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
-    if (waited.source === 'relay-tagged-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站隐藏JSON记录块');
-    if (waited.source === 'relay-tagged-content') console.log('[Memo-N] 已从中转站正文尾部读取隐藏JSON记录块');
+    if (waited.source === 'relay-tagged-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站JSON记录块');
+    if (waited.source === 'relay-tagged-content') console.log('[Memo-N] 已从中转站回复读取JSON记录块并剥离');
     handled.set(chat, chat.mes);
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
@@ -346,4 +376,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站走隐藏JSON记录块');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站走前置JSON记录块');
