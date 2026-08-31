@@ -259,6 +259,11 @@ export function parseRecordEnvelope(raw) {
     }
 }
 
+function joinVisibleRelayText(before, after, fallbackReply = '') {
+    const visible = [String(before ?? '').trim(), String(after ?? '').trim()].filter(Boolean).join('\n\n').trim();
+    return visible || String(fallbackReply || '').trim();
+}
+
 export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
     const text = String(raw ?? '');
     const start = text.indexOf(RELAY_TAG_START);
@@ -269,12 +274,12 @@ export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
         return { ok: false, error: '中转站记录块尚未闭合', reply };
     }
     if (text.indexOf(RELAY_TAG_START, start + RELAY_TAG_START.length) >= 0) {
-        const reply = text.slice(0, start).trim() || String(fallbackReply || '').trim();
+        const reply = joinVisibleRelayText(text.slice(0, start), text.slice(end + RELAY_TAG_END.length), fallbackReply);
         return { ok: false, error: '中转站记录块重复', reply };
     }
-    const after = text.slice(end + RELAY_TAG_END.length).trim();
-    const reply = text.slice(0, start).trim() || String(fallbackReply || '').trim();
-    if (after) return { ok: false, error: '中转站记录块后存在额外内容', reply };
+    const before = text.slice(0, start);
+    const after = text.slice(end + RELAY_TAG_END.length);
+    const reply = joinVisibleRelayText(before, after, fallbackReply);
     const payload = text.slice(start + RELAY_TAG_START.length, end).trim();
     let changes;
     try { changes = JSON.parse(payload); }
