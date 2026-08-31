@@ -8,13 +8,15 @@ import {
     exportRebuildTemplate,
     importRebuildTemplate,
     triggerStepByStepNow,
-} from '../runtime/absoluteRefresh.js?v=memon5';
+} from '../runtime/absoluteRefresh.js?v=memon6';
 import { generateDeviceId } from '../../utils/utility.js';
 import { updateModelList, handleApiTestRequest, processApiKey } from './standaloneAPI.js';
 import { filterTableDataPopup } from '../../data/pluginSetting.js';
-import { initRefreshTypeSelector } from '../runtime/absoluteRefresh.js?v=memon5';
+import { initRefreshTypeSelector } from '../runtime/absoluteRefresh.js?v=memon6';
 import { customSheetsStylePopup } from '../editor/customSheetsStyle.js';
 import { buildSheetsByTemplates } from '../../index.js';
+
+const DEPRECATED_SETTINGS = new Set(['preset_character_policy', 'use_main_api', 'step_by_step_use_main_api']);
 
 function formatDeep() {
     USER.tableBaseSetting.deep = Math.abs(USER.tableBaseSetting.deep);
@@ -22,6 +24,19 @@ function formatDeep() {
 
 function updateSwitch(selector, switchValue) {
     $(selector).prop('checked', Boolean(switchValue));
+}
+
+function independentModeEnabled() {
+    const setting = USER?.tableBaseSetting;
+    if (!setting) return false;
+    if (Object.prototype.hasOwnProperty.call(setting, 'independent_record_api_enabled')) return setting.independent_record_api_enabled === true;
+    // 仅用于首次升级前的UI兼容；settingsBootstrap随后会一次性迁移到独立字段。
+    return setting.step_by_step === true;
+}
+
+function purgeDeprecatedSettings(setting = USER?.tableBaseSetting) {
+    if (!setting || typeof setting !== 'object') return;
+    for (const key of DEPRECATED_SETTINGS) delete setting[key];
 }
 
 function updateTableView() {
@@ -93,11 +108,17 @@ async function importTableSet() {
                 );
                 if (!confirmed) return;
 
+                // 兼容老导出文件：旧 step_by_step 只迁移成新的持久模式字段，绝不再作为长期运行状态保存。
+                if (!Object.prototype.hasOwnProperty.call(importedData, 'independent_record_api_enabled')
+                    && Object.prototype.hasOwnProperty.call(importedData, 'step_by_step')) {
+                    USER.tableBaseSetting.independent_record_api_enabled = importedData.step_by_step === true;
+                }
                 for (const [key, value] of Object.entries(importedData)) {
-                    // 已废弃的人物来源策略不再导入，世界书NPC与自动NPC统一处理。
-                    if (key === 'preset_character_policy' || key === 'pinned_character_names') continue;
+                    if (DEPRECATED_SETTINGS.has(key) || key === 'step_by_step') continue;
                     USER.tableBaseSetting[key] = value;
                 }
+                purgeDeprecatedSettings();
+                USER.tableBaseSetting.step_by_step = false;
 
                 renderSetting();
                 initTableStructureToTemplate();
@@ -161,8 +182,8 @@ async function exportTableSet() {
     if (!confirmation) return;
 
     const cleaned = { ...filterData };
-    delete cleaned.preset_character_policy;
-    delete cleaned.pinned_character_names;
+    for (const key of DEPRECATED_SETTINGS) delete cleaned[key];
+    delete cleaned.step_by_step;
 
     try {
         const blob = new Blob([JSON.stringify(cleaned)], { type: 'application/json' });
@@ -184,8 +205,8 @@ async function resetSettings() {
 
     try {
         for (const [key, value] of Object.entries(filterData)) USER.tableBaseSetting[key] = value;
-        delete USER.tableBaseSetting.preset_character_policy;
-        delete USER.tableBaseSetting.pinned_character_names;
+        purgeDeprecatedSettings();
+        USER.tableBaseSetting.step_by_step = false;
         renderSetting();
         if ('tableStructure' in filterData) {
             initTableStructureToTemplate();
@@ -223,12 +244,7 @@ function initBindings() {
     $('#dataTable_injection_mode').change(function () {
         USER.tableBaseSetting.injection_mode = this.value;
     });
-    $('#fill_table_time').change(function () {
-        const stepByStep = $(this).val() === 'after';
-        $('#reply_options').toggle(!stepByStep);
-        $('#step_by_step_options').toggle(stepByStep);
-        USER.tableBaseSetting.step_by_step = stepByStep;
-    });
+    // fill_table_time 的唯一写入逻辑在 apiModeToggle.js；旧 step_by_step 不再作为持久模式字段。
     $('#confirm_before_execution').change(function () {
         USER.tableBaseSetting.confirm_before_execution = this.checked;
     });
@@ -237,12 +253,6 @@ function initBindings() {
     });
     $('#bool_silent_refresh').change(function () {
         USER.tableBaseSetting.bool_silent_refresh = this.checked;
-    });
-    $('#use_main_api').change(function () {
-        USER.tableBaseSetting.use_main_api = this.checked;
-    });
-    $('#step_by_step_use_main_api').change(function () {
-        USER.tableBaseSetting.step_by_step_use_main_api = this.checked;
     });
 
     $('#model_selector').change(function () {
@@ -321,7 +331,7 @@ function initBindings() {
         const value = USER.tableBaseDefaultSettings.step_by_step_user_prompt;
         $('#step_by_step_user_prompt').val(value);
         USER.tableBaseSetting.step_by_step_user_prompt = value;
-        EDITOR.success('分步填表提示词已重置为默认值。');
+        EDITOR.success('独立记录提示词已重置为默认值。');
     });
     $('#rebuild_token_limit').on('input', function () {
         const value = $(this).val();
@@ -377,7 +387,8 @@ export function renderSetting() {
     $('#step_by_step_user_prompt').val(USER.tableBaseSetting.step_by_step_user_prompt || '');
     $('#separateReadContextLayers').val(USER.tableBaseSetting.separateReadContextLayers);
     updateSwitch('#separateReadLorebook', USER.tableBaseSetting.separateReadLorebook);
-    $('#fill_table_time').val(USER.tableBaseSetting.step_by_step ? 'after' : 'chat');
+    const independent = independentModeEnabled();
+    $('#fill_table_time').val(independent ? 'after' : 'chat');
     refreshRebuildTemplate();
 
     $('#custom_api_url').val(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url || '');
@@ -392,15 +403,13 @@ export function renderSetting() {
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
     updateSwitch('#table_to_chat', USER.tableBaseSetting.isTableToChat);
     updateSwitch('#confirm_before_execution', USER.tableBaseSetting.confirm_before_execution);
-    updateSwitch('#use_main_api', USER.tableBaseSetting.use_main_api);
-    updateSwitch('#step_by_step_use_main_api', USER.tableBaseSetting.step_by_step_use_main_api);
     updateSwitch('#bool_silent_refresh', USER.tableBaseSetting.bool_silent_refresh);
     updateSwitch('#ignore_user_sent', USER.tableBaseSetting.ignore_user_sent);
     updateSwitch('#show_settings_in_extension_menu', USER.tableBaseSetting.show_settings_in_extension_menu);
     updateSwitch('#alternate_switch', USER.tableBaseSetting.alternate_switch);
 
-    $('#reply_options').toggle(!USER.tableBaseSetting.step_by_step);
-    $('#step_by_step_options').toggle(USER.tableBaseSetting.step_by_step);
+    $('#reply_options').toggle(!independent);
+    $('#step_by_step_options').toggle(independent);
     $('#table_to_chat_options').toggle(USER.tableBaseSetting.isTableToChat);
     $('#table_to_chat_is_micro_d').toggle(USER.tableBaseSetting.table_to_chat_mode === 'macro');
 }
@@ -408,9 +417,10 @@ export function renderSetting() {
 export function loadSettings() {
     USER.IMPORTANT_USER_PRIVACY_DATA = USER.IMPORTANT_USER_PRIVACY_DATA || {};
 
-    // 清除旧版本遗留的“人物来源策略”设置；所有NPC现在统一使用同一套人物表规则。
+    // 仅清除真正废弃的人物来源策略；人物置顶 pinned_character_names 是当前数据页仍在使用的功能，必须保留。
     delete USER.tableBaseSetting.preset_character_policy;
-    delete USER.tableBaseSetting.pinned_character_names;
+    delete USER.tableBaseSetting.use_main_api;
+    delete USER.tableBaseSetting.step_by_step_use_main_api;
 
     if (USER.tableBaseSetting.updateIndex < 3) {
         USER.tableBaseSetting.message_template = USER.tableBaseDefaultSettings.message_template;
