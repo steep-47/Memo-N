@@ -6,45 +6,432 @@ import { handleCustomAPIRequest, handleMainAPIRequest } from '../settings/standa
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon6';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './safeTableExecutor.js?v=memon6';
+import { ROUTE, getManualProviderRoute } from './providerRoute.js';
+import { changesToStrictCalls, parseRecordEnvelope } from '../engine/recordEnvelope.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
-const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作协议
+const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作语义
 固定标准表索引：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件。
-只能使用：
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
+允许的语义只有 insert / update / delete；具体传输格式服从本轮最后的 Memo-N 记录接口协议。
 已有对象优先update，真正新增才insert，明确结束/消失按表规则delete；不要修改表头。
-updateRow只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须明确使用insertRow。
+update只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须明确使用insert。
 人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护。
-没有任何明确变化时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
-最终只能输出一个完整<tableEdit>...</tableEdit>，不得输出剧情、JSON、解释或Markdown。`;
+没有任何明确变化时必须返回协议规定的 NO_CHANGE / 空 changes，不得省略机器结果。
+本请求只维护表格，不输出剧情，不猜测未知。`;
 
-function isAppendGeneration(type){const value=String(type??'').toLowerCase();return value==='continue'||value==='append'||value==='appendfinal';}
-function stripMachine(text){return String(text??'').replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi,'').trim();}
-function stripTableEditOnly(text){return String(text??'').replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').trim();}
-function copyValue(value){if(value===undefined)return undefined;try{return structuredClone(value);}catch(_){return JSON.parse(JSON.stringify(value));}}
-function copyHashSheets(value){if(!value||typeof value!=='object')return null;try{return BASE.copyHashSheets(value);}catch(_){return copyValue(value);}}
-function attachValidatedRecord(piece,rawContent,matches){if(!piece)return;const blocks=String(rawContent??'').match(/<tableEdit>[\s\S]*?<\/tableEdit>/gi);const machineBlock=Array.isArray(blocks)&&blocks.length?blocks[blocks.length-1]:`<tableEdit>${String(matches?.[matches.length-1]??'<!-- NO_CHANGE -->')}</tableEdit>`;const visible=stripTableEditOnly(piece.mes);piece.mes=`${visible}\n\n${machineBlock}`.trim();if(Array.isArray(piece.swipes)){const id=Number(piece.swipe_id);if(Number.isInteger(id)&&id>=0&&id<piece.swipes.length)piece.swipes[id]=piece.mes;}}
-function buildRecentContext(targetPiece){const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];const layers=Math.max(0,Number(USER.tableBaseSetting.separateReadContextLayers)||1);if(!layers)return'';const targetIndex=targetPiece?chat.indexOf(targetPiece):-1;const source=targetIndex>=0?chat.slice(0,targetIndex):chat;const candidates=source.filter(item=>item?.is_user===false);return candidates.slice(-layers).map(item=>`${item.name||'assistant'}: ${stripMachine(item.mes)}`).join('\n');}
-async function readLorebook(){if(!USER.tableBaseSetting.separateReadLorebook||!window.TavernHelper)return'';try{const books=await window.TavernHelper.getCharLorebooks({type:'all'});const names=[books?.primary,...(Array.isArray(books?.additional)?books.additional:[])].filter(Boolean);const chunks=[];for(const name of names){const entries=await window.TavernHelper.getLorebookEntries(name);if(Array.isArray(entries))chunks.push(...entries.map(entry=>String(entry?.content??'')).filter(Boolean));}return chunks.join('\n');}catch(error){console.warn('[Memo][independent] 世界书读取失败，继续使用现有表格与聊天上下文',error);return'';}}
-function parsePromptTemplate(){const raw=String(USER.tableBaseSetting.step_by_step_user_prompt||'').trim();try{const parsed=JSON5.parse(raw);if(!Array.isArray(parsed)||!parsed.length)throw new Error('提示词不是非空消息数组');return parsed;}catch(error){throw new Error(`独立填表提示词格式错误：${error?.message||error}`);}}
-async function buildIndependentMessages(todoChats,originText,targetPiece){const contextChats=buildRecentContext(targetPiece);const lorebook=await readLorebook();const template=parsePromptTemplate();const replace=value=>String(value??'').replace(/(?<!\\)\$0/g,()=>originText).replace(/(?<!\\)\$1/g,()=>contextChats).replace(/(?<!\\)\$2/g,()=>stripMachine(todoChats)).replace(/(?<!\\)\$3/g,()=>INDEPENDENT_OPERATION_RULES).replace(/(?<!\\)\$4/g,()=>lorebook);return template.map(message=>({...message,content:replace(message?.content)}));}
-function exactPromptForPiece(referencePiece){return referencePiece?.memo_n_hash_sheets?getTablePromptByPiece(referencePiece):getTablePrompt(referencePiece);}
-function resolveRecordSlice(todoChats,referencePiece,options={}){const full=String(todoChats??'');const append=!options.forceFull&&isAppendGeneration(options.generationType)&&options.baseMes&&full.startsWith(String(options.baseMes));if(!append)return{recordText:full,originText:exactPromptForPiece(referencePiece),append:false};const recordText=full.slice(String(options.baseMes).length).trim();return{recordText,originText:exactPromptForPiece(referencePiece),append:true};}
-async function runIndependentApi(todoChats,referencePiece,isSilentMode,options={}){const slice=resolveRecordSlice(todoChats,referencePiece,options);if(slice.append&&!stripMachine(slice.recordText)){console.log('[Memo][independent] Continue本次没有新增可记录正文');return true;}const messages=await buildIndependentMessages(slice.recordText,slice.originText,referencePiece);const useMain=USER.tableBaseSetting.step_by_step_use_main_api??true;let rawContent;try{rawContent=useMain?await handleMainAPIRequest(messages,null,isSilentMode):await handleCustomAPIRequest(messages,null,true,isSilentMode);}catch(error){console.error('[Memo][independent] API请求异常',error);EDITOR.warning(`独立记录API请求失败：${error?.message||error}`);return false;}if(rawContent==='suspended')return false;if(typeof rawContent!=='string'||!rawContent.trim()||/^错误[:：]/.test(rawContent.trim())){console.error('[Memo][independent] API返回无效:',rawContent);EDITOR.warning('独立记录失败：API返回为空或错误内容，原表未修改。');return false;}if(options.sessionChat&&USER.getContext?.()?.chat!==options.sessionChat){console.warn('[Memo][independent] API返回时已切换聊天，旧任务作废且不触碰新聊天表格');return'detached';}if(options.expectedVisible!==undefined&&stripMachine(referencePiece?.mes)!==String(options.expectedVisible)){console.warn('[Memo][independent] 独立API返回时正文已经变化，本次旧结果作废，等待最新版本重算');return 'stale';}const{matches}=getTableEditTag(rawContent);if(!Array.isArray(matches)||matches.length!==1){console.error('[Memo][independent] 模型tableEdit块数量异常:',matches?.length??0,rawContent);EDITOR.warning(`独立记录失败：模型必须且只能返回1个<tableEdit>，实际为${matches?.length??0}个。原表未修改。`);return false;}const result=executeMemoTableEdit(matches,referencePiece);if(!result.ok){console.error('[Memo][independent] tableEdit校验/执行失败:',result.error,matches);EDITOR.warning(`独立记录失败：${result.error}。原表未执行错误操作。`);return false;}attachValidatedRecord(referencePiece,rawContent,matches);await USER.saveChat();if(options.sessionChat&&USER.getContext?.()?.chat!==options.sessionChat){console.warn('[Memo][independent] 保存期间切换了聊天；旧任务不再刷新或恢复当前新聊天视图');return'detached';}console.log(`[Memo][independent] 严格记录完成并绑定当前swipe：${slice.append?'Continue增量｜':''}${result.noChange?'NO_CHANGE':`${result.count}项操作`}`);return true;}
+const DEEPSEEK_RECORD_CONTRACT = `[Memo-N DeepSeek 独立记录 JSON 协议]
+这是记录专用请求，不输出剧情正文。最终响应只能是一个 JSON 对象，JSON 外不得出现任何字符：
+{"reply":"RECORD_ONLY","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
+reply 必须固定为 "RECORD_ONLY"。changes 只记录待记录正文中已经明确成立的事实变化。
+insert 的 row 必须为 null；update/delete 的 row 必须是真实存在的非负整数；delete 的 cells 必须为 []。
+cells 必须是 [{"column":数字,"value":"值"}] 数组；没有变化时 changes 必须为 []。
+禁止输出 <tableEdit>、函数文本、SQL、Markdown代码围栏或解释。`;
 
-function previousBaselineForCurrentPiece(piece){const chat=USER.getContext?.()?.chat;if(!Array.isArray(chat))return null;const index=chat.indexOf(piece);if(index<0)return null;for(let i=index-1;i>=0;i--){const candidate=chat[i];if(candidate?.is_user===false&&candidate?.memo_n_hash_sheets&&typeof candidate.memo_n_hash_sheets==='object')return copyHashSheets(candidate.memo_n_hash_sheets);}return null;}
-function restoreHashSheets(snapshot){const result=restoreMemoSnapshot(snapshot);if(!result.ok)console.error('[Memo][independent] 恢复表格基线失败',result.error);return result.ok;}
-function captureLiveSheets(){const snapshots=new Map();for(const sheet of BASE.getChatSheets?.()??[]){const data=sheet?.filterSavingData?.();if(!data||typeof data!=='object')throw new Error(`无法备份表格 ${sheet?.name||'未知表'}`);snapshots.set(sheet,copyValue(data));}return snapshots;}
-function restoreLiveSheets(snapshots){for(const[sheet,data]of snapshots??[]){sheet.loadJson(copyValue(data));}}
-function capturePieceState(piece){const id=Number(piece?.swipe_id);return{hash:copyHashSheets(piece?.memo_n_hash_sheets),hadHash:!!piece&&Object.prototype.hasOwnProperty.call(piece,'memo_n_hash_sheets'),extra:copyValue(piece?.extra),mes:String(piece?.mes??''),swipeId:id,swipe:Array.isArray(piece?.swipes)&&Number.isInteger(id)&&id>=0&&id<piece.swipes.length?piece.swipes[id]:undefined,swipeInfo:Array.isArray(piece?.swipe_info)&&Number.isInteger(id)&&id>=0&&piece.swipe_info[id]?copyValue(piece.swipe_info[id]):undefined};}
-function restorePieceState(piece,state){if(!piece||!state)return;if(state.hadHash)piece.memo_n_hash_sheets=copyHashSheets(state.hash);else delete piece.memo_n_hash_sheets;piece.extra=copyValue(state.extra)??{};piece.mes=state.mes;const id=state.swipeId;if(Array.isArray(piece.swipes)&&Number.isInteger(id)&&id>=0&&id<piece.swipes.length)piece.swipes[id]=state.swipe??state.mes;if(Array.isArray(piece.swipe_info)&&Number.isInteger(id)&&id>=0){if(state.swipeInfo!==undefined)piece.swipe_info[id]=copyValue(state.swipeInfo);else if(piece.swipe_info[id]){delete piece.swipe_info[id].memo_n_swipe_hash_sheets;if(piece.swipe_info[id].extra)delete piece.swipe_info[id].extra.memo_n_swipe_hash_sheets;}}}
-function prepareAutoBaseline(piece,options){const append=!options.forceFull&&isAppendGeneration(options.generationType);const baseline=append&&piece?.memo_n_hash_sheets?copyHashSheets(piece.memo_n_hash_sheets):previousBaselineForCurrentPiece(piece);if(baseline)return restoreHashSheets(baseline);const empty=BASE.initHashSheet?.();return empty?.memo_n_hash_sheets?restoreHashSheets(empty.memo_n_hash_sheets):false;}
-function refreshCommittedViews({reload=false}={}){try{BASE.refreshContextView();updateSystemMessageTableStatus();if(reload)reloadCurrentChat();}catch(error){console.warn('[Memo] 记录已经提交，但视图刷新失败',error);}}
+const RELAY_RECORD_CONTRACT = `[Memo-N 中转站独立记录 tableEdit 协议]
+这是记录专用请求，不输出剧情正文。最终必须且只能输出一个完整 <tableEdit>...</tableEdit>。
+只允许 insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
+没有任何明确变化时输出 <tableEdit><!-- NO_CHANGE --></tableEdit>。
+禁止输出 JSON 记录信封、剧情、SQL、Markdown代码围栏或解释。`;
 
-export async function TableTwoStepSummary(mode='manual',options={}){if(USER.tableBaseSetting.isExtensionAble===false)return false;if(!['auto','manual'].includes(mode)){console.warn(`[Memo][independent] 已拒绝旧模式 ${mode}；一次API不允许fallback补记。`);return false;}if(mode==='auto'&&USER.tableBaseSetting.step_by_step===false)return false;const currentPiece=USER.getChatPiece?.()?.piece;const todoPiece=options.targetPiece||currentPiece;if(!todoPiece){if(mode==='manual')EDITOR.error('未找到待填表的对话片段，请至少生成一条角色回复。');return false;}const todoChats=options.todoChats??String(todoPiece.mes??'');if(mode==='manual'){const popupContentHtml=`<p>累计 ${String(todoChats).length} 长度的文本，是否开始独立填表？</p>`;const confirmResult=await newPopupConfirm(popupContentHtml,'取消','执行填表','stepwiseSummaryConfirm','不再提示','一直选是');if(confirmResult===false)return false;return await manualSummaryChat(todoChats,confirmResult,{...options,targetPiece:todoPiece});}return await manualSummaryChat(todoChats,'dont_remind_active',{...options,targetPiece:todoPiece});}
+function isAppendGeneration(type) {
+    const value = String(type ?? '').toLowerCase();
+    return value === 'continue' || value === 'append' || value === 'appendfinal';
+}
 
-export async function manualSummaryChat(todoChats,confirmResult,options={}){const sessionChat=USER.getContext?.()?.chat;const sessionActive=()=>USER.getContext?.()?.chat===sessionChat;const currentPiece=USER.getChatPiece?.()?.piece;const initialPiece=options.targetPiece||currentPiece;if(!initialPiece)return false;if(!Array.isArray(sessionChat)||!sessionChat.includes(initialPiece)){console.warn('[Memo][independent] 目标消息已不属于当前聊天，取消旧的填表任务');return false;}const isAutoMode=confirmResult==='dont_remind_active';if(isAutoMode){const targetBackup=capturePieceState(initialPiece);const sheetBackup=captureLiveSheets();const liveHash=currentPiece&&currentPiece!==initialPiece?copyHashSheets(currentPiece.memo_n_hash_sheets):null;try{if(!prepareAutoBaseline(initialPiece,options))throw new Error('无法恢复独立记录前的明确表格基线');if(initialPiece===currentPiece)repairMissingColumnsBeforeCleanup({notify:false});saveMemoSnapshot(initialPiece);const effectiveOptions={...(options.forceFull?{...options,generationType:'normal',baseMes:''}:options),sessionChat};const latestTodo=options.forceFull?String(initialPiece.mes??''):String(todoChats??'');const ok=await runIndependentApi(latestTodo,initialPiece,true,effectiveOptions);if(ok==='detached')return'detached';if(ok==='stale'||!ok){restorePieceState(initialPiece,targetBackup);if(sessionActive()){restoreLiveSheets(sheetBackup);if(targetBackup.hash)restoreHashSheets(targetBackup.hash);}return ok==='stale'?'stale':false;}return true;}catch(error){console.error('[Memo][independent] 自动记录失败，恢复执行前状态',error);restorePieceState(initialPiece,targetBackup);if(sessionActive()){restoreLiveSheets(sheetBackup);if(targetBackup.hash)restoreHashSheets(targetBackup.hash);}return false;}finally{if(sessionActive()){if(currentPiece&&currentPiece!==initialPiece&&liveHash)restoreHashSheets(liveHash);refreshCommittedViews();}}}
+function stripMachine(text) {
+    return String(text ?? '')
+        .replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi, '')
+        .replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, '')
+        .trim();
+}
 
-    const backup=capturePieceState(initialPiece);const sheetBackup=captureLiveSheets();const baseline=previousBaselineForCurrentPiece(initialPiece);try{const baselineReady=baseline?restoreHashSheets(baseline):(()=>{const empty=BASE.initHashSheet?.();return empty?.memo_n_hash_sheets?restoreHashSheets(empty.memo_n_hash_sheets):false;})();if(!baselineReady)throw new Error('无法恢复手动填表前的明确表格基线');repairMissingColumnsBeforeCleanup({notify:false});saveMemoSnapshot(initialPiece);const ok=await runIndependentApi(todoChats,initialPiece,false,{generationType:'manual',sessionChat});if(ok==='detached')return'detached';if(!ok)throw new Error('手动填表未成功完成');refreshCommittedViews({reload:true});return true;}catch(error){console.error('[Memo][manual-refill] 手动填表失败，恢复原状态',error);restorePieceState(initialPiece,backup);if(sessionActive()){restoreLiveSheets(sheetBackup);if(backup.hash)restoreHashSheets(backup.hash);await USER.saveChat();refreshCommittedViews();EDITOR.warning('手动填表失败：已恢复执行前的原表格、正文和Swipe快照，不会留下半成品。');}return false;}}
+function stripTableEditOnly(text) {
+    return String(text ?? '').replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi, '').trim();
+}
+
+function copyValue(value) {
+    if (value === undefined) return undefined;
+    try { return structuredClone(value); }
+    catch (_) { return JSON.parse(JSON.stringify(value)); }
+}
+
+function copyHashSheets(value) {
+    if (!value || typeof value !== 'object') return null;
+    try { return BASE.copyHashSheets(value); }
+    catch (_) { return copyValue(value); }
+}
+
+function machineBlockFromCalls(calls) {
+    const list = Array.isArray(calls) && calls.length ? calls : ['NO_CHANGE'];
+    return `<tableEdit><!--\n${list.join('\n')}\n--></tableEdit>`;
+}
+
+function attachMachineRecord(piece, machineBlock) {
+    if (!piece) return;
+    const visible = stripTableEditOnly(piece.mes);
+    piece.mes = `${visible}\n\n${String(machineBlock ?? '').trim()}`.trim();
+    if (Array.isArray(piece.swipes)) {
+        const id = Number(piece.swipe_id);
+        if (Number.isInteger(id) && id >= 0 && id < piece.swipes.length) piece.swipes[id] = piece.mes;
+    }
+}
+
+function extractRelayMachineBlock(rawContent, matches) {
+    const blocks = String(rawContent ?? '').match(/<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi);
+    if (Array.isArray(blocks) && blocks.length === 1) return blocks[0];
+    return `<tableEdit>${String(matches?.[0] ?? '<!-- NO_CHANGE -->')}</tableEdit>`;
+}
+
+function buildRecentContext(targetPiece) {
+    const chat = Array.isArray(USER.getContext?.()?.chat) ? USER.getContext().chat : [];
+    const layers = Math.max(0, Number(USER.tableBaseSetting.separateReadContextLayers) || 1);
+    if (!layers) return '';
+    const targetIndex = targetPiece ? chat.indexOf(targetPiece) : -1;
+    const source = targetIndex >= 0 ? chat.slice(0, targetIndex) : chat;
+    const candidates = source.filter(item => item?.is_user === false);
+    return candidates.slice(-layers).map(item => `${item.name || 'assistant'}: ${stripMachine(item.mes)}`).join('\n');
+}
+
+async function readLorebook() {
+    if (!USER.tableBaseSetting.separateReadLorebook || !window.TavernHelper) return '';
+    try {
+        const books = await window.TavernHelper.getCharLorebooks({ type: 'all' });
+        const names = [books?.primary, ...(Array.isArray(books?.additional) ? books.additional : [])].filter(Boolean);
+        const chunks = [];
+        for (const name of names) {
+            const entries = await window.TavernHelper.getLorebookEntries(name);
+            if (Array.isArray(entries)) chunks.push(...entries.map(entry => String(entry?.content ?? '')).filter(Boolean));
+        }
+        return chunks.join('\n');
+    } catch (error) {
+        console.warn('[Memo][independent] 世界书读取失败，继续使用现有表格与聊天上下文', error);
+        return '';
+    }
+}
+
+function parsePromptTemplate() {
+    const raw = String(USER.tableBaseSetting.step_by_step_user_prompt || '').trim();
+    try {
+        const parsed = JSON5.parse(raw);
+        if (!Array.isArray(parsed) || !parsed.length) throw new Error('提示词不是非空消息数组');
+        return parsed;
+    } catch (error) {
+        throw new Error(`独立填表提示词格式错误：${error?.message || error}`);
+    }
+}
+
+function neutralizeLegacyTableEditWording(content) {
+    return String(content ?? '')
+        .replace(/最终只输出一个完整<tableEdit>[\s\S]*?<\/tableEdit>；?/gi, '最终输出格式服从本轮最后的 Memo-N DeepSeek JSON 协议；')
+        .replace(/无变化输出<tableEdit>[\s\S]*?<\/tableEdit>。?/gi, '无变化时按本轮 JSON 协议返回空 changes。')
+        .replace(/函数放在<tableEdit>[\s\S]*?<\/tableEdit>中。?/gi, '机器结果格式服从本轮最后的 Memo-N DeepSeek JSON 协议。');
+}
+
+function appendProtocolContract(messages, route) {
+    const result = messages.map(message => ({ ...message }));
+    if (route === ROUTE.DEEPSEEK) {
+        for (const message of result) {
+            if (typeof message.content === 'string') message.content = neutralizeLegacyTableEditWording(message.content);
+        }
+        for (let index = result.length - 1; index >= 0; index--) {
+            if (result[index]?.role !== 'user' || typeof result[index].content !== 'string') continue;
+            result[index].content += '\n\n[Memo-N：本轮记录接口为 DeepSeek。最终只返回 reply="RECORD_ONLY" + changes 的 JSON 对象，不得返回 tableEdit。]';
+            break;
+        }
+        result.push({ role: 'system', content: DEEPSEEK_RECORD_CONTRACT });
+    } else {
+        for (let index = result.length - 1; index >= 0; index--) {
+            if (result[index]?.role !== 'user' || typeof result[index].content !== 'string') continue;
+            result[index].content += '\n\n[Memo-N：本轮记录接口为中转站。最终必须且只能返回一个完整 <tableEdit>...</tableEdit>。]';
+            break;
+        }
+        result.push({ role: 'system', content: RELAY_RECORD_CONTRACT });
+    }
+    return result;
+}
+
+async function buildIndependentMessages(todoChats, originText, targetPiece, route) {
+    const contextChats = buildRecentContext(targetPiece);
+    const lorebook = await readLorebook();
+    const template = parsePromptTemplate();
+    const replace = value => String(value ?? '')
+        .replace(/(?<!\\)\$0/g, () => originText)
+        .replace(/(?<!\\)\$1/g, () => contextChats)
+        .replace(/(?<!\\)\$2/g, () => stripMachine(todoChats))
+        .replace(/(?<!\\)\$3/g, () => INDEPENDENT_OPERATION_RULES)
+        .replace(/(?<!\\)\$4/g, () => lorebook);
+    const messages = template.map(message => ({ ...message, content: replace(message?.content) }));
+    return appendProtocolContract(messages, route);
+}
+
+function exactPromptForPiece(referencePiece) {
+    return referencePiece?.memo_n_hash_sheets ? getTablePromptByPiece(referencePiece) : getTablePrompt(referencePiece);
+}
+
+function resolveRecordSlice(todoChats, referencePiece, options = {}) {
+    const full = String(todoChats ?? '');
+    const append = !options.forceFull && isAppendGeneration(options.generationType) && options.baseMes && full.startsWith(String(options.baseMes));
+    if (!append) return { recordText: full, originText: exactPromptForPiece(referencePiece), append: false };
+    const recordText = full.slice(String(options.baseMes).length).trim();
+    return { recordText, originText: exactPromptForPiece(referencePiece), append: true };
+}
+
+function parseIndependentResult(rawContent, route) {
+    if (route === ROUTE.DEEPSEEK) {
+        const envelope = parseRecordEnvelope(rawContent);
+        if (!envelope.ok) return { ok: false, error: `DeepSeek JSON记录解析失败：${envelope.error}` };
+        if (String(envelope.reply ?? '').trim() !== 'RECORD_ONLY') {
+            return { ok: false, error: 'DeepSeek独立记录 reply 必须固定为 RECORD_ONLY' };
+        }
+        const calls = changesToStrictCalls(envelope.changes);
+        return { ok: true, executionInput: calls, machineBlock: machineBlockFromCalls(calls), noChange: envelope.noChange === true };
+    }
+
+    const { matches } = getTableEditTag(rawContent);
+    if (!Array.isArray(matches) || matches.length !== 1) {
+        return { ok: false, error: `中转站模型必须且只能返回1个<tableEdit>，实际为${matches?.length ?? 0}个` };
+    }
+    return { ok: true, executionInput: matches, machineBlock: extractRelayMachineBlock(rawContent, matches), noChange: /\bNO_CHANGE\b/i.test(String(matches[0] ?? '')) };
+}
+
+async function runIndependentApi(todoChats, referencePiece, isSilentMode, options = {}) {
+    const slice = resolveRecordSlice(todoChats, referencePiece, options);
+    if (slice.append && !stripMachine(slice.recordText)) {
+        console.log('[Memo][independent] Continue本次没有新增可记录正文');
+        return true;
+    }
+
+    const route = getManualProviderRoute();
+    const messages = await buildIndependentMessages(slice.recordText, slice.originText, referencePiece, route);
+    const useMain = route === ROUTE.DEEPSEEK;
+    let rawContent;
+    try {
+        rawContent = useMain
+            ? await handleMainAPIRequest(messages, null, isSilentMode)
+            : await handleCustomAPIRequest(messages, null, true, isSilentMode);
+    } catch (error) {
+        console.error('[Memo][independent] API请求异常', error);
+        EDITOR.warning(`独立记录API请求失败：${error?.message || error}`);
+        return false;
+    }
+
+    if (rawContent === 'suspended') return false;
+    if (typeof rawContent !== 'string' || !rawContent.trim() || /^错误[:：]/.test(rawContent.trim())) {
+        console.error('[Memo][independent] API返回无效:', rawContent);
+        EDITOR.warning('独立记录失败：API返回为空或错误内容，原表未修改。');
+        return false;
+    }
+    if (options.sessionChat && USER.getContext?.()?.chat !== options.sessionChat) {
+        console.warn('[Memo][independent] API返回时已切换聊天，旧任务作废且不触碰新聊天表格');
+        return 'detached';
+    }
+    if (options.expectedVisible !== undefined && stripMachine(referencePiece?.mes) !== String(options.expectedVisible)) {
+        console.warn('[Memo][independent] 独立API返回时正文已经变化，本次旧结果作废，等待最新版本重算');
+        return 'stale';
+    }
+
+    const parsed = parseIndependentResult(rawContent, route);
+    if (!parsed.ok) {
+        console.error('[Memo][independent] 模型记录协议解析失败:', parsed.error, rawContent);
+        EDITOR.warning(`独立记录失败：${parsed.error}。原表未修改。`);
+        return false;
+    }
+
+    const result = executeMemoTableEdit(parsed.executionInput, referencePiece);
+    if (!result.ok) {
+        console.error('[Memo][independent] 严格校验/执行失败:', result.error, parsed.executionInput);
+        EDITOR.warning(`独立记录失败：${result.error}。原表未执行错误操作。`);
+        return false;
+    }
+
+    attachMachineRecord(referencePiece, parsed.machineBlock);
+    await USER.saveChat();
+    if (options.sessionChat && USER.getContext?.()?.chat !== options.sessionChat) {
+        console.warn('[Memo][independent] 保存期间切换了聊天；旧任务不再刷新或恢复当前新聊天视图');
+        return 'detached';
+    }
+    console.log(`[Memo][independent] ${route === ROUTE.DEEPSEEK ? 'DeepSeek JSON' : '中转站 tableEdit'}严格记录完成并绑定当前swipe：${slice.append ? 'Continue增量｜' : ''}${result.noChange ? 'NO_CHANGE' : `${result.count}项操作`}`);
+    return true;
+}
+
+function previousBaselineForCurrentPiece(piece) {
+    const chat = USER.getContext?.()?.chat;
+    if (!Array.isArray(chat)) return null;
+    const index = chat.indexOf(piece);
+    if (index < 0) return null;
+    for (let i = index - 1; i >= 0; i--) {
+        const candidate = chat[i];
+        if (candidate?.is_user === false && candidate?.memo_n_hash_sheets && typeof candidate.memo_n_hash_sheets === 'object') return copyHashSheets(candidate.memo_n_hash_sheets);
+    }
+    return null;
+}
+
+function restoreHashSheets(snapshot) {
+    const result = restoreMemoSnapshot(snapshot);
+    if (!result.ok) console.error('[Memo][independent] 恢复表格基线失败', result.error);
+    return result.ok;
+}
+
+function captureLiveSheets() {
+    const snapshots = new Map();
+    for (const sheet of BASE.getChatSheets?.() ?? []) {
+        const data = sheet?.filterSavingData?.();
+        if (!data || typeof data !== 'object') throw new Error(`无法备份表格 ${sheet?.name || '未知表'}`);
+        snapshots.set(sheet, copyValue(data));
+    }
+    return snapshots;
+}
+
+function restoreLiveSheets(snapshots) {
+    for (const [sheet, data] of snapshots ?? []) sheet.loadJson(copyValue(data));
+}
+
+function capturePieceState(piece) {
+    const id = Number(piece?.swipe_id);
+    return {
+        hash: copyHashSheets(piece?.memo_n_hash_sheets),
+        hadHash: !!piece && Object.prototype.hasOwnProperty.call(piece, 'memo_n_hash_sheets'),
+        extra: copyValue(piece?.extra),
+        mes: String(piece?.mes ?? ''),
+        swipeId: id,
+        swipe: Array.isArray(piece?.swipes) && Number.isInteger(id) && id >= 0 && id < piece.swipes.length ? piece.swipes[id] : undefined,
+        swipeInfo: Array.isArray(piece?.swipe_info) && Number.isInteger(id) && id >= 0 && piece.swipe_info[id] ? copyValue(piece.swipe_info[id]) : undefined,
+    };
+}
+
+function restorePieceState(piece, state) {
+    if (!piece || !state) return;
+    if (state.hadHash) piece.memo_n_hash_sheets = copyHashSheets(state.hash);
+    else delete piece.memo_n_hash_sheets;
+    piece.extra = copyValue(state.extra) ?? {};
+    piece.mes = state.mes;
+    const id = state.swipeId;
+    if (Array.isArray(piece.swipes) && Number.isInteger(id) && id >= 0 && id < piece.swipes.length) piece.swipes[id] = state.swipe ?? state.mes;
+    if (Array.isArray(piece.swipe_info) && Number.isInteger(id) && id >= 0) {
+        if (state.swipeInfo !== undefined) piece.swipe_info[id] = copyValue(state.swipeInfo);
+        else if (piece.swipe_info[id]) {
+            delete piece.swipe_info[id].memo_n_swipe_hash_sheets;
+            if (piece.swipe_info[id].extra) delete piece.swipe_info[id].extra.memo_n_swipe_hash_sheets;
+        }
+    }
+}
+
+function prepareAutoBaseline(piece, options) {
+    const append = !options.forceFull && isAppendGeneration(options.generationType);
+    const baseline = append && piece?.memo_n_hash_sheets ? copyHashSheets(piece.memo_n_hash_sheets) : previousBaselineForCurrentPiece(piece);
+    if (baseline) return restoreHashSheets(baseline);
+    const empty = BASE.initHashSheet?.();
+    return empty?.memo_n_hash_sheets ? restoreHashSheets(empty.memo_n_hash_sheets) : false;
+}
+
+function refreshCommittedViews({ reload = false } = {}) {
+    try {
+        BASE.refreshContextView();
+        updateSystemMessageTableStatus();
+        if (reload) reloadCurrentChat();
+    } catch (error) {
+        console.warn('[Memo] 记录已经提交，但视图刷新失败', error);
+    }
+}
+
+export async function TableTwoStepSummary(mode = 'manual', options = {}) {
+    if (USER.tableBaseSetting.isExtensionAble === false) return false;
+    if (!['auto', 'manual'].includes(mode)) {
+        console.warn(`[Memo][independent] 已拒绝旧模式 ${mode}；一次API不允许fallback补记。`);
+        return false;
+    }
+    if (mode === 'auto' && USER.tableBaseSetting.step_by_step === false) return false;
+    const currentPiece = USER.getChatPiece?.()?.piece;
+    const todoPiece = options.targetPiece || currentPiece;
+    if (!todoPiece) {
+        if (mode === 'manual') EDITOR.error('未找到待填表的对话片段，请至少生成一条角色回复。');
+        return false;
+    }
+    const todoChats = options.todoChats ?? String(todoPiece.mes ?? '');
+    if (mode === 'manual') {
+        const popupContentHtml = `<p>累计 ${String(todoChats).length} 长度的文本，是否开始独立填表？</p>`;
+        const confirmResult = await newPopupConfirm(popupContentHtml, '取消', '执行填表', 'stepwiseSummaryConfirm', '不再提示', '一直选是');
+        if (confirmResult === false) return false;
+        return await manualSummaryChat(todoChats, confirmResult, { ...options, targetPiece: todoPiece });
+    }
+    return await manualSummaryChat(todoChats, 'dont_remind_active', { ...options, targetPiece: todoPiece });
+}
+
+export async function manualSummaryChat(todoChats, confirmResult, options = {}) {
+    const sessionChat = USER.getContext?.()?.chat;
+    const sessionActive = () => USER.getContext?.()?.chat === sessionChat;
+    const currentPiece = USER.getChatPiece?.()?.piece;
+    const initialPiece = options.targetPiece || currentPiece;
+    if (!initialPiece) return false;
+    if (!Array.isArray(sessionChat) || !sessionChat.includes(initialPiece)) {
+        console.warn('[Memo][independent] 目标消息已不属于当前聊天，取消旧的填表任务');
+        return false;
+    }
+
+    const isAutoMode = confirmResult === 'dont_remind_active';
+    if (isAutoMode) {
+        const targetBackup = capturePieceState(initialPiece);
+        const sheetBackup = captureLiveSheets();
+        const liveHash = currentPiece && currentPiece !== initialPiece ? copyHashSheets(currentPiece.memo_n_hash_sheets) : null;
+        try {
+            if (!prepareAutoBaseline(initialPiece, options)) throw new Error('无法恢复独立记录前的明确表格基线');
+            if (initialPiece === currentPiece) repairMissingColumnsBeforeCleanup({ notify: false });
+            saveMemoSnapshot(initialPiece);
+            const effectiveOptions = { ...(options.forceFull ? { ...options, generationType: 'normal', baseMes: '' } : options), sessionChat };
+            const latestTodo = options.forceFull ? String(initialPiece.mes ?? '') : String(todoChats ?? '');
+            const ok = await runIndependentApi(latestTodo, initialPiece, true, effectiveOptions);
+            if (ok === 'detached') return 'detached';
+            if (ok === 'stale' || !ok) {
+                restorePieceState(initialPiece, targetBackup);
+                if (sessionActive()) {
+                    restoreLiveSheets(sheetBackup);
+                    if (targetBackup.hash) restoreHashSheets(targetBackup.hash);
+                }
+                return ok === 'stale' ? 'stale' : false;
+            }
+            return true;
+        } catch (error) {
+            console.error('[Memo][independent] 自动记录失败，恢复执行前状态', error);
+            restorePieceState(initialPiece, targetBackup);
+            if (sessionActive()) {
+                restoreLiveSheets(sheetBackup);
+                if (targetBackup.hash) restoreHashSheets(targetBackup.hash);
+            }
+            return false;
+        } finally {
+            if (sessionActive()) {
+                if (currentPiece && currentPiece !== initialPiece && liveHash) restoreHashSheets(liveHash);
+                refreshCommittedViews();
+            }
+        }
+    }
+
+    const backup = capturePieceState(initialPiece);
+    const sheetBackup = captureLiveSheets();
+    const baseline = previousBaselineForCurrentPiece(initialPiece);
+    try {
+        const baselineReady = baseline ? restoreHashSheets(baseline) : (() => {
+            const empty = BASE.initHashSheet?.();
+            return empty?.memo_n_hash_sheets ? restoreHashSheets(empty.memo_n_hash_sheets) : false;
+        })();
+        if (!baselineReady) throw new Error('无法恢复手动填表前的明确表格基线');
+        repairMissingColumnsBeforeCleanup({ notify: false });
+        saveMemoSnapshot(initialPiece);
+        const ok = await runIndependentApi(todoChats, initialPiece, false, { generationType: 'manual', sessionChat });
+        if (ok === 'detached') return 'detached';
+        if (!ok) throw new Error('手动填表未成功完成');
+        refreshCommittedViews({ reload: true });
+        return true;
+    } catch (error) {
+        console.error('[Memo][manual-refill] 手动填表失败，恢复原状态', error);
+        restorePieceState(initialPiece, backup);
+        if (sessionActive()) {
+            restoreLiveSheets(sheetBackup);
+            if (backup.hash) restoreHashSheets(backup.hash);
+            await USER.saveChat();
+            refreshCommittedViews();
+            EDITOR.warning('手动填表失败：已恢复执行前的原表格、正文和Swipe快照，不会留下半成品。');
+        }
+        return false;
+    }
+}
