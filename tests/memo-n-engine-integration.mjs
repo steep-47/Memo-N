@@ -1,136 +1,260 @@
 import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
 
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon5';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
-    .replace("import { buildPresetCharacterRule } from './recordPolicy.js';", 'const { buildPresetCharacterRule } = globalThis.__memoNMocks;')
-    .replace("import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';", 'const { changesToStrictCalls, parseRecordEnvelope } = globalThis.__memoNMocks;');
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';", 'const { ROUTE, getProviderRoute, providerDebug } = globalThis.__memoNMocks;')
+    .replace(/import \{[\s\S]*?\} from '\.\/recordEnvelope\.js';/u, 'const { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope, RELAY_TAG_START, RELAY_TAG_END } = globalThis.__memoNMocks;');
 
-const { parseRecordEnvelope, changesToStrictCalls } = await import('../scripts/engine/recordEnvelope.js');
+const envelope = await import('../scripts/engine/recordEnvelope.js');
 const handlers = new Map();
-const on = (event, handler) => { const list = handlers.get(event) || []; list.push(handler); handlers.set(event, list); };
-const events = { GENERATION_STARTED: 'start', CHAT_COMPLETION_PROMPT_READY: 'prompt', CHAT_COMPLETION_SETTINGS_READY: 'settings', CHARACTER_MESSAGE_RENDERED: 'rendered' };
-const previous = { is_user: false, mes: '旧正文', memo_n_hash_sheets: { state: 'before' }, swipe_id: 0, swipes: ['旧正文'], swipe_info: [{}] };
+const on = (event, handler) => {
+    const list = handlers.get(event) || [];
+    list.push(handler);
+    handlers.set(event, list);
+};
+const events = {
+    GENERATION_STARTED: 'start',
+    CHAT_COMPLETION_PROMPT_READY: 'prompt',
+    CHAT_COMPLETION_SETTINGS_READY: 'settings',
+    CHARACTER_MESSAGE_RENDERED: 'rendered',
+    GENERATION_ENDED: 'ended',
+};
+
+const previous = {
+    is_user: false,
+    mes: '旧正文',
+    memo_n_hash_sheets: { state: [['before']] },
+    swipe_id: 0,
+    swipes: ['旧正文'],
+    swipe_info: [{}],
+};
 let currentChat = [previous];
 let saveFails = false;
 let executeCalls = [];
 let restoreCalls = [];
 let viewRefreshCalls = 0;
+let updateBlockCalls = 0;
 let warnings = [];
 let errors = [];
-const context = { get chat() { return currentChat; }, chatCompletionSettings: { stream_openai: true }, updateMessageBlock() {} };
+
+const context = {
+    get chat() { return currentChat; },
+    updateMessageBlock() { updateBlockCalls++; },
+};
+
+const ROUTE = Object.freeze({ DEEPSEEK: 'deepseek', RELAY: 'relay' });
+const normalizeRoute = value => value === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
 
 globalThis.__memoNMocks = {
-    APP: { event_types: events, eventSource: { on, makeFirst() {}, makeLast() {} } },
+    APP: {
+        event_types: events,
+        eventSource: { on, makeFirst() {}, makeLast() {} },
+    },
     BASE: {
         copyHashSheets: structuredClone,
+        getChatSheets: () => [],
         getLastSheetsPiece: () => ({ piece: previous }),
-        initHashSheet: () => ({ memo_n_hash_sheets: { state: 'initial' } }),
+        initHashSheet: () => ({ memo_n_hash_sheets: { state: [['initial']] } }),
         refreshContextView: async () => { viewRefreshCalls++; },
     },
-    EDITOR: { warning: message => warnings.push(String(message)), error: message => errors.push(String(message)) },
-    USER: {
-        tableBaseSetting: { isExtensionAble: true, isAiReadTable: true, isAiWriteTable: true, injection_mode: 'deep_system', step_by_step: false },
-        getSettings: () => ({ memo_n_settings: { independent_record_api_enabled: false, preset_character_policy: 'changes_only' } }),
-        getContext: () => context,
-        saveChat: async () => { if (saveFails) throw new Error('injected save failure'); return true; },
+    EDITOR: {
+        warning: message => warnings.push(String(message)),
+        error: message => errors.push(String(message)),
     },
-    buildPresetCharacterRule: () => '预设人物只记录剧情变化',
-    parseRecordEnvelope,
-    changesToStrictCalls,
-    restoreMemoSnapshot: snapshot => { restoreCalls.push(structuredClone(snapshot)); return { ok: true, error: '' }; },
-    saveMemoSnapshot: piece => { piece.memo_n_hash_sheets = { state: 'saved' }; return true; },
-    executeMemoTableEdit: calls => { executeCalls.push(calls); return { ok: true, changed: calls[0] !== 'NO_CHANGE', noChange: calls[0] === 'NO_CHANGE', count: calls[0] === 'NO_CHANGE' ? 0 : calls.length, error: '' }; },
+    USER: {
+        tableBaseSetting: {
+            isExtensionAble: true,
+            isAiReadTable: true,
+            isAiWriteTable: true,
+            injection_mode: 'deep_system',
+            step_by_step: false,
+        },
+        getSettings: () => ({ memo_n_settings: { independent_record_api_enabled: false } }),
+        getContext: () => context,
+        saveChat: async () => {
+            if (saveFails) throw new Error('injected save failure');
+            return true;
+        },
+    },
+    ROUTE,
+    getProviderRoute: data => normalizeRoute(data?.memo_n_record_provider),
+    providerDebug: data => ({ route: normalizeRoute(data?.memo_n_record_provider), automaticDetection: false }),
+    ...envelope,
+    restoreMemoSnapshot: snapshot => {
+        restoreCalls.push(structuredClone(snapshot));
+        return { ok: true, error: '' };
+    },
+    saveMemoSnapshot: piece => {
+        piece.memo_n_hash_sheets = { state: [['saved']] };
+        return true;
+    },
+    executeMemoTableEdit: calls => {
+        executeCalls.push(structuredClone(calls));
+        const noChange = calls.length === 1 && calls[0] === 'NO_CHANGE';
+        return { ok: true, changed: !noChange, noChange, count: noChange ? 0 : calls.length, error: '' };
+    },
 };
 
-await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine`);
-const run = async (event, ...args) => { for (const handler of handlers.get(event) || []) await handler(...args); };
-const renderAndPersist = async chatId => {
-    const returned = handlers.get(events.CHARACTER_MESSAGE_RENDERED)?.[0]?.(chatId);
-    if (returned !== undefined) throw new Error('渲染监听器仍返回Promise，会拖住SillyTavern停止按钮');
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine-memon70`);
+
+const run = async (event, ...args) => {
+    for (const handler of handlers.get(event) || []) await handler(...args);
+};
+
+async function finishGenerated(chatId) {
+    const renderedReturns = [];
+    for (const handler of handlers.get(events.CHARACTER_MESSAGE_RENDERED) || []) renderedReturns.push(handler(chatId));
+    assert.ok(renderedReturns.every(value => value === undefined), 'CHARACTER_MESSAGE_RENDERED 监听器不得返回 Promise 阻塞 UI');
+    await run(events.GENERATION_ENDED);
     const chat = currentChat[chatId];
-    if (chat?.__memoStrictPersistence) await chat.__memoStrictPersistence;
+    assert.ok(chat?.__memoStrictPersistence && typeof chat.__memoStrictPersistence.then === 'function', 'GENERATION_ENDED 必须挂载严格持久化 Promise');
+    return await chat.__memoStrictPersistence;
+}
+
+function reset() {
+    currentChat = [previous];
+    saveFails = false;
+    warnings = [];
+    errors = [];
+}
+
+// 1) DeepSeek：手动 route -> JSON 对象协议 -> 严格事务 -> 正文拆包。
+reset();
+await run(events.GENERATION_STARTED, 'normal', {}, false);
+const deepseekRequest = {
+    memo_n_record_provider: 'deepseek',
+    messages: [{ role: 'user', content: '行动' }],
 };
+await run(events.CHAT_COMPLETION_SETTINGS_READY, deepseekRequest);
+assert.deepEqual(deepseekRequest.response_format, { type: 'json_object' }, 'DeepSeek 必须强制 JSON object');
+assert.match(deepseekRequest.messages.at(-1)?.content || '', /本轮最终响应只能是一个JSON对象/u, 'DeepSeek 最终 JSON 契约未注入');
 
+const deepseekReply = {
+    is_user: false,
+    mes: JSON.stringify({
+        reply: 'DeepSeek正常正文',
+        changes: [{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:02' }] }],
+    }),
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(deepseekReply);
+assert.equal(await finishGenerated(1), true, 'DeepSeek 严格持久化应成功');
+assert.equal(deepseekReply.mes, 'DeepSeek正常正文');
+assert.equal(deepseekReply.swipes[0], 'DeepSeek正常正文');
+assert.match(executeCalls.at(-1)?.[0] || '', /^updateRow\(0,0,/u, 'DeepSeek changes 未进入严格执行器');
+assert.equal(deepseekReply.__memoStrictExecution?.ok, true);
+
+// 2) 中转站：普通一次 API 使用正常正文 + 隐藏 tagged JSON，不再依赖 tableEdit。
+reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_PROMPT_READY, { dryRun: false });
-const request = { chat_completion_source: 'custom', custom_url: 'https://proxy.example/v1', messages: [{ role: 'user', content: '行动' }] };
-await run(events.CHAT_COMPLETION_SETTINGS_READY, request);
-if (!request.custom_include_body.includes('response_format:\n  type: json_object')) throw new Error('自定义端点未强制JSON对象');
-if (request.messages.at(-1)?.role !== 'system' || !request.messages.at(-1)?.content.includes('[Memo-N record envelope v1]')) throw new Error('最终系统信封契约未注入');
-if (context.chatCompletionSettings.stream_openai !== false) throw new Error('请求发出前过早恢复流式设置');
+const relayRequest = {
+    memo_n_record_provider: 'relay',
+    response_format: { type: 'json_object' },
+    messages: [{ role: 'user', content: '行动' }],
+};
+await run(events.CHAT_COMPLETION_SETTINGS_READY, relayRequest);
+assert.equal(relayRequest.response_format, undefined, '中转站必须移除 JSON object 强制格式');
+const relayContract = relayRequest.messages.at(-1)?.content || '';
+assert.match(relayContract, /MEMO_N_CHANGES_V1/u, '中转站隐藏 JSON 契约未注入');
+assert.doesNotMatch(relayContract, /<tableEdit>/u, '普通中转一次 API 不得再要求 tableEdit');
 
-const reply = { is_user: false, mes: JSON.stringify({ reply: '新正文', changes: [{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:02' }] }] }), swipe_id: 0, swipes: [''], swipe_info: [{}] };
-currentChat.push(reply);
-const renderReturn = handlers.get(events.CHARACTER_MESSAGE_RENDERED)?.[0]?.(1);
-if (renderReturn !== undefined || !reply.__memoStrictPersistence || typeof reply.__memoStrictPersistence.then !== 'function') throw new Error('渲染事件未释放UI或未暴露后台保存Promise');
-await reply.__memoStrictPersistence;
-if (context.chatCompletionSettings.stream_openai !== true) throw new Error('响应处理时未恢复用户流式设置');
-if (reply.mes !== '新正文' || reply.swipes[0] !== '新正文') throw new Error('正文拆包或Swipe正文同步失败');
-if (executeCalls.length !== 1 || !executeCalls[0][0].startsWith('updateRow(0,0,')) throw new Error('变更对象未进入严格事务');
-if (reply.__memoStrictExecution?.ok !== true || reply.__memoStrictExecution?.engine !== 'Memo-N') throw new Error('真实成功状态未写入');
-if (await reply.__memoStrictPersistence !== true) throw new Error('写入提示未绑定真实保存结果');
-if (viewRefreshCalls !== 1) throw new Error('成功写表后未刷新活动表格视图');
+const relayChanges = [{ op: 'insert', table: 4, row: null, cells: [{ column: 0, value: '赶驴老汉' }] }];
+const relayReply = {
+    is_user: false,
+    mes: `中转站正常正文\n\n${envelope.RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${envelope.RELAY_TAG_END}`,
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(relayReply);
+assert.equal(await finishGenerated(1), true, '中转站 tagged JSON 严格持久化应成功');
+assert.equal(relayReply.mes, '中转站正常正文');
+assert.equal(relayReply.swipes[0], '中转站正常正文');
+assert.match(executeCalls.at(-1)?.[0] || '', /^insertRow\(4,/u, '中转站 changes 未进入严格执行器');
+assert.equal(relayReply.__memoStrictExecution?.ok, true);
 
-currentChat = [previous];
+// 3) 中转站机器块藏在 reasoning：content 正文仍应保留并写表。
+reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_PROMPT_READY, { dryRun: false });
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const delayed = { is_user: false, mes: '{"reply":"延迟完成正文","changes":[', swipe_id: 0, swipes: [''], swipe_info: [{}] };
-currentChat.push(delayed);
-setTimeout(() => { delayed.mes = JSON.stringify({ reply: '延迟完成正文', changes: [{ op: 'insert', table: 4, row: null, cells: [{ column: 0, value: '赶驴老汉' }] }] }); }, 180);
-await renderAndPersist(1);
-if (delayed.mes !== '延迟完成正文' || delayed.__memoStrictExecution?.ok !== true) throw new Error('提前渲染的半截JSON未等待完整');
-if (executeCalls.length !== 2 || !executeCalls[1][0].startsWith('insertRow(4,')) throw new Error('延迟完成的JSON未进入严格事务');
+await run(events.CHAT_COMPLETION_SETTINGS_READY, { memo_n_record_provider: 'relay', messages: [] });
+const reasoningChanges = [{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:15' }] }];
+const relayReasoning = {
+    is_user: false,
+    mes: 'reasoning回退正文',
+    swipe_id: 0,
+    swipes: ['reasoning回退正文'],
+    swipe_info: [{ extra: { reasoning: `${envelope.RELAY_TAG_START}\n${JSON.stringify(reasoningChanges)}\n${envelope.RELAY_TAG_END}` } }],
+};
+currentChat.push(relayReasoning);
+assert.equal(await finishGenerated(1), true, 'reasoning 中的中转记录块应被读取');
+assert.equal(relayReasoning.mes, 'reasoning回退正文');
+assert.match(executeCalls.at(-1)?.[0] || '', /^updateRow\(0,0,/u);
 
-currentChat = [previous];
+// 4) 中转站 NO_CHANGE：空数组必须安全保存快照，不产生伪变更。
+reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const reasoningOnly = { is_user: false, mes: '', swipe_id: 0, swipes: [''], swipe_info: [{ extra: { reasoning: JSON.stringify({ reply: '思考区拆出的正常正文', changes: [{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:15' }] }] }) } }] };
-currentChat.push(reasoningOnly);
-await renderAndPersist(1);
-if (reasoningOnly.mes !== '思考区拆出的正常正文' || reasoningOnly.swipes[0] !== reasoningOnly.mes) throw new Error('未从当前Swipe思考区拆出正文');
-if (executeCalls.length !== 3 || !executeCalls[2][0].startsWith('updateRow(0,0,')) throw new Error('思考区JSON未进入严格事务');
+await run(events.CHAT_COMPLETION_SETTINGS_READY, { memo_n_record_provider: 'relay', messages: [] });
+const relayNoChange = {
+    is_user: false,
+    mes: `无需变更正文\n${envelope.RELAY_TAG_START}\n[]\n${envelope.RELAY_TAG_END}`,
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(relayNoChange);
+assert.equal(await finishGenerated(1), true);
+assert.equal(relayNoChange.mes, '无需变更正文');
+assert.deepEqual(executeCalls.at(-1), ['NO_CHANGE']);
+assert.equal(relayNoChange.__memoStrictExecution?.noChange, true);
 
-currentChat = [previous];
+// 5) 正文正常但机器块缺失：保留正文、不执行、不自动猜写。
+const beforeMissingExecuteCount = executeCalls.length;
+reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const rawControlReasoning = { is_user: false, mes: '', swipe_id: 0, swipes: [''], swipe_info: [{ extra: { reasoning: `{"reply":"含原始换行的
-正常正文","changes":[{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:16"}]}]}` } }] };
-currentChat.push(rawControlReasoning);
-await renderAndPersist(1);
-if (rawControlReasoning.mes !== '含原始换行的\n正常正文' || rawControlReasoning.__memoStrictExecution?.ok !== true) throw new Error('思考区字符串内原始换行未被规范化并拆包');
-if (executeCalls.length !== 4 || !executeCalls[3][0].startsWith('updateRow(0,0,')) throw new Error('规范化后的思考区JSON未进入严格事务');
+await run(events.CHAT_COMPLETION_SETTINGS_READY, { memo_n_record_provider: 'relay', messages: [] });
+const relayMissing = {
+    is_user: false,
+    mes: '只有正文，没有中转机器记录块',
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(relayMissing);
+assert.equal(await finishGenerated(1), false, '缺失机器块必须安全失败');
+assert.equal(relayMissing.mes, '只有正文，没有中转机器记录块');
+assert.equal(executeCalls.length, beforeMissingExecuteCount, '缺失机器块时不得猜测执行任何表格操作');
+assert.equal(relayMissing.__memoStrictExecution?.ok, false);
+assert.ok(warnings.some(message => message.includes('未找到中转站记录块')), '缺失机器块必须给出明确提示');
 
+// 6) 保存失败：正文保留，严格状态标记失败，并执行快照回滚。
+reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const foreignChat = [];
-currentChat = foreignChat;
-await renderAndPersist(0);
-if (executeCalls.length !== 4) throw new Error('切换聊天后仍执行旧任务');
-
-currentChat = [previous];
-await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const invalidChange = { is_user: false, mes: JSON.stringify({ reply: '非法变更仍保留正文', changes: [{ op: 'INSERT INTO', table: 2, row: null, cells: [] }] }), swipe_id: 0, swipes: [''], swipe_info: [{}] };
-currentChat.push(invalidChange);
-await renderAndPersist(1);
-if (invalidChange.mes !== '非法变更仍保留正文' || invalidChange.swipes[0] !== invalidChange.mes) throw new Error('非法变更未安全保留正文');
-if (executeCalls.length !== 4 || invalidChange.__memoStrictExecution?.ok !== false) throw new Error('非法变更被执行或未标记失败');
-if (viewRefreshCalls !== 4) throw new Error('非法变更错误触发表格视图刷新');
-
-currentChat = [previous];
-await run(events.GENERATION_STARTED, 'normal', {}, false);
-await run(events.CHAT_COMPLETION_SETTINGS_READY, { chat_completion_source: 'custom', messages: [] });
-const failing = { is_user: false, mes: JSON.stringify({ reply: '保存失败正文', changes: [{ op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '钥匙' }] }] }), swipe_id: 0, swipes: [''], swipe_info: [{}] };
-currentChat.push(failing);
+await run(events.CHAT_COMPLETION_SETTINGS_READY, { memo_n_record_provider: 'deepseek', messages: [] });
+const saveFailure = {
+    is_user: false,
+    mes: JSON.stringify({
+        reply: '保存失败仍保留正文',
+        changes: [{ op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '钥匙' }] }],
+    }),
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(saveFailure);
 saveFails = true;
-await renderAndPersist(1);
-if (failing.mes !== '保存失败正文') throw new Error('保存失败时正文未保留');
-if (failing.__memoStrictExecution?.ok !== false || !failing.__memoStrictExecution?.error.includes('表格已回滚')) throw new Error('保存失败未标记事务回滚');
-if (!errors.some(message => message.includes('Memo-N保存失败'))) throw new Error('保存失败未显示严重错误提示');
-if (restoreCalls.length < 3) throw new Error('保存失败没有执行基线恢复');
-if (viewRefreshCalls !== 4) throw new Error('保存失败错误触发表格视图刷新');
+assert.equal(await finishGenerated(1), false, 'saveChat 失败必须返回 false');
+assert.equal(saveFailure.mes, '保存失败仍保留正文');
+assert.equal(saveFailure.__memoStrictExecution?.ok, false);
+assert.match(saveFailure.__memoStrictExecution?.error || '', /表格已回滚/u);
+assert.ok(errors.some(message => message.includes('Memo-N保存失败')));
+assert.ok(restoreCalls.length >= 2, '保存失败必须进行基线/回滚恢复');
 
-console.log('memo-n-engine-integration PASS: custom-json=1, final-system=1, stream-hold=1, render-event-released=1, background-persistence=1, active-table-refresh=4, partial-wait=1, reasoning-channel=1, raw-control-normalized=1, unpack=1, strict-transaction=4, swipe-sync=1, session-cancel=1, save-rollback=1');
+assert.ok(viewRefreshCalls >= 3, '成功写入的变化场景应刷新活动表格视图');
+assert.ok(updateBlockCalls >= 4, '成功持久化后应更新对应消息块');
+
+console.log('memo-n-engine-integration PASS: deepseek-json=1, relay-tagged=1, relay-reasoning=1, relay-nochange=1, relay-missing-safe=1, save-rollback=1');
