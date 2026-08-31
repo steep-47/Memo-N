@@ -12,10 +12,10 @@ let pendingRoleGeneration={generationType:'normal',baseMes:''};
 function readEnabled(){return USER?.getSettings?.()?.memo_n_settings?.[PREF_KEY]===true;}
 function copyHashSheets(value){try{return BASE.copyHashSheets(value);}catch(_){try{return structuredClone(value);}catch(error){console.error('[Memo] 无法复制Swipe表格快照',error);return null;}}}
 function forceNormalMode(){if(USER?.tableBaseSetting)USER.tableBaseSetting.step_by_step=false;}
-// 原插件 index.js 仍用 step_by_step 决定本次主聊天请求注入“只读表格”还是“可写表格提示”。
-// Memo-N 的持久化模式只看 independent_record_api_enabled；这里仅在 PROMPT_READY 事件分发期间临时桥接旧字段。
-function preparePromptMode(){if(USER?.tableBaseSetting)USER.tableBaseSetting.step_by_step=readEnabled();}
-function finishPromptMode(){forceNormalMode();}
+// 原插件 index.js 仍用 step_by_step 决定主聊天请求注入“只读表格”还是“可写表格提示”。
+// 这里不依赖 makeFirst/makeLast 的实现细节：在普通 on() 注册顺序中，本模块晚于 index.js，
+// 因此无法安全地在同一个 PROMPT_READY 事件里抢在 index.js 前临时改值。
+// 持久模式只看 independent_record_api_enabled；step_by_step 仅在独立记录 API 真正调用期间短暂置 true。
 function tableEditMatches(text){const regex=/<tableEdit>(.*?)<\/tableEdit>/gs;const matches=[];let match;while((match=regex.exec(String(text??'')))!==null)matches.push(match[1]);return matches;}
 function snapshotFor(chat,id){return chat?.swipe_info?.[id]?.extra?.memo_n_swipe_hash_sheets||chat?.swipe_info?.[id]?.memo_n_swipe_hash_sheets||null;}
 function restoreCurrentStrictSnapshot(chatId){if(!readEnabled())return;const chat=USER?.getContext?.()?.chat?.[chatId];if(!chat||chat.is_user===true)return;const id=Number(chat?.swipe_id);const snapshot=Number.isInteger(id)&&id>=0?snapshotFor(chat,id):null;if(!snapshot)return;const chatSnapshot=copyHashSheets(snapshot);const extraSnapshot=copyHashSheets(snapshot);if(!chatSnapshot||!extraSnapshot)return;const result=restoreMemoSnapshot(chatSnapshot);if(!result.ok){console.warn('[Memo] 独立模式恢复严格Swipe快照失败，已回滚恢复动作',result.error);return;}chat.memo_n_hash_sheets=chatSnapshot;if(!chat.extra||typeof chat.extra!=='object')chat.extra={};chat.extra.memo_n_swipe_hash_sheets=extraSnapshot;chat.tableEditMatches=tableEditMatches(chat.mes);console.log(`[Memo] 独立模式渲染前恢复严格Swipe快照：message=${chatId} swipe=${id}`);}
@@ -71,9 +71,9 @@ function triggerIndependentRecord(chatId,forcedInfo=null){
 }
 
 const startedEvent=APP.event_types.GENERATION_STARTED;if(startedEvent)APP.eventSource.on(startedEvent,captureGeneration);
-const promptEvent=APP.event_types.CHAT_COMPLETION_PROMPT_READY;const renderedEvent=APP.event_types.CHARACTER_MESSAGE_RENDERED;
-APP.eventSource.on(promptEvent,preparePromptMode);APP.eventSource.on(promptEvent,finishPromptMode);APP.eventSource.on(renderedEvent,beforeRendered);APP.eventSource.on(renderedEvent,triggerIndependentRecord);
-if(typeof APP.eventSource.makeFirst==='function')APP.eventSource.makeFirst(promptEvent,preparePromptMode);
-if(typeof APP.eventSource.makeLast==='function'){APP.eventSource.makeLast(promptEvent,finishPromptMode);APP.eventSource.makeFirst(renderedEvent,beforeRendered);APP.eventSource.makeLast(renderedEvent,triggerIndependentRecord);}
+const renderedEvent=APP.event_types.CHARACTER_MESSAGE_RENDERED;
+APP.eventSource.on(renderedEvent,beforeRendered);APP.eventSource.on(renderedEvent,triggerIndependentRecord);
+if(typeof APP.eventSource.makeFirst==='function')APP.eventSource.makeFirst(renderedEvent,beforeRendered);
+if(typeof APP.eventSource.makeLast==='function')APP.eventSource.makeLast(renderedEvent,triggerIndependentRecord);
 forceNormalMode();
-console.log('[Memo] 独立记录 API：持久模式独立存储 + prompt事件内旧step桥接 + 消息版本队列 + stale丢弃 + Swipe快照');
+console.log('[Memo] 独立记录 API：持久模式独立存储 + 独立调用瞬时step桥接 + 消息版本队列 + stale丢弃 + Swipe快照');
