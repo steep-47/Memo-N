@@ -18,15 +18,23 @@ Memo-N 是一个独立的 SillyTavern 动态世界记忆插件。它在正常聊
 
 Memo-N 设置中的「记录接口」是 DeepSeek / 中转站的唯一人工路由选择。插件不会根据 URL、模型名、`chat_completion_source`、`custom`、`reverse_proxy` 等字段自动猜测接口。
 
-- 普通一次 API，选择 DeepSeek：使用 JSON `reply + changes` 记录信封，在一次正常聊天请求中同时生成完整正文和结构化变化。
-- 普通一次 API，选择中转站：统一使用 `<tableEdit>`。为避免长正文写到末尾时机器块被截断，模型必须先输出一个完整 `<tableEdit>`，闭合后再继续完整正常正文；Memo-N 本地解析后会从用户可见正文中剥离机器块。
-- 独立记录 API：继续使用原插件的纯记录 `<tableEdit>` 请求。
-- 手动「立即填表」与独立记录共用同一底层记录器，同样使用 `<tableEdit>`。
-- 因此所有中转站 API 记录入口使用同一种 `<tableEdit>` 协议，不再为普通一次 API 另造第二套记录格式。
-- memon70–72 曾使用的 `MEMO_N_CHANGES_V1 ... MEMO_N_CHANGES_END` tagged JSON 只保留旧回复兼容解析，不再用于任何新请求。
-- 直接编辑表格/单元格不调用模型 API，不受记录接口选择影响。
+同一个手动选择同时决定“实际使用哪个 API”和“该记录入口使用什么机器协议”：
 
-DeepSeek 的 `changes` 和中转站的 `<tableEdit>` 最终都进入同一个严格事务执行器。记录失败不会自动补发第二次请求，也不会根据正文猜测应写入的表格变化。
+| 记录入口 | DeepSeek | 中转站 |
+| --- | --- | --- |
+| 普通一次 API | JSON `reply + changes` | 前置 `<tableEdit>` + 完整正文 |
+| 独立记录 API | 主 API，记录专用 JSON `reply:"RECORD_ONLY" + changes` | 自定义 API，唯一 `<tableEdit>` |
+| 手动「立即填表」 | 与独立记录相同的 DeepSeek JSON | 与独立记录相同的中转 `<tableEdit>` |
+
+普通一次 API 选择中转站时，为避免长正文写到末尾时机器块被截断，模型必须先输出一个完整 `<tableEdit>`，闭合后再继续完整正常正文；Memo-N 本地解析后会从用户可见正文中剥离机器块。
+
+独立/手动记录选择 DeepSeek 时不要求剧情正文，`reply` 固定为 `RECORD_ONLY`，真正的表格变化只放在 `changes`。选择中转站时仍使用原插件适合纯记录任务的唯一 `<tableEdit>`。
+
+memon70–72 曾用于普通中转一次 API 的 `MEMO_N_CHANGES_V1 ... MEMO_N_CHANGES_END` tagged JSON 仅保留旧回复兼容解析，不再用于任何新请求。
+
+直接编辑表格/单元格不调用模型 API，不受记录接口选择影响。
+
+DeepSeek 的 `changes` 与中转站的 `<tableEdit>` 最终都会进入同一个严格事务执行器。记录失败不会自动补发第二次请求，也不会根据正文猜测应写入的表格变化。
 
 ## 中转站一次 API 的输出顺序
 
@@ -64,6 +72,7 @@ Memo-N 另有一套与七张世界表完全分离的“伊依长期记忆库”�
 
 - 正常模式只调用一次 API，不会因记录失败自动补发。
 - DeepSeek / 中转站由用户手动选择，不再自动识别 Provider。
+- 所有 API 记录入口都服从同一个「记录接口」设置。
 - 表格操作只允许 `insertRow`、`updateRow`、`deleteRow` 或 `NO_CHANGE`。
 - 一轮变更全部成功才保存，任一步失败都会完整回滚。
 - 表格失败不删除正常正文，也不会猜测修复非法操作。
@@ -85,4 +94,4 @@ Memo-N 不是原 Memo 的覆盖升级包。安装 Memo-N 不会读取、迁移�
 
 如果原 Memo 仍然安装，建议在 SillyTavern 扩展管理中只启用其中一个记录插件，避免两套插件同时向同一次模型请求注入各自的记录协议。即使同时存在，两者的持久化数据也彼此独立。
 
-当前版本：`0.1.0-memon.73`。
+当前版本：`0.1.0-memon.74`。
