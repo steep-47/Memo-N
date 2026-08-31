@@ -15,19 +15,23 @@ function settingsStore() {
     return root.memo_n_settings;
 }
 
-function normalizeRoute(value) {
+export function normalizeProviderRoute(value) {
     const route = String(value ?? '').trim().toLowerCase();
     return route === ROUTE.RELAY || route === ROUTE.DEEPSEEK ? route : null;
 }
 
-function manualRoute(data) {
-    // 明确传入的手动值优先；没有明确值才读取已保存的全局选择。
-    // 不读取 Provider、URL、模型名或任何 SillyTavern 自动识别字段。
-    const explicit = normalizeRoute(data?.memo_n_record_provider);
-    if (explicit) return explicit;
+export function resolveManualProviderRoute(explicit, stored) {
+    return normalizeProviderRoute(explicit)
+        ?? normalizeProviderRoute(stored)
+        ?? DEFAULT_ROUTE;
+}
 
-    const stored = normalizeRoute(settingsStore()?.[ROUTE_KEY]);
-    return stored ?? DEFAULT_ROUTE;
+function manualRoute(data) {
+    // 只允许显式手动值或已保存的手动值；绝不读取 Provider、URL、模型名等自动识别字段。
+    return resolveManualProviderRoute(
+        data?.memo_n_record_provider,
+        settingsStore()?.[ROUTE_KEY],
+    );
 }
 
 export function getProviderRoute(data) {
@@ -46,7 +50,7 @@ export function getManualProviderRoute() {
 }
 
 export function setManualProviderRoute(value) {
-    const route = normalizeRoute(value) ?? DEFAULT_ROUTE;
+    const route = normalizeProviderRoute(value) ?? DEFAULT_ROUTE;
     const store = settingsStore();
     if (store) store[ROUTE_KEY] = route;
     return route;
