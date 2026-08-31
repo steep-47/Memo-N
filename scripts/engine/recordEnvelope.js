@@ -1,6 +1,8 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
-const RELAY_TAG_START = '<!--MEMO_N_CHANGES_V1';
-const RELAY_TAG_END = 'MEMO_N_CHANGES_END-->';
+// 不使用 HTML comment。SillyTavern/主题/渲染链可能在消息进入记录引擎前清理注释，
+// 导致模型明明输出了记录块，运行时却只能看到正文。
+const RELAY_TAG_START = 'MEMO_N_CHANGES_V1';
+const RELAY_TAG_END = 'MEMO_N_CHANGES_END';
 
 function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
