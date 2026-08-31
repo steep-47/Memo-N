@@ -12,6 +12,10 @@ const structureRepair = fs.readFileSync(new URL('../scripts/runtime/tableStructu
 const presetBridge = fs.readFileSync(new URL('../scripts/yiyi/yiyiPresetMemoryBridge.js', import.meta.url), 'utf8');
 const yiyiRuntime = fs.readFileSync(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
 const standalone = fs.readFileSync(new URL('../scripts/settings/standaloneAPI.js', import.meta.url), 'utf8');
+const bootstrap = fs.readFileSync(new URL('../scripts/runtime/settingsBootstrap.js', import.meta.url), 'utf8');
+const defaults = fs.readFileSync(new URL('../data/pluginSetting.js', import.meta.url), 'utf8');
+const cleanup = fs.readFileSync(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
+const cleanupBridge = fs.readFileSync(new URL('../scripts/runtime/cleanupButtonBridge.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 
 assert.match(template, /id="memo-record-provider-route"/u);
@@ -20,6 +24,8 @@ assert.match(template, /<option value="relay">中转站<\/option>/u);
 assert.match(template, /id="fill_table_time"/u);
 assert.doesNotMatch(template, /id="memory-independent-record-api"/u);
 assert.doesNotMatch(template, /id="step_by_step_use_main_api"/u);
+assert.doesNotMatch(template, /id="use_main_api"/u, '整理页不得再有第二套路由开关');
+assert.match(template, /整理请求同样服从上方“记录接口”/u);
 assert.match(template, /自定义独立API（中转站）/u);
 
 assert.match(ui, /new MutationObserver\(scheduleMount\)/u);
@@ -48,8 +54,8 @@ assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过�
 assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon85'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.85'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon86'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.86'/u);
 for (const modulePath of [
     './scripts/runtime/memoryContentRules.js',
     './scripts/runtime/cleanupButtonBridge.js',
@@ -61,11 +67,32 @@ for (const modulePath of [
     './scripts/yiyi/yiyiMemoryRuntime.js',
 ]) assert.ok(loader.includes(modulePath), `loader遗漏运行时：${modulePath}`);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.85');
+assert.equal(manifest.version, '0.1.0-memon.86');
 
 for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) {
     assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`), `standaloneAPI遗漏导出：${name}`);
 }
+
+assert.match(defaults, /\[Memo七表独立记录v4\]/u);
+assert.doesNotMatch(defaults, /step_by_step_use_main_api\s*:/u);
+assert.doesNotMatch(defaults, /use_main_api\s*:/u);
+const defaultStep = defaults.match(/step_by_step_user_prompt:[\s\S]*?bool_silent_refresh:/u)?.[0] ?? '';
+assert.ok(defaultStep);
+assert.doesNotMatch(defaultStep, /最终只输出.*<tableEdit>|"reply"\s*:|"changes"\s*:/u, '默认独立模板不得锁死协议');
+assert.match(defaultStep, /最终机器格式只服从|最终格式只服从/u);
+assert.match(bootstrap, /STEP_PROMPT_MARKER = '\[Memo七表独立记录v4\]'/u);
+assert.match(bootstrap, /REBUILD_MARKER = '\[Memo七表整理v3\]'/u);
+assert.match(bootstrap, /delete store\.step_by_step_use_main_api/u);
+assert.match(bootstrap, /delete store\.use_main_api/u);
+assert.match(bootstrap, /\[Memo七表整理v2\]/u, '必须迁移memon旧默认整理模板');
+assert.match(cleanup, /getManualProviderRoute\(\)/u);
+assert.match(cleanup, /selectedTemplate\(\)/u);
+assert.match(cleanup, /rebuild_message_template_list/u, '自定义总结模板必须实际进入整理链');
+assert.match(cleanup, /DEEPSEEK_CONTRACT/u);
+assert.match(cleanup, /RELAY_CONTRACT/u);
+assert.doesNotMatch(cleanup, /tableBaseSetting\.use_main_api/u);
+assert.match(cleanupBridge, /stableTableCleanup\.js\?v=memon86/u, '整理器缓存版本必须同步');
+
 assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u, '伊依预设桥仍引用废弃中转协议');
 assert.match(presetBridge, /前置<tableEdit>/u);
 assert.match(presetBridge, /reply字符串末尾/u);
