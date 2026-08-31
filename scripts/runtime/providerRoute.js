@@ -1,4 +1,3 @@
-import { oai_settings } from '/scripts/openai.js';
 import { USER } from '../../core/manager.js';
 
 export const ROUTE = Object.freeze({
@@ -19,25 +18,7 @@ function settingsStore() {
 function manualRoute(data) {
     const explicit = String(data?.memo_n_record_provider ?? '').trim().toLowerCase();
     const stored = String(settingsStore()?.[ROUTE_KEY] ?? '').trim().toLowerCase();
-    return explicit === ROUTE.RELAY || stored === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
-}
-
-function sourceOf(data) {
-    return String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
-}
-
-function customUrlOf(data) {
-    return String(data?.custom_url ?? oai_settings?.custom_url ?? '').trim();
-}
-
-function modelOf(data) {
-    return String(
-        data?.model
-        ?? oai_settings?.deepseek_model
-        ?? oai_settings?.custom_model
-        ?? oai_settings?.openai_model
-        ?? ''
-    ).trim().toLowerCase();
+    return explicit === ROUTE.RELAY || stored === ROUTE.RELAY ? ROUTE.RELAY : DEFAULT_ROUTE;
 }
 
 export function getProviderRoute(data) {
@@ -47,9 +28,6 @@ export function getProviderRoute(data) {
 export function providerDebug(data) {
     return {
         route: manualRoute(data),
-        source: sourceOf(data),
-        customUrl: customUrlOf(data),
-        model: modelOf(data),
         automaticDetection: false,
     };
 }
