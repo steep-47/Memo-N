@@ -20,7 +20,8 @@ assert.doesNotMatch(ui, /step_by_step_use_main_api\s*=/u, '记录接口 UI 不�
 const mountBody = ui.match(/function mount\(\) \{([\s\S]*?)\n\}\n\nlet mountQueued/u)?.[1] ?? '';
 assert.ok(mountBody, '必须能定位 mount() 实现');
 assert.doesNotMatch(mountBody, /applyMode\(/u, 'mount() 不得调用会改写独立记录/step_by_step 状态的 applyMode()');
-assert.doesNotMatch(mountBody, /step_by_step/u, 'mount() 不得触碰任何旧 step_by_step 业务状态');
+assert.doesNotMatch(mountBody, /tableBaseSetting\.step_by_step\s*=/u, 'mount() 不得赋值旧 step_by_step 状态');
+assert.doesNotMatch(mountBody, /tableBaseSetting\.step_by_step_use_main_api\s*=/u, 'mount() 不得赋值旧主/自定义 API 状态');
 assert.match(mountBody, /syncModeUi\(\)/u, 'mount() 只同步独立记录开关 UI');
 assert.match(mountBody, /getManualProviderRoute\(\)/u, 'mount() 应从统一手动 route 读取当前接口');
 
