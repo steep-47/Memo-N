@@ -1,13 +1,9 @@
 <!-- setting.html -->
 <div class="wide100p padding5 dataBankAttachments">
     <h2 class="marginBot5">
-        <span>
-            修改表格结构
-        </span>
+        <span>修改表格结构</span>
     </h2>
-    <div>
-        在这里可以调整表格的说明以及各种编辑操作的提示词
-    </div>
+    <div>在这里可以调整表格的说明以及各种编辑操作的提示词。这里只描述记录语义，不要在单表提示里固定最终JSON或tableEdit协议。</div>
     <div class="dataTable_tablePrompt_list">
         <label>表格名</label>
         <input type="text" id="dataTable_tableSetting_tableName" class="margin0 text_pole" style=" margin-bottom: 20px;"/>
@@ -16,16 +12,15 @@
         <div class="checkbox flex-container" style="margin-bottom: 10px;">
             <input type="checkbox" id="dataTable_tableSetting_required"><span>是否必填</span>
         </div>
-        <label>初始化提示词</label><small> (当表格为必填表时，但是又为空时，给AI的提示)</small>
+        <label>初始化提示词</label><small> (当表格为必填表但为空时，说明何时应该首次记录)</small>
         <textarea id="dataTable_tableSetting_initNode" class="wide100p" rows="2"></textarea>
-        <label>插入提示词</label><small> (解释什么时候应该插入行)</small>
+        <label>插入提示词</label><small> (解释什么时候应该新增记录)</small>
         <textarea id="dataTable_tableSetting_insertNode" class="wide100p" rows="2"></textarea>
-        <label>更新提示词</label><small> (解释什么时候应该更新行)</small>
+        <label>更新提示词</label><small> (解释什么时候应该更新已有记录)</small>
         <textarea id="dataTable_tableSetting_updateNode" class="wide100p" rows="2"></textarea>
-        <label>删除提示词</label><small> (解释什么时候应该删除行)</small>
+        <label>删除提示词</label><small> (解释什么时候应该删除已有记录)</small>
         <textarea id="dataTable_tableSetting_deleteNode" class="wide100p" rows="2"></textarea>
 
-        <!-- 开启时将该表格推送至对话 -->
         <div class="checkbox flex-container" style="margin-bottom: 10px;">
             <input type="checkbox" id="dataTable_tableSetting_toChat">
             <span>推送至对话</span>
@@ -35,7 +30,6 @@
             <label>推送样式</label><small> (编辑推送至对话的表格样式)</small>
         </div>
         <textarea id="dataTable_tableSetting_tableRender" class="wide100p" rows="2"></textarea>
-        <!-- 编辑推送至对话的表格样式 -->
         <i class="menu_button menu_button_icon fa-solid fa-bug tableEditor_renderButton" data-index="${tableIndex}">
             <a>在测试模式中编辑本表格样式</a>
         </i>
@@ -43,18 +37,12 @@
 </div>
 
 <div class="wide100p padding5 dataBankAttachments">
-    <h2 class="marginBot5">
-        <span>
-            分步填表设置
-        </span>
-    </h2>
-    <div>
-        在这里可以调整分步填表的相关参数
-    </div>
+    <h2 class="marginBot5"><span>独立记录设置</span></h2>
+    <div>在这里可以调整收到消息后独立记录时的上下文与提示结构；最终机器协议统一由“记录接口”决定。</div>
     <div class="dataTable_tablePrompt_list">
-        <label for="separateReadContextLayers">上下文层数</label><small> (控制分步填表读取的上下文层数)</small>
+        <label for="separateReadContextLayers">上下文层数</label><small> (控制独立记录读取的上下文层数)</small>
         <input type="number" id="separateReadContextLayers" class="margin0 text_pole" style="margin-bottom: 20px; width: 80px;" min="0" value="1"/>
-        <label for="step_by_step_user_prompt">分步填表提示词</label><small> (用于分步填表时的提示词)</small>
+        <label for="step_by_step_user_prompt">独立记录提示词</label><small> (只描述记录语义，不要固定JSON或tableEdit输出格式)</small>
         <textarea id="step_by_step_user_prompt" class="wide100p" rows="10"></textarea>
     </div>
 </div>
