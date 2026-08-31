@@ -14,13 +14,18 @@ assert.match(template, /id="memory-independent-record-api"/u, 'Memo-N 设置模�
 assert.match(ui, /new MutationObserver\(scheduleMount\)/u, '移动端晚加载/重渲染必须持续可恢复挂载');
 assert.doesNotMatch(ui, /setTimeout\(\(\) => observer\.disconnect\(\),\s*10000\)/u, '不能恢复只观察 10 秒的挂载窗口');
 assert.match(ui, /function syncModeUi\(\)/u, '重挂载必须使用只同步 UI 的函数');
+assert.doesNotMatch(ui, /syncIndependentApiRoute/u, '记录接口选择器不得再通过旧 step_by_step_use_main_api 间接路由');
+assert.doesNotMatch(ui, /step_by_step_use_main_api\s*=/u, '记录接口 UI 不得改写历史 step_by_step_use_main_api 配置');
 
 const mountBody = ui.match(/function mount\(\) \{([\s\S]*?)\n\}\n\nlet mountQueued/u)?.[1] ?? '';
 assert.ok(mountBody, '必须能定位 mount() 实现');
 assert.doesNotMatch(mountBody, /applyMode\(/u, 'mount() 不得调用会改写独立记录/step_by_step 状态的 applyMode()');
+assert.doesNotMatch(mountBody, /step_by_step/u, 'mount() 不得触碰任何旧 step_by_step 业务状态');
 assert.match(mountBody, /syncModeUi\(\)/u, 'mount() 只同步独立记录开关 UI');
 assert.match(mountBody, /getManualProviderRoute\(\)/u, 'mount() 应从统一手动 route 读取当前接口');
 
 assert.match(loader, /RUNTIME_VERSION = 'memon74'/u, 'Loader 缓存版本必须为 memon74');
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.74'/u, 'Loader 必须同步公开版本号');
+assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u, 'Loader 必须覆盖旧 index.js 暴露的版本号');
 assert.equal(manifest.version, '0.1.0-memon.74', 'manifest 版本必须为 memon74');
 console.log('memo-n-provider-ui: all assertions passed');
