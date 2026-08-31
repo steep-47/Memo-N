@@ -1,7 +1,6 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import { getManualProviderRoute, ROUTE, setManualProviderRoute } from '../runtime/providerRoute.js';
 
-const TOGGLE_ID = 'memory-independent-record-api';
 const ROUTE_ID = 'memo-record-provider-route';
 const PREF_KEY = 'independent_record_api_enabled';
 
@@ -12,34 +11,26 @@ function getStore() {
     return root.memo_n_settings;
 }
 
-function readEnabled() {
+function readIndependentEnabled() {
     return getStore()?.[PREF_KEY] === true;
 }
 
-function keepConfigSectionsVisible() {
+function syncModeSections(fillTime) {
+    const independent = readIndependentEnabled();
+    if (fillTime) fillTime.value = independent ? 'after' : 'chat';
     const replyOptions = document.querySelector('#reply_options');
     const stepOptions = document.querySelector('#step_by_step_options');
-    if (replyOptions) replyOptions.style.display = '';
-    if (stepOptions) stepOptions.style.display = '';
+    if (replyOptions) replyOptions.style.display = independent ? 'none' : '';
+    if (stepOptions) stepOptions.style.display = independent ? '' : 'none';
 }
 
-function syncModeUi() {
-    const checkbox = document.querySelector(`#${TOGGLE_ID} input[type="checkbox"]`);
-    if (checkbox) checkbox.checked = readEnabled();
-}
-
-function applyMode(enabled, save = true) {
-    const value = enabled === true;
+function applyIndependentMode(enabled, save = true) {
     const store = getStore();
     if (!store) return;
-    store[PREF_KEY] = value;
-    // 新独立记录模式与原插件 step_by_step 不能同时作为自动触发入口，
-    // 仅在用户主动切换“独立记录 API”时关闭旧自动分步开关。
-    USER.tableBaseSetting.step_by_step = false;
-    syncModeUi();
-    keepConfigSectionsVisible();
+    store[PREF_KEY] = enabled === true;
+    syncModeSections(document.querySelector('#fill_table_time'));
     if (save) USER.saveSettings?.();
-    console.log(`[Memo] 独立记录 API：${value ? '开启（正文后额外1次API记录）' : '关闭（正文与填表共用1次API）'}`);
+    console.log(`[Memo] 填表模式：${enabled ? '收到消息后独立记录' : '聊天同时填表'}`);
 }
 
 function applyProviderRoute(value, save = true) {
@@ -75,36 +66,16 @@ function createRouteSelector() {
     return wrapper;
 }
 
-function createToggle() {
-    const label = document.createElement('label');
-    label.id = TOGGLE_ID;
-    label.className = 'checkbox_label range-block justifyLeft';
-    label.style.margin = '8px 0';
-
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-
-    const text = document.createElement('span');
-    text.textContent = '独立记录 API';
-
-    const hint = document.createElement('small');
-    hint.className = 'toggle-description justifyLeft';
-    hint.textContent = '（关闭：正文与填表共用1次API；开启：正文后额外调用1次API记录）';
-
-    label.append(input, text, hint);
-    return label;
-}
-
 function bindRouteSelector(select) {
     if (!select || select.dataset.memoRouteBound === '1') return;
     select.dataset.memoRouteBound = '1';
     select.addEventListener('change', () => applyProviderRoute(select.value, true));
 }
 
-function bindIndependentToggle(input) {
-    if (!input || input.dataset.memoIndependentBound === '1') return;
-    input.dataset.memoIndependentBound = '1';
-    input.addEventListener('change', () => applyMode(input.checked, true));
+function bindFillTime(fillTime) {
+    if (!fillTime || fillTime.dataset.memoIndependentBound === '1') return;
+    fillTime.dataset.memoIndependentBound = '1';
+    fillTime.addEventListener('change', () => applyIndependentMode(fillTime.value === 'after', true));
 }
 
 function mount() {
@@ -116,27 +87,17 @@ function mount() {
     let routeWrapper = document.getElementById(ROUTE_ID);
     if (!routeWrapper) {
         routeWrapper = createRouteSelector();
-        host.insertBefore(routeWrapper, fillTime);
-    }
-
-    let toggleWrapper = document.getElementById(TOGGLE_ID);
-    if (!toggleWrapper) {
-        toggleWrapper = createToggle();
-        host.insertBefore(toggleWrapper, fillTime.nextSibling);
+        host.insertBefore(routeWrapper, fillTime.previousElementSibling || fillTime);
     }
 
     const select = routeWrapper.querySelector('select');
-    const toggleInput = toggleWrapper.querySelector('input[type="checkbox"]');
     bindRouteSelector(select);
-    bindIndependentToggle(toggleInput);
+    bindFillTime(fillTime);
 
-    // 重挂载只同步 UI，不得改写 step_by_step、step_by_step_use_main_api 或独立记录配置。
-    syncModeUi();
+    // 重挂载只同步 UI；Provider 与模式值都从 Memo-N 独立设置读取，不改旧 step_by_step 主/自定义路由字段。
     const route = getManualProviderRoute();
     if (select) select.value = route;
-    if (toggleInput) toggleInput.checked = readEnabled();
-    keepConfigSectionsVisible();
-    requestAnimationFrame(keepConfigSectionsVisible);
+    syncModeSections(fillTime);
     return true;
 }
 
@@ -160,4 +121,4 @@ document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleMount();
 });
 
-console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；设置面板支持无副作用延迟/重渲染挂载');
+console.log('[Memo] 记录接口与填表模式控制已加载：单一路由选择 + 原生填表时机选择器');
