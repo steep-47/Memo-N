@@ -33,9 +33,9 @@ assert.doesNotMatch(mountBody, /tableBaseSetting\.step_by_step_use_main_api\s*=/
 assert.match(mountBody, /getManualProviderRoute\(\)/u, 'mount() 应从统一手动 route 读取当前接口');
 assert.match(mountBody, /syncModeSections\(fillTime\)/u, 'mount() 必须根据持久化模式恢复正确区域显隐');
 
-assert.match(loader, /RUNTIME_VERSION = 'memon75'/u, 'Loader 缓存版本必须为 memon75');
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.75'/u, 'Loader 必须同步公开版本号');
+assert.match(loader, /RUNTIME_VERSION = 'memon76'/u, 'Loader 缓存版本必须为 memon76');
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.76'/u, 'Loader 必须同步公开版本号');
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u, 'Loader 必须覆盖旧 index.js 暴露的版本号');
 assert.match(loader, /DOMContentLoaded/u, '公开版本同步必须覆盖晚初始化时序');
-assert.equal(manifest.version, '0.1.0-memon.75', 'manifest 版本必须为 memon75');
+assert.equal(manifest.version, '0.1.0-memon.76', 'manifest 版本必须为 memon76');
 console.log('memo-n-provider-ui: all assertions passed');
