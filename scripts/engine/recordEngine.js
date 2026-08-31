@@ -152,6 +152,7 @@ const schema = {
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
     const context = USER.getContext?.();
+    const session = context?.chat;
     const base = lastAssistant();
     const route = getProviderRoute(data);
     const relayMode = route === ROUTE.RELAY;
@@ -162,9 +163,12 @@ function inject(data) {
     pending = {
         at: Date.now(),
         type: armed.type,
-        session: context?.chat,
+        session,
+        startLength: Array.isArray(session) ? session.length : 0,
         base,
         baseMes: String(base?.mes ?? ''),
+        baseSwipeId: Number(base?.swipe_id ?? -1),
+        baseReasoning: base ? reasoningText(base) : '',
         responseMode: relayMode ? 'relay_tableedit' : 'json',
         route,
     };
@@ -345,21 +349,46 @@ function handleRendered(chatId) {
     if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id;
 }
 
-function resolveCompletedChatId() {
+function candidateMatchesJob(chat, index, job) {
+    if (!chat || chat.is_user === true || !job) return false;
+    if (job.base) {
+        if (chat === job.base) {
+            return String(chat.mes ?? '') !== job.baseMes
+                || Number(chat.swipe_id ?? -1) !== job.baseSwipeId
+                || reasoningText(chat) !== job.baseReasoning;
+        }
+        // Swipe/重新生成可能用新消息对象替换原来的最后一条，但不会倒退到更早的历史消息。
+        return index >= Math.max(0, Number(job.startLength || 0) - 1);
+    }
+    // 普通生成在 SETTINGS_READY 时最后一条仍是用户消息；只接受之后新追加的助手消息。
+    return index >= Number(job.startLength || 0);
+}
+
+function resolveCompletedChatId(job) {
     const chat = USER?.getContext?.()?.chat;
-    if (!Array.isArray(chat) || !chat.length) return null;
-    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length && chat[lastRenderedChatId]?.is_user === false) {
+    if (!Array.isArray(chat) || !chat.length || !job || chat !== job.session) return null;
+    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length
+        && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) {
         return lastRenderedChatId;
     }
-    for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) return i;
+    for (let i = chat.length - 1; i >= 0; i--) {
+        if (candidateMatchesJob(chat[i], i, job)) return i;
+    }
     return null;
 }
 
 function handleGenerationEnded() {
-    if (!pending) return;
-    const chatId = resolveCompletedChatId();
+    const job = pending;
+    if (!job) return;
+    const chatId = resolveCompletedChatId(job);
     lastRenderedChatId = null;
-    if (!Number.isInteger(chatId)) { pending = null; return; }
+    if (!Number.isInteger(chatId)) {
+        // 请求失败、slash command中断或取消时可能没有产生任何新助手消息。
+        // 此时绝不能退回去解析/改写上一条旧助手消息，也绝不能恢复旧消息对应的表格基线。
+        pending = null;
+        console.log('[Memo-N] 本轮生成结束但没有产生新的/变化后的助手消息：记录任务安全丢弃，不触碰历史消息与表格');
+        return;
+    }
     const chat = USER?.getContext?.()?.chat?.[chatId];
     const persistence = unpack(chatId);
     if (chat && persistence && typeof persistence.then === 'function') {
@@ -377,4 +406,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站统一走前置tableEdit');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站统一走前置tableEdit；无新消息的失败生成不会触碰历史消息');
