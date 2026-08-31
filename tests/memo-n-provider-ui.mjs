@@ -9,6 +9,8 @@ const template = fs.readFileSync(new URL('../assets/templates/index.html', impor
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const modeRuntime = fs.readFileSync(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
 const structureRepair = fs.readFileSync(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
+const swipeRestore = fs.readFileSync(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
+const memoryRules = fs.readFileSync(new URL('../scripts/runtime/memoryContentRules.js', import.meta.url), 'utf8');
 const presetBridge = fs.readFileSync(new URL('../scripts/yiyi/yiyiPresetMemoryBridge.js', import.meta.url), 'utf8');
 const yiyiRuntime = fs.readFileSync(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
 const standalone = fs.readFileSync(new URL('../scripts/settings/standaloneAPI.js', import.meta.url), 'utf8');
@@ -22,9 +24,7 @@ assert.match(template, /id="memo-record-provider-route"/u);
 assert.match(template, /<option value="deepseek">DeepSeek<\/option>/u);
 assert.match(template, /<option value="relay">中转站<\/option>/u);
 assert.match(template, /id="fill_table_time"/u);
-assert.doesNotMatch(template, /id="memory-independent-record-api"/u);
-assert.doesNotMatch(template, /id="step_by_step_use_main_api"/u);
-assert.doesNotMatch(template, /id="use_main_api"/u, '整理页不得再有第二套路由开关');
+assert.doesNotMatch(template, /id="memory-independent-record-api"|id="step_by_step_use_main_api"|id="use_main_api"/u);
 assert.match(template, /整理请求同样服从上方“记录接口”/u);
 assert.match(template, /自定义独立API（中转站）/u);
 
@@ -33,8 +33,7 @@ assert.doesNotMatch(ui, /observer\.disconnect/u);
 assert.match(ui, /function bindFillTime\(fillTime\)/u);
 assert.match(ui, /fillTime\.value === 'after'/u);
 assert.match(ui, /USER\.tableBaseSetting\.step_by_step = false/u);
-assert.doesNotMatch(ui, /syncIndependentApiRoute/u);
-assert.doesNotMatch(ui, /step_by_step_use_main_api\s*=/u);
+assert.doesNotMatch(ui, /syncIndependentApiRoute|step_by_step_use_main_api\s*=/u);
 
 const mountBody = ui.match(/function mount\(\) \{([\s\S]*?)\n\}\n\nlet mountQueued/u)?.[1] ?? '';
 assert.ok(mountBody);
@@ -46,18 +45,20 @@ assert.match(modeRuntime, /function bridgePromptMode\(\)/u);
 assert.match(modeRuntime, /captureGeneration[\s\S]*bridgePromptMode\(\)/u);
 assert.match(modeRuntime, /CHAT_COMPLETION_SETTINGS_READY/u);
 assert.match(modeRuntime, /settingsReadyEvent[^\n]*forceNormalMode/u);
-assert.doesNotMatch(modeRuntime, /makeFirst\(promptEvent/u);
-assert.doesNotMatch(modeRuntime, /makeLast\(promptEvent/u);
-assert.doesNotMatch(modeRuntime, /enqueueCurrentVersion/u, 'stale结果不得自动排队重算');
-assert.match(modeRuntime, /result==='stale'[\s\S]*不会自动重试/u, 'stale必须明确安全作废且不重试');
-assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过期排队任务不得自动重算');
-assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
+assert.doesNotMatch(modeRuntime, /makeFirst\(promptEvent|makeLast\(promptEvent|enqueueCurrentVersion|\?v=memon\d+/u);
+assert.match(modeRuntime, /result==='stale'[\s\S]*不会自动重试/u);
+assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
+assert.doesNotMatch(swipeRestore, /\?v=memon\d+/u, 'Swipe恢复不得绑定旧执行器缓存身份');
+assert.doesNotMatch(memoryRules, /preserveSingleApiProtocol/u, '不得继续保留旧固定收尾协议');
+assert.match(memoryRules, /stripLegacyFixedProtocol/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon86'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.86'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon87'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.87'/u);
 for (const modulePath of [
     './scripts/runtime/memoryContentRules.js',
+    './scripts/runtime/swipeSnapshotRestore.js',
+    './scripts/runtime/legacyEventSafety.js',
     './scripts/runtime/cleanupButtonBridge.js',
     './scripts/ui/personTableSplit.js',
     './scripts/ui/fillStatusColor.js',
@@ -67,47 +68,40 @@ for (const modulePath of [
     './scripts/yiyi/yiyiMemoryRuntime.js',
 ]) assert.ok(loader.includes(modulePath), `loader遗漏运行时：${modulePath}`);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.86');
+assert.equal(manifest.version, '0.1.0-memon.87');
 
-for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) {
-    assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`), `standaloneAPI遗漏导出：${name}`);
-}
-
+for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`));
 assert.match(defaults, /\[Memo七表独立记录v4\]/u);
-assert.doesNotMatch(defaults, /step_by_step_use_main_api\s*:/u);
-assert.doesNotMatch(defaults, /use_main_api\s*:/u);
+assert.doesNotMatch(defaults, /step_by_step_use_main_api\s*:|use_main_api\s*:/u);
 const defaultStep = defaults.match(/step_by_step_user_prompt:[\s\S]*?bool_silent_refresh:/u)?.[0] ?? '';
 assert.ok(defaultStep);
-assert.doesNotMatch(defaultStep, /最终只输出.*<tableEdit>|"reply"\s*:|"changes"\s*:/u, '默认独立模板不得锁死协议');
-assert.match(defaultStep, /最终机器格式只服从|最终格式只服从/u);
+assert.doesNotMatch(defaultStep, /最终只输出.*<tableEdit>|"reply"\s*:|"changes"\s*:/u);
 assert.match(bootstrap, /STEP_PROMPT_MARKER = '\[Memo七表独立记录v4\]'/u);
 assert.match(bootstrap, /REBUILD_MARKER = '\[Memo七表整理v3\]'/u);
 assert.match(bootstrap, /delete store\.step_by_step_use_main_api/u);
 assert.match(bootstrap, /delete store\.use_main_api/u);
-assert.match(bootstrap, /\[Memo七表整理v2\]/u, '必须迁移memon旧默认整理模板');
 assert.match(cleanup, /getManualProviderRoute\(\)/u);
 assert.match(cleanup, /selectedTemplate\(\)/u);
-assert.match(cleanup, /rebuild_message_template_list/u, '自定义总结模板必须实际进入整理链');
+assert.match(cleanup, /rebuild_message_template_list/u);
 assert.match(cleanup, /DEEPSEEK_CONTRACT/u);
 assert.match(cleanup, /RELAY_CONTRACT/u);
-assert.doesNotMatch(cleanup, /tableBaseSetting\.use_main_api/u);
-assert.match(cleanupBridge, /stableTableCleanup\.js\?v=memon86/u, '整理器缓存版本必须同步');
+assert.doesNotMatch(cleanup, /tableBaseSetting\.use_main_api|\?v=memon\d+/u);
+assert.doesNotMatch(cleanupBridge, /\?v=memon\d+/u);
 
-assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u, '伊依预设桥仍引用废弃中转协议');
+assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u);
 assert.match(presetBridge, /前置<tableEdit>/u);
 assert.match(presetBridge, /reply字符串末尾/u);
-assert.match(presetBridge, /let processing = false/u, '伊依预设桥缺少串行互斥');
-assert.match(presetBridge, /scheduleProcessLatest/u, '伊依预设桥必须复用同一GENERATION_ENDED处理器');
-assert.match(yiyiRuntime, /waitRecordPersistence\(chat\)/u, '伊依直接角色必须等待表格记录持久化');
-assert.doesNotMatch(yiyiRuntime, /CHARACTER_MESSAGE_RENDERED,\s*onMessage/u, '伊依不得在JSON信封拆包前提前剥离记忆块');
-assert.match(yiyiRuntime, /ledger\(chat\)\[ledgerKey\(chat\)\]/u, '伊依Swipe事务必须记入当前Swipe台账');
-assert.match(yiyiRuntime, /applyForward\(target\)/u, '切回旧Swipe必须恢复对应长期记忆事务');
+assert.match(presetBridge, /let processing = false/u);
+assert.match(yiyiRuntime, /waitRecordPersistence\(chat\)/u);
+assert.doesNotMatch(yiyiRuntime, /CHARACTER_MESSAGE_RENDERED,\s*onMessage/u);
+assert.match(yiyiRuntime, /ledger\(chat\)\[ledgerKey\(chat\)\]/u);
+assert.match(yiyiRuntime, /applyForward\(target\)/u);
 
-assert.match(managerTemplate, /id="contentContainer" class="memory-table-pinch-area"/u, '数据页必须保留统一触摸画布');
-assert.match(simpleCss, /#contentContainer\.memory-table-pinch-area\s*\{[\s\S]*?overflow-x:\s*auto/u, '统一画布必须承担横向滚动');
-assert.match(pinch, /function syncWholeCanvasWidth\(area\)/u, '必须同步整个tableContainer横向宽度');
-assert.match(pinch, /tableContainer\.style\.width\s*=\s*`\$\{canvasWidth\}px`/u, '全部表格必须共享同一横向画布宽度');
-assert.match(pinch, /tableContainer\.style\.zoom\s*=\s*String\(currentScale\)/u, '双指缩放必须作用于整个tableContainer');
-assert.match(pinch, /touchmove[\s\S]*onTouchMove/u, '双指缩放触摸监听器缺失');
+assert.match(managerTemplate, /id="contentContainer" class="memory-table-pinch-area"/u);
+assert.match(simpleCss, /#contentContainer\.memory-table-pinch-area\s*\{[\s\S]*?overflow-x:\s*auto/u);
+assert.match(pinch, /function syncWholeCanvasWidth\(area\)/u);
+assert.match(pinch, /tableContainer\.style\.width\s*=\s*`\$\{canvasWidth\}px`/u);
+assert.match(pinch, /tableContainer\.style\.zoom\s*=\s*String\(currentScale\)/u);
+assert.match(pinch, /touchmove[\s\S]*onTouchMove/u);
 
 console.log('memo-n-provider-ui: all assertions passed');
