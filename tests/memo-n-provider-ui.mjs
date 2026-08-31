@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const ui = fs.readFileSync(new URL('../scripts/ui/apiModeToggle.js', import.meta.url), 'utf8');
+const pinch = fs.readFileSync(new URL('../scripts/ui/pinchZoom.js', import.meta.url), 'utf8');
+const simpleCss = fs.readFileSync(new URL('../assets/styles/simple-ui.css', import.meta.url), 'utf8');
+const managerTemplate = fs.readFileSync(new URL('../assets/templates/manager.html', import.meta.url), 'utf8');
 const template = fs.readFileSync(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const modeRuntime = fs.readFileSync(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
@@ -42,8 +45,17 @@ assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过�
 assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon80'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.80'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon81'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.81'/u);
+assert.match(loader, /\.\/scripts\/ui\/pinchZoom\.js/u, '必须加载统一横滑与双指缩放 runtime');
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.80');
+assert.equal(manifest.version, '0.1.0-memon.81');
+
+assert.match(managerTemplate, /id="contentContainer" class="memory-table-pinch-area"/u, '数据页必须保留统一触摸画布');
+assert.match(simpleCss, /#contentContainer\.memory-table-pinch-area\s*\{[\s\S]*?overflow-x:\s*auto/u, '统一画布必须承担横向滚动');
+assert.match(pinch, /function syncWholeCanvasWidth\(area\)/u, '必须同步整个tableContainer横向宽度');
+assert.match(pinch, /tableContainer\.style\.width\s*=\s*`\$\{canvasWidth\}px`/u, '全部表格必须共享同一横向画布宽度');
+assert.match(pinch, /tableContainer\.style\.zoom\s*=\s*String\(currentScale\)/u, '双指缩放必须作用于整个tableContainer');
+assert.match(pinch, /touchmove[\s\S]*onTouchMove/u, '双指缩放触摸监听器缺失');
+
 console.log('memo-n-provider-ui: all assertions passed');
