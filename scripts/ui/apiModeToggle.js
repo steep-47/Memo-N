@@ -29,14 +29,18 @@ function syncIndependentApiRoute(route) {
     if (checkbox) checkbox.checked = route === ROUTE.DEEPSEEK;
 }
 
+function syncModeUi() {
+    const checkbox = document.querySelector(`#${TOGGLE_ID} input[type="checkbox"]`);
+    if (checkbox) checkbox.checked = readEnabled();
+}
+
 function applyMode(enabled, save = true) {
     const value = enabled === true;
     const store = getStore();
     if (!store) return;
     store[PREF_KEY] = value;
     USER.tableBaseSetting.step_by_step = false;
-    const checkbox = document.querySelector(`#${TOGGLE_ID} input[type="checkbox"]`);
-    if (checkbox) checkbox.checked = value;
+    syncModeUi();
     keepConfigSectionsVisible();
     if (save) USER.saveSettings?.();
     console.log(`[Memo] 独立记录 API：${value ? '开启（正文后额外1次API记录）' : '关闭（正文与填表共用1次API）'}`);
@@ -131,7 +135,8 @@ function mount() {
     bindRouteSelector(select);
     bindIndependentToggle(toggleInput);
 
-    applyMode(readEnabled(), false);
+    // 重挂载只同步 UI，不得改写 step_by_step / 独立记录配置。
+    syncModeUi();
     const route = getManualProviderRoute();
     syncIndependentApiRoute(route);
     if (select) select.value = route;
@@ -152,7 +157,7 @@ function scheduleMount() {
 }
 
 // 设置面板在移动端可能很晚才被插入或被重新渲染。
-// 不再使用“只等10秒”的一次性观察窗口：页面整个生命周期内都允许重新挂载。
+// 页面整个生命周期内允许重新挂载，但重挂载必须无业务副作用。
 mount();
 const observer = new MutationObserver(scheduleMount);
 observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -161,4 +166,4 @@ document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleMount();
 });
 
-console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；设置面板支持延迟/重渲染挂载');
+console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；设置面板支持无副作用延迟/重渲染挂载');
