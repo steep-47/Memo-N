@@ -3,8 +3,26 @@ import { oai_settings } from '/scripts/openai.js';
 export const ROUTE = Object.freeze({
     DEEPSEEK: 'deepseek',
     RELAY: 'relay',
-    NATIVE: 'native',
 });
+
+const ROUTE_KEY = 'record_provider_route';
+const DEFAULT_ROUTE = ROUTE.DEEPSEEK;
+
+function settingsStore() {
+    const root = globalThis?.SillyTavern?.getContext?.()?.extensionSettings
+        ?? globalThis?.extensionSettings
+        ?? null;
+    if (!root) return null;
+    if (!root.memo_n_settings || typeof root.memo_n_settings !== 'object') root.memo_n_settings = {};
+    return root.memo_n_settings;
+}
+
+function manualRoute(data) {
+    const explicit = String(data?.memo_n_record_provider ?? '').trim().toLowerCase();
+    const stored = String(settingsStore()?.[ROUTE_KEY] ?? '').trim().toLowerCase();
+    const value = explicit || stored || DEFAULT_ROUTE;
+    return value === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
+}
 
 function sourceOf(data) {
     return String(data?.chat_completion_source ?? oai_settings?.chat_completion_source ?? '').trim().toLowerCase();
@@ -24,42 +42,27 @@ function modelOf(data) {
     ).trim().toLowerCase();
 }
 
-export function isDirectDeepSeek(data) {
-    const source = sourceOf(data);
-    if (source === 'deepseek') return true;
-    if (source !== 'custom') return false;
-
-    const url = customUrlOf(data).toLowerCase();
-    const hostLike = url.replace(/^https?:\/\//, '');
-    return /(^|\.)deepseek\.com(?:\/|$)/.test(hostLike)
-        || /api\.deepseek\.com/.test(url)
-        || (!url && /^deepseek-/.test(modelOf(data)));
-}
-
 export function getProviderRoute(data) {
-    // 1) 原生DeepSeek，或custom直连DeepSeek官方地址。
-    if (isDirectDeepSeek(data)) return ROUTE.DEEPSEEK;
-
-    const source = sourceOf(data);
-    const customUrl = customUrlOf(data);
-    const reverseProxy = String(data?.reverse_proxy ?? oai_settings?.reverse_proxy ?? '').trim();
-
-    // 2) SillyTavern的“自定义(OpenAI兼容)”就是中转/兼容端点路线。
-    //    不能先返回一个抽象CUSTOM，否则真正中转站永远到不了RELAY协议。
-    if (source === 'custom') return ROUTE.RELAY;
-
-    // 3) 原生provider通过反代时，同样按中转路线处理。
-    if (customUrl || reverseProxy) return ROUTE.RELAY;
-
-    // 4) 其余官方/原生provider走结构化JSON信封。
-    return ROUTE.NATIVE;
+    return manualRoute(data);
 }
 
 export function providerDebug(data) {
     return {
-        route: getProviderRoute(data),
+        route: manualRoute(data),
         source: sourceOf(data),
         customUrl: customUrlOf(data),
         model: modelOf(data),
+        automaticDetection: false,
     };
+}
+
+export function getManualProviderRoute() {
+    return manualRoute({});
+}
+
+export function setManualProviderRoute(value) {
+    const route = String(value ?? '').trim().toLowerCase() === ROUTE.RELAY ? ROUTE.RELAY : ROUTE.DEEPSEEK;
+    const store = settingsStore();
+    if (store) store[ROUTE_KEY] = route;
+    return route;
 }
