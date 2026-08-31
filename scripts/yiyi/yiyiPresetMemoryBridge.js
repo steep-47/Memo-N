@@ -3,7 +3,7 @@ import { applyYiYiMemoryDelta, getYiYiVault } from './yiyiMemoryStore.js';
 import { buildYiYiRecallContext } from './yiyiRecallEngine.js';
 import { maintainYiYiMemoryVault } from './yiyiMemoryMaintenance.js';
 
-const PROMPT_MARKER = '[Memo-N YiYi preset memory bridge v1]';
+const PROMPT_MARKER = '[Memo-N YiYi preset memory bridge v2]';
 const START = '<yiyiMemory>';
 const END = '</yiyiMemory>';
 const PRESET_MARKERS = [
@@ -48,7 +48,7 @@ function recentQuery(messages) {
 }
 
 function contract(context) {
-    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆写回协议]\n伊依是后台陪伴者，不是剧情世界NPC；她的记忆只能写入本独立记忆库，绝不写入世界七表。\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮最终响应是Memo-N JSON信封，本块必须位于reply字符串末尾；如果本轮使用中转站纯文本哨兵，本块必须位于MEMO_N_EDIT_BEGIN之前。无论哪种模式，本块都属于正常回复内容内部，不得放到最终机器记录块之后。\nadd保存以后仍可能有用的共同经历、玩家明确长期信息、伊依形成并值得延续的看法或彼此之间重要互动，每轮最多2条；普通寒暄、一次性动作、纯世界事实不要add。importance只能为normal/high/core。\nupdate只更新本轮召回的#记忆ID，用于纠正旧认知、补充后续结果或更新currentView。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort；只有真实互动提供了新证据才更新，不使用好感度数值。\nemotion可用current/cause/residue/intensity/trajectory；intensity只能0/1/2/3，trajectory只能rising/steady/easing；没有实际变化就写{}。\nself可用understanding/changes，只记录以后仍有意义的自我理解变化。\n不得把剧情NPC认知、背包、能力、世界历史、世界地点或纯世界事件写入伊依独立记忆；除非它们构成伊依与玩家共同经历中以后仍有意义的关系背景。不得把推测写成事实。JSON必须严格合法。`;
+    return `${PROMPT_MARKER}\n${context}\n\n[伊依长期记忆写回协议]\n伊依是后台陪伴者，不是剧情世界NPC；她的记忆只能写入本独立记忆库，绝不写入世界七表。\n完成正常回复后，在回复内容末尾附加：\n${START}{"add":[],"update":[],"relationship":{},"emotion":{},"self":{}}${END}\n如果本轮最终响应是Memo-N DeepSeek JSON信封，本块必须放在reply字符串末尾；如果本轮是Memo-N中转站普通一次API，必须先输出并闭合前置<tableEdit>机器块，再输出正常正文，本${START}块属于正文并放在整段正文末尾，绝不能放到前置<tableEdit>之前。无论哪种模式，本块都属于正常回复内容，不得成为独立记录机器块。\nadd保存以后仍可能有用的共同经历、玩家明确长期信息、伊依形成并值得延续的看法或彼此之间重要互动，每轮最多2条；普通寒暄、一次性动作、纯世界事实不要add。importance只能为normal/high/core。\nupdate只更新本轮召回的#记忆ID，用于纠正旧认知、补充后续结果或更新currentView。\nrelationship可用stage/summary/sharedUnderstanding/boundaries/unresolved/expectations/trustBasis/interactionPattern/initiative/comfort；只有真实互动提供了新证据才更新，不使用好感度数值。\nemotion可用current/cause/residue/intensity/trajectory；intensity只能0/1/2/3，trajectory只能rising/steady/easing；没有实际变化就写{}。\nself可用understanding/changes，只记录以后仍有意义的自我理解变化。\n不得把剧情NPC认知、背包、能力、世界历史、世界地点或纯世界事件写入伊依独立记忆；除非它们构成伊依与玩家共同经历中以后仍有意义的关系背景。不得把推测写成事实。JSON必须严格合法。`;
 }
 
 function inject(data) {
