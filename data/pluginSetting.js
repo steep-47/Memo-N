@@ -26,15 +26,16 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     message_template: `# dataTable 世界状态记忆
 ## 表格：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件
 {{tableData}}
-# 操作
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
+# 记录动作语义
+- insert：当前表中没有该对象/事实且本轮首次明确确认时新增。
+- update：只更新当前表中真实存在的rowIndex；不得把不存在的row当成新增。
+- delete：只删除当前表中真实存在且已明确失效/消失的rowIndex。
+- 这里只定义记录语义，不定义本轮传输语法；最终JSON或tableEdit格式只服从请求末尾由Memo-N记录引擎注入的唯一协议。
 # 总原则
 - 七张表维护当前事实状态，不是关键词出现日志。生成本轮回复前先按0→1→2→3→4→5→6逐表检查应记录的明确事实。
 - 写入前必须先检查现有行：首次确认/真正新增用insert；已有事实变化用update；明确消失/结束用delete；只是查看、复述、再次提及且事实未变则不操作。
-- updateRow只能使用当前表中真实存在的rowIndex；行不存在时不得把update当成insert，真正新增必须明确使用insertRow。
-- 表格内容第一列才是可用的rowIndex。看到“（此表格当前为空）”时，该表没有任何可更新/删除的行，禁止updateRow/deleteRow；首次记录必须使用insertRow。绝不能把表号、列号或预计新增后的行号当作rowIndex。
+- update只能使用当前表中真实存在的rowIndex；行不存在时不得把update当成insert，真正新增必须明确使用insert。
+- 表格内容第一列才是可用的rowIndex。看到“（此表格当前为空）”时，该表没有任何可更新/删除的行，禁止update/delete；首次记录必须使用insert。绝不能把表号、列号或预计新增后的行号当作rowIndex。
 - 同一对象已有记录时优先update，禁止因再次提及而重复insert。名称或称呼略有变化但上下文明显是同一对象时仍视为同一条记录。
 - NPC不区分“世界书人物”和“自动生成角色”的记录策略。只要是值得长期追踪的NPC，就按同一套人物主表/人物发展表规则维护；已有事实不重复抄写，只有首次确认或实际变化才写入。
 - 不猜测未知；未知信息留空。
@@ -59,9 +60,9 @@ deleteRow(tableIndex:number,rowIndex:number)
 - 一次性物品使用、消耗、出售、交付、丢失或被夺走后按实际剩余数量update；数量归零或明确完全不再持有时delete。
 - 可重复使用的武器、装备、工具、容器使用后仍归玩家所有，不因“使用”删除；装备/卸下/损坏/装满/清空等只更新状态。
 # 输出
-- Memo-N会在最终请求阶段提供唯一JSON变更信封。按该信封同时返回完整正常正文reply与本轮事实变化changes。
-- changes只能使用结构化insert/update/delete对象，禁止函数文本、SQL、tableEdit和解释。
-- 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时changes为空数组。`,
+- 本段只规定“应记录哪些事实”，不规定最终机器传输格式。
+- 最终传输格式只服从本轮请求末尾由Memo-N记录引擎按“记录接口”注入的唯一记录协议；不得自行混用JSON、tableEdit或其他格式。
+- 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时按最终协议表示“无变化”。`,
     isTableToChat: false,
     show_settings_in_extension_menu: true,
     alternate_switch: true,
@@ -70,7 +71,6 @@ deleteRow(tableIndex:number,rowIndex:number)
     table_to_chat_mode: 'context_bottom',
     to_chat_container: `<div class="table-preview-bar"><details><summary style="display:flex;justify-content:space-between"><span>记忆增强表格</span></summary>$0</details></div>`,
     confirm_before_execution: true,
-    use_main_api: true,
     custom_temperature: 1.0,
     custom_max_tokens: 2048,
     custom_top_p: 1,
@@ -79,18 +79,17 @@ deleteRow(tableIndex:number,rowIndex:number)
     clear_up_stairs: 9,
     use_token_limit: true,
     rebuild_token_limit_value: 10000,
-    refresh_system_message_template: `你是世界状态表格整理助手。只根据已确认事实维护现有七张表。优先更新已有行，不写流水账，不猜测未知。人物主表保存NPC识别信息以及已确认的种族/血脉、修炼体系/路径；人物发展表保存最新发展锚点，其中“修为”必须保留角色自身体系的原生境界文本，禁止换算成人族境界；年龄与最后确认时间分开维护；历史表只保存影响未来推演的重要节点。只输出<tableEdit>。`,
-    refresh_user_message_template: `<聊天记录>\n$1\n</聊天记录>\n<当前表格>\n$0\n</当前表格>\n<表头信息>\n$2\n</表头信息>\n按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件检查。同一对象已有行优先update；人物主表保存NPC种族/血脉与修炼体系/路径等稳定事实；人物发展表“修为”只记录其原生体系境界，不把战力对应换算成人族境界；重要节点才写历史；不猜测未知。函数放在<tableEdit><!-- ... --></tableEdit>中。`,
+    refresh_system_message_template: `你是世界状态表格整理助手。只根据已确认事实维护现有七张表。优先更新已有行，不写流水账，不猜测未知。人物主表保存NPC识别信息以及已确认的种族/血脉、修炼体系/路径；人物发展表保存最新发展锚点，其中“修为”必须保留角色自身体系的原生境界文本，禁止换算成人族境界；年龄与最后确认时间分开维护；历史表只保存影响未来推演的重要节点。这里只规定整理语义，不指定机器传输格式；最终格式服从Memo-N当前“记录接口”的唯一协议。`,
+    refresh_user_message_template: `<聊天记录>\n$1\n</聊天记录>\n<当前表格>\n$0\n</当前表格>\n<表头信息>\n$2\n</表头信息>\n按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件检查。同一对象已有行优先update；人物主表保存NPC种族/血脉与修炼体系/路径等稳定事实；人物发展表“修为”只记录其原生体系境界，不把战力对应换算成人族境界；重要节点才写历史；不猜测未知。不要自行指定JSON、tableEdit或函数文本；最终机器格式只服从Memo-N当前记录接口协议。`,
     rebuild_default_system_message_template: '',
     rebuild_default_message_template: '',
     lastSelectedTemplate: 'rebuild_base',
     rebuild_message_template_list: {},
     additionalPrompt: '',
     step_by_step: false,
-    step_by_step_use_main_api: true,
     step_by_step_user_prompt: `[
-  {"role":"system","content":"你是Memo独立表格记录器。只根据已确认事实维护当前七张表，不写剧情，不猜测未知。严格遵守以下当前表格与操作规则。最终只输出一个完整<tableEdit>...</tableEdit>；无变化输出<tableEdit><!-- NO_CHANGE --></tableEdit>。\\n<当前表格>\\n$0\\n</当前表格>\\n<操作规则>\\n$3\\n</操作规则>"},
-  {"role":"user","content":"<参考上下文>\\n$1\\n</参考上下文>\\n<本轮待记录正文>\\n$2\\n</本轮待记录正文>\\n<世界书参考>\\n$4\\n</世界书参考>\\n只记录本轮已经明确发生或确认的变化；已有对象优先update，禁止重复insert；不同种族/体系的修为保留原生境界文本，不自动换算成人族境界。"}
+  {"role":"system","content":"[Memo七表独立记录v4] 你是Memo独立表格记录器。只根据已确认事实维护当前七张表，不写剧情，不猜测未知。这里只规定记录语义，不规定最终机器传输格式；最终格式只服从本轮请求末尾由Memo-N按‘记录接口’注入的唯一协议。\\n<当前表格>\\n$0\\n</当前表格>\\n<操作规则>\\n$3\\n</操作规则>"},
+  {"role":"user","content":"<参考上下文>\\n$1\\n</参考上下文>\\n<本轮待记录正文>\\n$2\\n</本轮待记录正文>\\n<世界书参考>\\n$4\\n</世界书参考>\\n只记录本轮已经明确发生或确认的变化；已有对象优先update，禁止重复insert；不同种族/体系的修为保留原生境界文本，不自动换算成人族境界。不要自行指定JSON、tableEdit、函数文本或其他输出协议。"}
 ]`,
     bool_silent_refresh: false,
     separateReadContextLayers: 1,
