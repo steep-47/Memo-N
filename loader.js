@@ -53,7 +53,18 @@ function syncPublicVersion() {
     }
 }
 
-syncPublicVersion();
-queueMicrotask(syncPublicVersion);
+function schedulePublicVersionSync() {
+    syncPublicVersion();
+    queueMicrotask(syncPublicVersion);
+    setTimeout(syncPublicVersion, 0);
+    setTimeout(syncPublicVersion, 500);
+}
+
+schedulePublicVersionSync();
+if (globalThis.document?.readyState === 'loading') {
+    globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
+} else {
+    setTimeout(syncPublicVersion, 0);
+}
 
 console.log('[Memo-N][loader] memon74 全记录入口手动协议统一版加载完成');
