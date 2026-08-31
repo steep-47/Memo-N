@@ -147,6 +147,9 @@ async function onGenerationEnded() {
     const chat = latestAssistant();
     if (chat) await process(chat);
 }
+function scheduleGenerationEnded() {
+    void onGenerationEnded().catch(error => console.error('[Memo-N][伊依] 生成后记忆处理失败', error));
+}
 async function onSwipe(chatId) {
     const chat = USER?.getContext?.()?.chat?.[Number(chatId)];
     if (!chat) return;
@@ -175,8 +178,8 @@ async function onDelete(chatId) {
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, inject);
 const ended = APP.event_types.GENERATION_ENDED;
-APP.eventSource.on(ended, () => void onGenerationEnded().catch(error => console.error('[Memo-N][伊依] 生成后记忆处理失败', error)));
-APP.eventSource.makeLast?.(ended, () => void onGenerationEnded().catch(error => console.error('[Memo-N][伊依] 生成后记忆处理失败', error)));
+APP.eventSource.on(ended, scheduleGenerationEnded);
+APP.eventSource.makeLast?.(ended, scheduleGenerationEnded);
 APP.eventSource.on(APP.event_types.MESSAGE_SWIPED, onSwipe);
 APP.eventSource.on(APP.event_types.MESSAGE_DELETED, onDelete);
 
