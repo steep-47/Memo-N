@@ -23,7 +23,7 @@ async function safeMessageSwiped(chatId) {
         return;
     }
 
-    // 兼容非常旧的聊天：没有严格Swipe快照时，只有消息本身确实还带tableEdit才允许旧重放逻辑。
+    // 兼容非常旧的聊天：没有严格Swipe快照时，只有消息本身/旧思考区确实还带tableEdit才允许旧重放逻辑。
     if (USER?.tableBaseSetting?.isExtensionAble === false || USER?.tableBaseSetting?.isAiWriteTable === false) return;
     const channel = getMemoTableEditChannel(chat);
     if (!Array.isArray(channel.matches) || channel.matches.length === 0) {
@@ -40,10 +40,10 @@ async function safeMessageEdited(chatId) {
     const chat = USER?.getContext?.()?.chat?.[id];
     if (!chat || chat.is_user === true) return;
 
-    // 普通DeepSeek/中转一次API会把机器记录从可见正文剥离。编辑纯正文时没有tableEdit，必须完全不碰表格。
-    // 只有旧聊天/用户明确保留了tableEdit时，才允许按编辑后的机器块重新严格执行。
+    // 用户编辑的是可见正文，不是隐藏reasoning。普通一次API剥离机器块后，纯正文编辑必须完全不碰表格。
+    // 只有可见消息内容本身仍明确带tableEdit（旧聊天/独立记录本地机器块）时才允许重放。
     const channel = getMemoTableEditChannel(chat);
-    if (!Array.isArray(channel.matches) || channel.matches.length === 0) return;
+    if (channel.source !== 'content' || !Array.isArray(channel.matches) || channel.matches.length === 0) return;
     handleEditStrInMessage(chat, id);
     await updateSheetsView(id);
 }
