@@ -1,14 +1,14 @@
 import { USER } from '../../core/manager.js';
+import { getManualProviderRoute, ROUTE, setManualProviderRoute } from '../runtime/providerRoute.js';
 
 const TOGGLE_ID = 'memory-independent-record-api';
+const ROUTE_ID = 'memo-record-provider-route';
 const PREF_KEY = 'independent_record_api_enabled';
 
 function getStore() {
     const root = USER?.getSettings?.();
     if (!root) return null;
-    if (!root.memo_n_settings || typeof root.memo_n_settings !== 'object') {
-        root.memo_n_settings = {};
-    }
+    if (!root.memo_n_settings || typeof root.memo_n_settings !== 'object') root.memo_n_settings = {};
     return root.memo_n_settings;
 }
 
@@ -27,20 +27,48 @@ function applyMode(enabled, save = true) {
     const value = enabled === true;
     const store = getStore();
     if (!store) return;
-
-    // 独立记录 API 使用自己的持久化开关；旧 step_by_step 不再作为模式状态保存。
-    // 它只会由 modeRuntimeControl 在受控时机短暂借用，常态必须为 false。
     store[PREF_KEY] = value;
     USER.tableBaseSetting.step_by_step = false;
-
     const checkbox = document.querySelector(`#${TOGGLE_ID} input[type="checkbox"]`);
     if (checkbox) checkbox.checked = value;
-
-    // 独立 API 模式与设置面板显隐彻底解耦：两组配置始终可见。
     keepConfigSectionsVisible();
-
     if (save) USER.saveSettings?.();
-    console.log(`[Memo] 独立记录 API：${value ? '开启（正文正常生成，随后额外1次API记录）' : '关闭（正文与填表共用1次API）'}`);
+    console.log(`[Memo] 独立记录 API：${value ? '开启（正文后额外1次API记录）' : '关闭（正文与填表共用1次API）'}`);
+}
+
+function applyProviderRoute(value, save = true) {
+    const route = setManualProviderRoute(value);
+    const select = document.querySelector(`#${ROUTE_ID}`);
+    if (select) select.value = route;
+    if (save) USER.saveSettings?.();
+    EDITOR?.success?.(route === ROUTE.RELAY ? '记录接口：中转站' : '记录接口：DeepSeek');
+    console.log(`[Memo] 记录接口已手动设为：${route}`);
+}
+
+function createRouteSelector() {
+    const wrapper = document.createElement('label');
+    wrapper.id = ROUTE_ID;
+    wrapper.className = 'range-block flex-container flexGap5';
+    wrapper.style.margin = '8px 0';
+
+    const text = document.createElement('span');
+    text.textContent = '记录接口';
+
+    const select = document.createElement('select');
+    select.style.maxWidth = '180px';
+    select.innerHTML = `
+        <option value="${ROUTE.DEEPSEEK}">DeepSeek</option>
+        <option value="${ROUTE.RELAY}">中转站</option>
+    `;
+    select.value = getManualProviderRoute();
+    select.addEventListener('change', () => applyProviderRoute(select.value, true));
+
+    const hint = document.createElement('small');
+    hint.className = 'toggle-description justifyLeft';
+    hint.textContent = '手动指定记录协议，不再自动识别';
+
+    wrapper.append(text, select, hint);
+    return wrapper;
 }
 
 function createToggle() {
@@ -68,18 +96,16 @@ function createToggle() {
 function mount() {
     const fillTime = document.querySelector('#fill_table_time');
     if (!fillTime) return false;
+    const host = fillTime.parentElement;
+    if (!host) return false;
 
-    if (!document.getElementById(TOGGLE_ID)) {
-        const host = fillTime.parentElement;
-        if (!host) return false;
-        host.insertBefore(createToggle(), fillTime.nextSibling);
-    }
+    if (!document.getElementById(ROUTE_ID)) host.insertBefore(createRouteSelector(), fillTime);
+    if (!document.getElementById(TOGGLE_ID)) host.insertBefore(createToggle(), fillTime.nextSibling);
 
-    // 加载时只恢复我们自己的开关；旧 step_by_step 仍保持关闭。
     applyMode(readEnabled(), false);
+    const select = document.querySelector(`#${ROUTE_ID}`);
+    if (select) select.value = getManualProviderRoute();
     keepConfigSectionsVisible();
-
-    // 原作者其他代码若随后再次改显隐，下一帧再恢复一次。
     requestAnimationFrame(keepConfigSectionsVisible);
     setTimeout(keepConfigSectionsVisible, 100);
     setTimeout(keepConfigSectionsVisible, 500);
@@ -94,4 +120,4 @@ if (!mount()) {
     setTimeout(() => observer.disconnect(), 10000);
 }
 
-console.log('[Memo] 独立记录 API 开关已加载（与旧 step_by_step 完全解耦）');
+console.log('[Memo] 记录接口手动选择已加载：DeepSeek / 中转站；自动识别已关闭');
