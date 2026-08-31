@@ -21,7 +21,7 @@ assert.doesNotMatch(mountBody, /applyMode\(/u, 'mount() 不得调用会改写独
 assert.match(mountBody, /syncModeUi\(\)/u, 'mount() 只同步独立记录开关 UI');
 assert.match(mountBody, /getManualProviderRoute\(\)/u, 'mount() 应从统一手动 route 读取当前接口');
 
-assert.match(loader, /RUNTIME_VERSION = 'memon71'/u, 'Loader 缓存版本必须为 memon71');
-assert.equal(manifest.version, '0.1.0-memon.71', 'manifest 版本必须为 memon71');
+assert.match(loader, /RUNTIME_VERSION = 'memon72'/u, 'Loader 缓存版本必须为 memon72');
+assert.equal(manifest.version, '0.1.0-memon.72', 'manifest 版本必须为 memon72');
 
 console.log('memo-n-provider-ui: all assertions passed');
