@@ -33,13 +33,16 @@ const bareReasoning=channels.getMemoTableEditChannel({mes:'正文',extra:{reason
 
 const read=path=>fs.readFile(new URL(path,import.meta.url),'utf8');
 const independentText=await read('../scripts/runtime/separateTableUpdate.js');const modeRuntimeText=await read('../scripts/runtime/modeRuntimeControl.js');const structureRepairText=await read('../scripts/runtime/tableStructureRepair.js');const finishText=await read('../scripts/runtime/singleApiFinish.js');const loaderText=await read('../loader.js');const indexText=await read('../index.js');const bootstrapText=await read('../scripts/runtime/settingsBootstrap.js');const engineText=await read('../scripts/engine/recordEngine.js');const envelopeText=await read('../scripts/engine/recordEnvelope.js');const providerText=await read('../scripts/runtime/providerRoute.js');const yiyiText=await read('../scripts/yiyi/yiyiMemoryRuntime.js');const uiText=await read('../scripts/ui/apiModeToggle.js');const templateText=await read('../assets/templates/index.html');const manifest=JSON.parse(await read('../manifest.json'));
-if(!loaderText.includes("RUNTIME_VERSION = 'memon79'")||!loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.79'")||manifest.version!=='0.1.0-memon.79')throw new Error('memon79版本未同步');
+if(!loaderText.includes("RUNTIME_VERSION = 'memon80'")||!loaderText.includes("PUBLIC_VERSION = '0.1.0-memon.80'")||manifest.version!=='0.1.0-memon.80')throw new Error('memon80版本未同步');
 if(!loaderText.includes('window.memoN.VERSION = PUBLIC_VERSION')||!loaderText.includes('DOMContentLoaded'))throw new Error('公开版本同步保护缺失');
 if(/\?v=memon\d+/.test(modeRuntimeText)||/\?v=memon\d+/.test(structureRepairText))throw new Error('关键runtime仍钉死旧子模块版本');
 if(loaderText.includes('singleApiStructured')||loaderText.includes('singleApiPromptRestore'))throw new Error('loader仍加载冲突旧协议层');
 if(!loaderText.includes('Memo-N一次API记录引擎')||!indexText.includes('__memoNRecordEngineActive'))throw new Error('recordEngine未成为普通一次API唯一执行入口');
 if(!modeRuntimeText.includes('bridgePromptMode()')||!modeRuntimeText.includes('CHAT_COMPLETION_SETTINGS_READY')||!modeRuntimeText.includes('forceNormalMode'))throw new Error('独立模式generation生命周期桥接缺失');
 if(modeRuntimeText.includes('makeFirst(promptEvent')||modeRuntimeText.includes('makeLast(promptEvent'))throw new Error('独立模式仍依赖未验证的PROMPT_READY监听器重排');
+if(modeRuntimeText.includes('enqueueCurrentVersion'))throw new Error('stale独立记录仍会自动排队重算');
+if(!modeRuntimeText.includes("result==='stale'")||!modeRuntimeText.includes('不会自动重试'))throw new Error('stale独立记录缺少明确不重试处理');
+if(!modeRuntimeText.includes('liveToken!==job.token')||!modeRuntimeText.includes('不自动重算'))throw new Error('过期排队任务仍可能自动重算');
 
 if(!providerText.includes("DEEPSEEK: 'deepseek'")||!providerText.includes("RELAY: 'relay'"))throw new Error('手动Provider路由缺少合法值');
 for(const forbidden of ['chat_completion_source','custom_url','reverse_proxy','modelOf','sourceOf','isDirectDeepSeek'])if(providerText.includes(forbidden))throw new Error(`providerRoute仍包含自动识别残留：${forbidden}`);
@@ -59,4 +62,4 @@ if(!independentText.includes('DEEPSEEK_RECORD_CONTRACT')||!independentText.inclu
 if(!independentText.includes('RELAY_RECORD_CONTRACT')||!independentText.includes('getTableEditTag(rawContent)'))throw new Error('独立中转tableEdit链缺失');
 if(!independentText.includes('executeMemoTableEdit(parsed.executionInput, referencePiece)')||!independentText.includes('prepareAutoBaseline')||!independentText.includes("return 'detached'")||!independentText.includes("return 'stale'"))throw new Error('独立严格执行/生命周期保护缺失');
 if(!yiyiText.includes('先输出并闭合前置<tableEdit>机器块')||!yiyiText.includes('绝不能放到前置<tableEdit>之前'))throw new Error('伊依与前置tableEdit顺序未对齐');
-console.log('memo-n engine audit PASS: version=79, generation-bridge=1, manual-route=1, normal-deepseek-json=1, normal-relay-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1');
+console.log('memo-n engine audit PASS: version=80, generation-bridge=1, stale-no-retry=1, manual-route=1, normal-deepseek-json=1, normal-relay-tableedit=1, independent-deepseek-json=1, independent-relay-tableedit=1, strict-executor=1, rollback=1');
