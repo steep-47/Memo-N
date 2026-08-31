@@ -98,7 +98,7 @@ globalThis.__memoNMocks = {
     },
 };
 
-await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine-memon70`);
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-engine-memon72`);
 
 const run = async (event, ...args) => {
     for (const handler of handlers.get(event) || []) await handler(...args);
@@ -149,7 +149,7 @@ assert.equal(deepseekReply.swipes[0], 'DeepSeek正常正文');
 assert.match(executeCalls.at(-1)?.[0] || '', /^updateRow\(0,0,/u, 'DeepSeek changes 未进入严格执行器');
 assert.equal(deepseekReply.__memoStrictExecution?.ok, true);
 
-// 2) 中转站：普通一次 API 使用正常正文 + 隐藏 tagged JSON，不再依赖 tableEdit。
+// 2) 中转站：前置 tagged JSON + 完整正文；同时强化最后 user 和最终 system。
 reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
 const relayRequest = {
@@ -160,19 +160,24 @@ const relayRequest = {
 await run(events.CHAT_COMPLETION_SETTINGS_READY, relayRequest);
 assert.equal(relayRequest.response_format, undefined, '中转站必须移除 JSON object 强制格式');
 const relayContract = relayRequest.messages.at(-1)?.content || '';
-assert.match(relayContract, /MEMO_N_CHANGES_V1/u, '中转站隐藏 JSON 契约未注入');
+assert.match(relayContract, /第一段必须先给出且只给出一个记录块/u, '中转站前置 JSON 契约未注入');
 assert.doesNotMatch(relayContract, /<tableEdit>/u, '普通中转一次 API 不得再要求 tableEdit');
+assert.match(relayRequest.messages[0]?.content || '', /MEMO_N_CHANGES_V1/u, '最后 user 消息未被中转协议强化');
+assert.equal(globalThis.__memoNLastRequestProbe?.route, 'relay');
+assert.equal(globalThis.__memoNLastRequestProbe?.lastUserReinforced, true);
+assert.equal(globalThis.__memoNLastRequestProbe?.relayTagPresent, true);
+assert.equal(globalThis.__memoNLastRequestProbe?.finalRole, 'system');
 
 const relayChanges = [{ op: 'insert', table: 4, row: null, cells: [{ column: 0, value: '赶驴老汉' }] }];
 const relayReply = {
     is_user: false,
-    mes: `中转站正常正文\n\n${envelope.RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${envelope.RELAY_TAG_END}`,
+    mes: `${envelope.RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${envelope.RELAY_TAG_END}\n中转站正常正文`,
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
 };
 currentChat.push(relayReply);
-assert.equal(await finishGenerated(1), true, '中转站 tagged JSON 严格持久化应成功');
+assert.equal(await finishGenerated(1), true, '中转站前置 tagged JSON 严格持久化应成功');
 assert.equal(relayReply.mes, '中转站正常正文');
 assert.equal(relayReply.swipes[0], '中转站正常正文');
 assert.match(executeCalls.at(-1)?.[0] || '', /^insertRow\(4,/u, '中转站 changes 未进入严格执行器');
@@ -195,13 +200,13 @@ assert.equal(await finishGenerated(1), true, 'reasoning 中的中转记录块应
 assert.equal(relayReasoning.mes, 'reasoning回退正文');
 assert.match(executeCalls.at(-1)?.[0] || '', /^updateRow\(0,0,/u);
 
-// 4) 中转站 NO_CHANGE：空数组必须安全保存快照，不产生伪变更。
+// 4) 中转站 NO_CHANGE：空数组前置记录块必须安全保存快照，不产生伪变更。
 reset();
 await run(events.GENERATION_STARTED, 'normal', {}, false);
 await run(events.CHAT_COMPLETION_SETTINGS_READY, { memo_n_record_provider: 'relay', messages: [] });
 const relayNoChange = {
     is_user: false,
-    mes: `无需变更正文\n${envelope.RELAY_TAG_START}\n[]\n${envelope.RELAY_TAG_END}`,
+    mes: `${envelope.RELAY_TAG_START}\n[]\n${envelope.RELAY_TAG_END}\n无需变更正文`,
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -257,4 +262,4 @@ assert.ok(restoreCalls.length >= 2, '保存失败必须进行基线/回滚恢复
 assert.ok(viewRefreshCalls >= 3, '成功写入的变化场景应刷新活动表格视图');
 assert.ok(updateBlockCalls >= 4, '成功持久化后应更新对应消息块');
 
-console.log('memo-n-engine-integration PASS: deepseek-json=1, relay-tagged=1, relay-reasoning=1, relay-nochange=1, relay-missing-safe=1, save-rollback=1');
+console.log('memo-n-engine-integration PASS: deepseek-json=1, relay-leading-tagged=1, relay-user-reinforce=1, request-probe=1, relay-reasoning=1, relay-nochange=1, relay-missing-safe=1, save-rollback=1');
