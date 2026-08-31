@@ -67,8 +67,6 @@ function createRouteSelector() {
         <option value="${ROUTE.DEEPSEEK}">DeepSeek</option>
         <option value="${ROUTE.RELAY}">中转站</option>
     `;
-    select.value = getManualProviderRoute();
-    select.addEventListener('change', () => applyProviderRoute(select.value, true));
 
     const hint = document.createElement('small');
     hint.className = 'toggle-description justifyLeft';
@@ -86,7 +84,6 @@ function createToggle() {
 
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.checked = readEnabled();
 
     const text = document.createElement('span');
     text.textContent = '独立记录 API';
@@ -95,9 +92,20 @@ function createToggle() {
     hint.className = 'toggle-description justifyLeft';
     hint.textContent = '（关闭：正文与填表共用1次API；开启：正文后额外调用1次API记录）';
 
-    input.addEventListener('change', () => applyMode(input.checked, true));
     label.append(input, text, hint);
     return label;
+}
+
+function bindRouteSelector(select) {
+    if (!select || select.dataset.memoRouteBound === '1') return;
+    select.dataset.memoRouteBound = '1';
+    select.addEventListener('change', () => applyProviderRoute(select.value, true));
+}
+
+function bindIndependentToggle(input) {
+    if (!input || input.dataset.memoIndependentBound === '1') return;
+    input.dataset.memoIndependentBound = '1';
+    input.addEventListener('change', () => applyMode(input.checked, true));
 }
 
 function mount() {
@@ -106,27 +114,51 @@ function mount() {
     const host = fillTime.parentElement;
     if (!host) return false;
 
-    if (!document.getElementById(ROUTE_ID)) host.insertBefore(createRouteSelector(), fillTime);
-    if (!document.getElementById(TOGGLE_ID)) host.insertBefore(createToggle(), fillTime.nextSibling);
+    let routeWrapper = document.getElementById(ROUTE_ID);
+    if (!routeWrapper) {
+        routeWrapper = createRouteSelector();
+        host.insertBefore(routeWrapper, fillTime);
+    }
+
+    let toggleWrapper = document.getElementById(TOGGLE_ID);
+    if (!toggleWrapper) {
+        toggleWrapper = createToggle();
+        host.insertBefore(toggleWrapper, fillTime.nextSibling);
+    }
+
+    const select = routeWrapper.querySelector('select');
+    const toggleInput = toggleWrapper.querySelector('input[type="checkbox"]');
+    bindRouteSelector(select);
+    bindIndependentToggle(toggleInput);
 
     applyMode(readEnabled(), false);
     const route = getManualProviderRoute();
     syncIndependentApiRoute(route);
-    const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = route;
+    if (toggleInput) toggleInput.checked = readEnabled();
     keepConfigSectionsVisible();
     requestAnimationFrame(keepConfigSectionsVisible);
-    setTimeout(keepConfigSectionsVisible, 100);
-    setTimeout(keepConfigSectionsVisible, 500);
     return true;
 }
 
-if (!mount()) {
-    const observer = new MutationObserver(() => {
-        if (mount()) observer.disconnect();
+let mountQueued = false;
+function scheduleMount() {
+    if (mountQueued) return;
+    mountQueued = true;
+    queueMicrotask(() => {
+        mountQueued = false;
+        mount();
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    setTimeout(() => observer.disconnect(), 10000);
 }
 
-console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；自动识别已关闭');
+// 设置面板在移动端可能很晚才被插入或被重新渲染。
+// 不再使用“只等10秒”的一次性观察窗口：页面整个生命周期内都允许重新挂载。
+mount();
+const observer = new MutationObserver(scheduleMount);
+observer.observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener('focus', scheduleMount);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleMount();
+});
+
+console.log('[Memo] 全部记录接口手动选择已加载：DeepSeek / 中转站；设置面板支持延迟/重渲染挂载');
