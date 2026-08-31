@@ -11,6 +11,18 @@ function getStore() {
     return root.memo_n_settings;
 }
 
+function sanitizeDeprecatedRouteFields() {
+    const store = getStore();
+    if (!store) return false;
+    let changed = false;
+    for (const key of ['use_main_api', 'step_by_step_use_main_api']) {
+        if (!Object.prototype.hasOwnProperty.call(store, key)) continue;
+        delete store[key];
+        changed = true;
+    }
+    return changed;
+}
+
 function readIndependentEnabled() {
     return getStore()?.[PREF_KEY] === true;
 }
@@ -28,9 +40,8 @@ function applyIndependentMode(enabled, save = true) {
     const store = getStore();
     if (!store) return;
     store[PREF_KEY] = enabled === true;
-    // 原插件自己的 #fill_table_time change handler 仍会把旧 step_by_step 写成持久状态。
-    // Memo-N 模式的唯一持久真值是 independent_record_api_enabled，因此用户切换后立即把旧字段归零；
-    // 真正构建主聊天 prompt 时由 modeRuntimeControl 只在事件分发期间临时桥接。
+    sanitizeDeprecatedRouteFields();
+    // step_by_step 只允许 modeRuntimeControl 在主聊天 prompt 生命周期内临时使用；用户设置切换后必须归零。
     if (USER?.tableBaseSetting) USER.tableBaseSetting.step_by_step = false;
     syncModeSections(document.querySelector('#fill_table_time'));
     if (save) USER.saveSettings?.();
@@ -39,6 +50,7 @@ function applyIndependentMode(enabled, save = true) {
 
 function applyProviderRoute(value, save = true) {
     const route = setManualProviderRoute(value);
+    sanitizeDeprecatedRouteFields();
     const select = document.querySelector(`#${ROUTE_ID} select`);
     if (select) select.value = route;
     if (save) USER.saveSettings?.();
@@ -79,10 +91,17 @@ function bindRouteSelector(select) {
 function bindFillTime(fillTime) {
     if (!fillTime || fillTime.dataset.memoIndependentBound === '1') return;
     fillTime.dataset.memoIndependentBound = '1';
-    fillTime.addEventListener('change', () => applyIndependentMode(fillTime.value === 'after', true));
+    // 原插件旧 userExtensionSetting 仍注册了 bubble change handler，会把 step_by_step 当持久模式写回。
+    // 在目标捕获阶段由 Memo-N 唯一处理并停止后续旧监听，彻底隔离旧持久字段；不影响生成期的临时 bridge。
+    fillTime.addEventListener('change', event => {
+        event.stopImmediatePropagation();
+        applyIndependentMode(fillTime.value === 'after', true);
+    }, true);
 }
 
 function mount() {
+    const legacyChanged = sanitizeDeprecatedRouteFields();
+    if (legacyChanged) USER.saveSettings?.();
     const fillTime = document.querySelector('#fill_table_time');
     if (!fillTime) return false;
     const host = fillTime.parentElement;
@@ -98,7 +117,7 @@ function mount() {
     bindRouteSelector(select);
     bindFillTime(fillTime);
 
-    // 重挂载只同步 UI；Provider 与模式值都从 Memo-N 独立设置读取，不改旧 step_by_step 主/自定义路由字段。
+    // 重挂载只同步 UI；Provider 与模式值都从 Memo-N 独立设置读取，不改生成期临时 step_by_step。
     const route = getManualProviderRoute();
     if (select) select.value = route;
     syncModeSections(fillTime);
@@ -116,7 +135,7 @@ function scheduleMount() {
 }
 
 // 设置面板在移动端可能很晚才被插入或被重新渲染。
-// 页面整个生命周期内允许重新挂载，但重挂载必须无业务副作用。
+// 页面整个生命周期内允许重新挂载，但重挂载必须无生成业务副作用。
 mount();
 const observer = new MutationObserver(scheduleMount);
 observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -124,5 +143,11 @@ window.addEventListener('focus', scheduleMount);
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleMount();
 });
+// 导入旧设置文件后再次清理废弃路由字段；文件选择 input 是动态创建的，因此在 document 捕获 change。
+document.addEventListener('change', event => {
+    if (!event.target?.matches?.('input[type="file"]')) return;
+    setTimeout(scheduleMount, 0);
+    setTimeout(scheduleMount, 250);
+}, true);
 
-console.log('[Memo] 记录接口与填表模式控制已加载：单一路由选择 + 原生填表时机选择器');
+console.log('[Memo] 记录接口与填表模式控制已加载：单一路由选择 + 旧step/use_main_api监听隔离');
