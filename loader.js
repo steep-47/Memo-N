@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon81';
-const PUBLIC_VERSION = '0.1.0-memon.81';
+const RUNTIME_VERSION = 'memon82';
+const PUBLIC_VERSION = '0.1.0-memon.82';
 
 async function loadRuntime(label, path) {
     try {
@@ -26,6 +26,8 @@ async function loadRuntime(label, path) {
 // - 所有模式最终进入同一个严格事务执行器；独立/手动链继续保留聊天切换、stale、基线、保存失败和Swipe保护。
 // - stale结果和过期排队任务只安全作废，不自动重算，避免额外API调用与重复扣费。
 // - 数据页保持一个统一横向画布：单指左右滑动同步移动全部表格，双指缩放由 pinchZoom runtime 处理。
+// - 七表职责/结构校验在请求前继续执行；表格整理按钮继续走严格tableEdit整理器，不回退到旧整表重建入口。
+// - 旧人物虚拟拆分残留会在启动时清理；Memo-N填表提示颜色/时长补丁继续生效。
 // - 中转tableEdit协议在普通一次API同时强化七表提示、最终system和最后user消息。
 // - memon70-72 tagged JSON仅保留旧回复兼容解析，不再用于新请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
@@ -33,12 +35,16 @@ async function loadRuntime(label, path) {
 // - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['七表职责与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录接口设置', './scripts/ui/apiModeToggle.js'],
+    ['严格表格整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
+    ['旧人物虚拟拆分残留清理', './scripts/ui/personTableSplit.js'],
+    ['填表提示颜色与时长', './scripts/ui/fillStatusColor.js'],
     ['表格统一横滑与双指缩放', './scripts/ui/pinchZoom.js'],
     ['伊依长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
 ];
@@ -72,4 +78,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon81 表格统一横滑与双指缩放恢复版加载完成');
+console.log('[Memo-N][loader] memon82 辅助运行时完整性恢复版加载完成');
