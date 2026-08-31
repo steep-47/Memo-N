@@ -1,7 +1,13 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
 import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';
-import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';
+import {
+    changesToStrictCalls,
+    parseRecordEnvelope,
+    parseRelayTaggedEnvelope,
+    RELAY_TAG_START,
+    RELAY_TAG_END,
+} from './recordEnvelope.js';
 
 const MARKER = '[Memo-N record envelope v1]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
@@ -70,30 +76,37 @@ ${sharedRecordRules()}
 
 function relayOutputRules() {
     return `# 输出
-- 本轮为Memo-N中转站tableEdit模式：完整正常正文结束后，必须追加且只追加一个<tableEdit>机器块；这是本轮回复的必需组成部分，不能省略。
-- 正文必须继续包含原本要求的状态栏、行动选项、伊依留言等结构；机器块不能替代正文。
-- 格式必须严格为：
-<tableEdit><!--
-updateRow(0,0,{1:"08:30"})
---></tableEdit>
-- 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-- updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
-- 七表确实没有任何事实变化时仍不得省略机器块，必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
-- tableEdit必须位于整轮回复最后；闭合标签之后不得再输出任何字符。不得输出JSON记录信封、额外哨兵、SQL、Markdown代码围栏或解释。
+- 本轮为Memo-N中转站隐藏JSON记录模式：先输出完整正常正文，正文后必须追加且只追加一个隐藏记录块。
+- 正文必须继续包含原本要求的状态栏、行动选项、伊依留言等结构；隐藏记录块不能替代正文。
+- 隐藏记录块格式必须严格为：
+${RELAY_TAG_START}
+[{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:30"}]}]
+${RELAY_TAG_END}
+- 记录块内部只能是一个JSON数组；数组元素固定使用op/table/row/cells，语义与DeepSeek changes完全一致。
+- insert的row必须为null；update/delete的row必须是真实存在的非负整数；delete的cells必须为[]。
+- 七表确实没有任何事实变化时仍不得省略记录块，必须输出空数组：
+${RELAY_TAG_START}
+[]
+${RELAY_TAG_END}
+- 隐藏记录块必须位于整轮回复最后；${RELAY_TAG_END}之后不得再输出任何字符。
+- 不得输出<tableEdit>、JSON信封根对象、SQL、Markdown代码围栏或解释。
 - 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
 }
 
 function relayContract() {
     return `${MARKER}
-本轮使用中转站直接tableEdit记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
-完整回复结束后必须追加且只追加一个tableEdit机器块，块后不得再输出任何字符：
-<tableEdit><!--
-updateRow(0,0,{1:"08:30"})
---></tableEdit>
-只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时仍必须输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。日期、时间、地点、当前场景人物发生变化时必须维护表0。
+本轮使用Memo-N中转站隐藏JSON记录协议。先正常输出给用户看的完整回复，保持原有正文、状态栏、选项和角色留言格式；不要把正文包进JSON，也不得为了记录省略任何正文组成部分。
+完整回复结束后必须追加且只追加一个隐藏记录块，结束标记后不得再输出任何字符：
+${RELAY_TAG_START}
+[{"op":"update","table":0,"row":0,"cells":[{"column":1,"value":"08:30"}]}]
+${RELAY_TAG_END}
+隐藏块内部只能是changes JSON数组。每个变更固定包含op/table/row/cells；insert的row必须为null；update/delete的row只能使用当前表格第一列真实存在的rowIndex；delete的cells必须为[]。空表首次记录只能insert。
+没有任何事实变化时仍必须输出：
+${RELAY_TAG_START}
+[]
+${RELAY_TAG_END}
 ${sharedRecordRules()}
-不得使用JSON记录信封、额外哨兵、SQL、Markdown代码围栏或解释。tableEdit之后不得再输出任何字符。`;
+不得使用<tableEdit>、JSON信封根对象、额外哨兵、SQL、Markdown代码围栏或解释。${RELAY_TAG_END}之后不得再输出任何字符。`;
 }
 
 function reinforceRelayTablePrompt(messages) {
@@ -135,7 +148,7 @@ function inject(data) {
     const context = USER.getContext?.();
     const base = lastAssistant();
     const route = getProviderRoute(data);
-    const tableEditMode = route === ROUTE.RELAY;
+    const relayMode = route === ROUTE.RELAY;
     const info = providerDebug(data);
 
     pending = {
@@ -144,29 +157,29 @@ function inject(data) {
         session: context?.chat,
         base,
         baseMes: String(base?.mes ?? ''),
-        responseMode: tableEditMode ? 'relay_tableedit' : 'json',
+        responseMode: relayMode ? 'relay_tagged' : 'json',
         route,
     };
     armed = null;
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        const reinforced = tableEditMode ? reinforceRelayTablePrompt(data.messages) : 0;
-        data.messages.push({ role: 'system', content: tableEditMode ? relayContract() : finalContract() });
-        if (tableEditMode) console.log(`[Memo-N] 中转站tableEdit约束已同步强化到七表提示｜tablePrompt=${reinforced}`);
+        const reinforced = relayMode ? reinforceRelayTablePrompt(data.messages) : 0;
+        data.messages.push({ role: 'system', content: relayMode ? relayContract() : finalContract() });
+        if (relayMode) console.log(`[Memo-N] 中转站隐藏JSON约束已同步强化到七表提示｜tablePrompt=${reinforced}`);
     }
 
     if (route === ROUTE.DEEPSEEK) {
         delete data.json_schema;
         data.response_format = { type: 'json_object' };
-        console.log(`[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封｜source=${info.source || 'unknown'}`);
-    } else if (tableEditMode) {
+        console.log(`[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封｜route=${info.route}`);
+    } else if (relayMode) {
         delete data.json_schema;
         if (data.response_format?.type === 'json_object') delete data.response_format;
-        console.log(`[Memo-N] 已接管本轮一次API：中转站直接tableEdit协议｜source=${info.source || 'unknown'}`);
+        console.log(`[Memo-N] 已接管本轮一次API：中转站隐藏JSON记录块｜route=${info.route}`);
     } else {
         data.json_schema = structuredClone(schema);
-        console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}｜source=${info.source || 'unknown'}`);
+        console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}`);
     }
 }
 
@@ -183,9 +196,9 @@ function previousSnapshot(chatId) {
     return Number.isInteger(id) && id > 0 ? BASE.getLastSheetsPiece(id - 1, 1000, false)?.piece?.memo_n_hash_sheets : BASE.initHashSheet?.()?.memo_n_hash_sheets;
 }
 function setStatus(chat, envelope, execution) {
-    const tableEdit = envelope?.tableEdit ? String(envelope.tableEdit) : JSON.stringify(envelope?.changes ?? []);
+    const record = JSON.stringify(envelope?.changes ?? []);
     Object.defineProperty(chat, '__memoStrictExecution', { configurable: true, writable: true, value: {
-        swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit,
+        swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit: record,
         ok: execution.ok === true, changed: execution.changed === true, noChange: execution.noChange === true,
         count: Number(execution.count || 0), error: String(execution.error || ''), at: Date.now(), engine: 'Memo-N',
     } });
@@ -196,27 +209,6 @@ async function preserveFailureBaseline(chatId, chat, appendMode) {
         if (!restored.ok) return false;
     }
     try { saveMemoSnapshot(chat); await USER.saveChat(); return true; } catch (error) { console.error('[Memo-N] 失败基线保存失败', error); return false; }
-}
-function parseTableEditEnvelope(raw, fallbackReply = '') {
-    const text = String(raw ?? '');
-    const open = /<tableEdit\b[^>]*>/i.exec(text);
-    if (!open) return { ok: false, error: '未找到中转站tableEdit记录块', reply: String(fallbackReply || text).trim() };
-    const regex = /<tableEdit\b[^>]*>([\s\S]*?)<\/tableEdit>/ig;
-    const match = regex.exec(text);
-    if (!match) {
-        const reply = text.slice(0, open.index).trim() || String(fallbackReply || '').trim();
-        return { ok: false, error: '中转站tableEdit记录块尚未闭合', reply };
-    }
-    if (regex.exec(text)) {
-        const reply = text.slice(0, match.index).trim() || String(fallbackReply || '').trim();
-        return { ok: false, error: '中转站tableEdit记录块重复', reply };
-    }
-    const after = text.slice(match.index + match[0].length).trim();
-    const reply = text.slice(0, match.index).trim() || String(fallbackReply || '').trim();
-    if (after) return { ok: false, error: '中转站tableEdit记录块后存在额外内容', reply };
-    const body = String(match[1] ?? '').trim();
-    if (!body) return { ok: false, error: '中转站tableEdit记录块为空', reply };
-    return { ok: true, reply, tableEdit: match[0], changes: null, noChange: /\bNO_CHANGE\b/i.test(body), error: '' };
 }
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
@@ -235,12 +227,12 @@ function selectEnvelope(chat, job, appendMode) {
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
-    if (job.responseMode === 'relay_tableedit') {
-        const contentTableEdit = content ? parseTableEditEnvelope(content) : null;
-        if (contentTableEdit?.ok) return { current, envelope: contentTableEdit, source: 'relay-tableedit-content', fingerprint };
-        const reasoningTableEdit = reasoning ? parseTableEditEnvelope(reasoning, content) : null;
-        if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'relay-tableedit-reasoning', fingerprint };
-        const envelope = contentTableEdit || reasoningTableEdit || parseTableEditEnvelope('');
+    if (job.responseMode === 'relay_tagged') {
+        const contentRelay = content ? parseRelayTaggedEnvelope(content) : null;
+        if (contentRelay?.ok) return { current, envelope: contentRelay, source: 'relay-tagged-content', fingerprint };
+        const reasoningRelay = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
+        if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'relay-tagged-reasoning', fingerprint };
+        const envelope = contentRelay || reasoningRelay || parseRelayTaggedEnvelope('');
         return { current, envelope, source: 'relay-none', fingerprint };
     }
 
@@ -290,12 +282,12 @@ async function unpack(chatId) {
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
     if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
-    if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站tableEdit');
-    if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站正文尾部读取tableEdit');
+    if (waited.source === 'relay-tagged-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站隐藏JSON记录块');
+    if (waited.source === 'relay-tagged-content') console.log('[Memo-N] 已从中转站正文尾部读取隐藏JSON记录块');
     handled.set(chat, chat.mes);
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
-    const calls = envelope.tableEdit ? [envelope.tableEdit] : changesToStrictCalls(envelope.changes);
+    const calls = changesToStrictCalls(envelope.changes);
     const execution = baseline.ok ? executeMemoTableEdit(calls, chat) : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
     setStatus(chat, envelope, execution);
     try {
@@ -354,4 +346,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek/NATIVE走JSON，中转站走双重强化tableEdit');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站走隐藏JSON记录块');
