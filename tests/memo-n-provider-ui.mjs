@@ -30,18 +30,20 @@ assert.doesNotMatch(mountBody, /tableBaseSetting\.step_by_step\s*=/u);
 assert.match(mountBody, /getManualProviderRoute\(\)/u);
 assert.match(mountBody, /syncModeSections\(fillTime\)/u);
 
-// 独立模式兼容旧 index.js：不猜同一事件监听器重排；从 GENERATION_STARTED 跨 prompt 构建桥接，SETTINGS_READY 归零。
 assert.match(modeRuntime, /function bridgePromptMode\(\)/u);
 assert.match(modeRuntime, /captureGeneration[\s\S]*bridgePromptMode\(\)/u);
 assert.match(modeRuntime, /CHAT_COMPLETION_SETTINGS_READY/u);
 assert.match(modeRuntime, /settingsReadyEvent[^\n]*forceNormalMode/u);
 assert.doesNotMatch(modeRuntime, /makeFirst\(promptEvent/u);
 assert.doesNotMatch(modeRuntime, /makeLast\(promptEvent/u);
+assert.doesNotMatch(modeRuntime, /enqueueCurrentVersion/u, 'stale结果不得自动排队重算');
+assert.match(modeRuntime, /result==='stale'[\s\S]*不会自动重试/u, 'stale必须明确安全作废且不重试');
+assert.match(modeRuntime, /liveToken!==job\.token[\s\S]*不自动重算/u, '过期排队任务不得自动重算');
 assert.doesNotMatch(modeRuntime, /\?v=memon\d+/u);
 assert.doesNotMatch(structureRepair, /\?v=memon\d+/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon79'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.79'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon80'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.80'/u);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.79');
+assert.equal(manifest.version, '0.1.0-memon.80');
 console.log('memo-n-provider-ui: all assertions passed');
