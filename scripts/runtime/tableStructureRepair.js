@@ -2,6 +2,14 @@ import { BASE, EDITOR, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 
 const guardedSheets = new WeakSet();
+const COLUMN_ALIASES = Object.freeze({
+    '角色特征表格': Object.freeze({
+        '喜欢的事物（作品、角色、物品等）': '喜欢的事物',
+        '其他重要信息': '备注',
+        '住所': '备注',
+    }),
+    '重要物品表格': Object.freeze({ '拥有者': '拥有人' }),
+});
 
 function normalize(value) { return String(value ?? '').trim(); }
 function clone(value) {
@@ -11,14 +19,13 @@ function clone(value) {
 function currentStructures() {
     return Array.isArray(USER?.tableBaseSetting?.tableStructure) ? USER.tableBaseSetting.tableStructure : [];
 }
-function structureForSheet(sheet, enabledIndex = -1) {
-    const structures = currentStructures();
-    return structures.find(item => item?.tableName === sheet?.name)
-        || structures.find(item => Number(item?.tableIndex) === Number(enabledIndex))
-        || null;
+function structureForSheet(sheet) {
+    const name = normalize(sheet?.name);
+    if (!name) return null;
+    return currentStructures().find(item => normalize(item?.tableName) === name) || null;
 }
-function standardHeaders(sheet, enabledIndex = -1) {
-    const structure = structureForSheet(sheet, enabledIndex);
+function standardHeaders(sheet) {
+    const structure = structureForSheet(sheet);
     return Array.isArray(structure?.columns) ? structure.columns.map(normalize).filter(Boolean) : [];
 }
 function splitValueSheet(valueSheet) {
@@ -32,12 +39,20 @@ function splitValueSheet(valueSheet) {
     });
     return { headers, rows, hasIndexColumn };
 }
-function rowMap(headers, row) {
+function mergeCell(previous, next) {
+    const a = normalize(previous), b = normalize(next);
+    if (!a) return next ?? '';
+    if (!b || a === b) return previous;
+    return `${previous}；${next}`;
+}
+function rowMap(headers, row, sheetName = '') {
     const map = new Map();
+    const aliases = COLUMN_ALIASES[normalize(sheetName)] || {};
     headers.forEach((header, index) => {
         if (!header) return;
+        const target = aliases[header] || header;
         const value = row?.[index] ?? '';
-        if (!map.has(header) || normalize(map.get(header)) === '') map.set(header, value);
+        map.set(target, map.has(target) ? mergeCell(map.get(target), value) : value);
     });
     return map;
 }
@@ -46,39 +61,37 @@ function currentSnapshot(sheet) {
     if (!Array.isArray(valueSheet) || !valueSheet.length) return { headers:(sheet?.getHeader?.() || []).map(normalize), rows:[] };
     return splitValueSheet(valueSheet);
 }
-function conformValueSheetToSchema(sheet, valueSheet, enabledIndex = -1) {
-    const required = standardHeaders(sheet, enabledIndex);
+function conformValueSheetToSchema(sheet, valueSheet) {
+    const required = standardHeaders(sheet);
     if (!required.length) return valueSheet;
     const old = currentSnapshot(sheet);
     const incoming = splitValueSheet(valueSheet);
     if (!incoming.headers.length) return valueSheet;
-    const extras = old.headers.filter(header => header && !required.includes(header));
-    const targetHeaders = [...required, ...extras];
     const rows = incoming.rows.map((row, rowIndex) => {
-        const incomingMap = rowMap(incoming.headers, row);
-        const oldMap = rowMap(old.headers, old.rows[rowIndex] || []);
-        return targetHeaders.map(header => {
+        const incomingMap = rowMap(incoming.headers, row, sheet.name);
+        const oldMap = rowMap(old.headers, old.rows[rowIndex] || [], sheet.name);
+        return required.map(header => {
             const direct = incomingMap.get(header);
             if (direct !== undefined && normalize(direct) !== '') return direct;
             const previous = oldMap.get(header);
             return previous !== undefined ? previous : (direct ?? '');
         });
     });
-    return [['', ...targetHeaders], ...rows.map(row => ['', ...row])];
+    return [['', ...required], ...rows.map(row => ['', ...row])];
 }
-function installWorldMemorySchemaGuard(sheet, enabledIndex = -1) {
-    if (!sheet || guardedSheets.has(sheet) || !standardHeaders(sheet, enabledIndex).length) return false;
+function installWorldMemorySchemaGuard(sheet) {
+    if (!sheet || guardedSheets.has(sheet) || !standardHeaders(sheet).length) return false;
     const original = sheet.rebuildHashSheetByValueSheet;
     if (typeof original !== 'function') return false;
     sheet.rebuildHashSheetByValueSheet = function memoSchemaGuard(valueSheet, ...args) {
-        return original.call(this, conformValueSheetToSchema(this, valueSheet, enabledIndex), ...args);
+        return original.call(this, conformValueSheetToSchema(this, valueSheet), ...args);
     };
     guardedSheets.add(sheet);
     return true;
 }
 function installCurrentWorldMemoryGuards() {
     const sheets = (BASE.getChatSheets?.() || []).filter(sheet => sheet?.enable !== false);
-    sheets.forEach((sheet, index) => installWorldMemorySchemaGuard(sheet, index));
+    sheets.forEach(sheet => installWorldMemorySchemaGuard(sheet));
 }
 function repairMissingColumnsBeforeCleanup({ notify = true } = {}) {
     const { piece } = USER.getChatPiece?.() || {};
@@ -97,25 +110,22 @@ function repairMissingColumnsBeforeCleanup({ notify = true } = {}) {
     };
     const repaired = [];
     try {
-        sheets.forEach((sheet, enabledIndex) => {
-            const required = standardHeaders(sheet, enabledIndex);
+        sheets.forEach(sheet => {
+            const required = standardHeaders(sheet);
             if (!required.length) return;
             const rawHeaders = (sheet.getHeader?.() || []).map(normalize);
-            const extras = rawHeaders.filter(header => header && !required.includes(header));
-            const targetHeaders = [...required, ...extras];
-            const needsRepair = rawHeaders.length !== targetHeaders.length || rawHeaders.some((header, index) => header !== targetHeaders[index]);
+            const needsRepair = rawHeaders.length !== required.length || rawHeaders.some((header, index) => header !== required[index]);
             if (needsRepair) {
-                const value = sheet.getContent?.(true) || [];
-                const parsed = splitValueSheet(value);
+                const parsed = splitValueSheet(sheet.getContent?.(true) || []);
                 const rows = parsed.rows.map(row => {
-                    const values = rowMap(parsed.headers, row);
-                    return targetHeaders.map(header => values.get(header) ?? '');
+                    const values = rowMap(parsed.headers, row, sheet.name);
+                    return required.map(header => values.get(header) ?? '');
                 });
-                sheet.rebuildHashSheetByValueSheet([['', ...targetHeaders], ...rows.map(row => ['', ...row])]);
+                sheet.rebuildHashSheetByValueSheet([['', ...required], ...rows.map(row => ['', ...row])]);
                 if (sheet.save(piece, true) === false) throw new Error(`保存表格 ${sheet.name} 失败`);
-                repaired.push({ tableIndex:enabledIndex, tableName:sheet.name, headers:targetHeaders });
+                repaired.push({ tableName:sheet.name, headers:[...required] });
             }
-            installWorldMemorySchemaGuard(sheet, enabledIndex);
+            installWorldMemorySchemaGuard(sheet);
         });
     } catch (error) {
         const rollbackFailures = [];
@@ -130,13 +140,12 @@ function repairMissingColumnsBeforeCleanup({ notify = true } = {}) {
     if (repaired.length) {
         USER.saveChat?.();
         try { BASE.refreshContextView?.(); updateSystemMessageTableStatus?.(); } catch (error) { console.warn('[Memo] 表头修复已提交，但视图刷新失败', error); }
-        if (notify) EDITOR.success(`已按当前模板修复 ${repaired.length} 张表的表头`);
+        if (notify) EDITOR.success(`已按当前六表模板修复 ${repaired.length} 张表的表头`);
     }
     return repaired;
 }
 
 // Do not read USER during module initialization: this module is in index.js's static import cycle.
-// Keep the exported object stable for compatibility and fill it only when runtime functions are called.
 const WORLD_MEMORY_HEADERS = {};
 function syncWorldMemoryHeaders() {
     for (const key of Object.keys(WORLD_MEMORY_HEADERS)) delete WORLD_MEMORY_HEADERS[key];
