@@ -7,7 +7,7 @@ import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon6';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './safeTableExecutor.js?v=memon6';
 import { ROUTE, getManualProviderRoute } from './providerRoute.js';
-import { changesToStrictCalls } from '../engine/recordEnvelope.js';
+import { changesToStrictCalls, parseRecordEnvelope } from '../engine/recordEnvelope.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
 const DEEP_BEGIN = 'MEMO_N_DEEPSEEK_RECORD_BEGIN';
@@ -147,8 +147,10 @@ function parseDeepSeekBlock(rawContent) {
     try { changes = JSON.parse(source.slice(start + DEEP_BEGIN.length, end).trim()); }
     catch (error) { return { ok:false, error:`DeepSeek独立记录JSON无效：${error?.message || error}` }; }
     if (!Array.isArray(changes)) return { ok:false, error:'DeepSeek独立记录内容必须是JSON数组' };
-    const calls = changesToStrictCalls(changes);
-    return { ok:true, executionInput:calls, machineBlock:machineBlockFromCalls(calls), noChange:changes.length === 0 };
+    const envelope = parseRecordEnvelope({ reply:'RECORD_ONLY', changes });
+    if (!envelope.ok) return { ok:false, error:`DeepSeek独立记录变化无效：${envelope.error}` };
+    const calls = changesToStrictCalls(envelope.changes);
+    return { ok:true, executionInput:calls, machineBlock:machineBlockFromCalls(calls), noChange:envelope.noChange === true };
 }
 function parseIndependentResult(rawContent, route) {
     if (route === ROUTE.DEEPSEEK) return parseDeepSeekBlock(rawContent);
