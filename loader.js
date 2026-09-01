@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-jsonfix4';
+const RUNTIME_VERSION = 'memon89-jsonfix5';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
