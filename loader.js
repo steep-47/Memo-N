@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-jsonfix2';
+const RUNTIME_VERSION = 'memon89-jsonfix3';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -19,7 +19,7 @@ async function loadRuntime(label, path) {
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一普通一次API协议与记录执行入口。
 // - DeepSeek/中转站不自动识别；全部记录/整理API只由“记录接口”手动指定。
-// - 普通一次API：DeepSeek走JSON reply+changes；中转站走前置tableEdit，再输出完整正文。
+// - 普通一次API：DeepSeek使用前置JSON变化块后接完整正文；中转站走前置tableEdit，再输出完整正文。
 // - 独立API/手动立即填表：DeepSeek走记录专用JSON；中转站走唯一tableEdit。
 // - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
 // - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
@@ -83,4 +83,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon89 DeepSeek JSON兼容修复版加载完成');
+console.log('[Memo-N][loader] memon89 DeepSeek 前置JSON变化块兼容版加载完成');
