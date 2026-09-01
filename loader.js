@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89';
-const PUBLIC_VERSION = '0.1.0-memon.89';
+const RUNTIME_VERSION = 'memon90';
+const PUBLIC_VERSION = '0.1.0-memon.90';
 
 async function loadRuntime(label, path) {
     try {
@@ -22,6 +22,7 @@ async function loadRuntime(label, path) {
 // - 普通一次API：DeepSeek走JSON reply+changes；中转站走前置tableEdit，再输出完整正文。
 // - 独立API/手动立即填表：DeepSeek走记录专用JSON；中转站走唯一tableEdit。
 // - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
+// - 设置页提供始终可进入的“记录模板”编辑器，普通/独立/整理模板均可直接查看与编辑。
 // - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
 // - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
 // - 每次聊天切换先清空派生Sheet实例缓存；真实表格仍只从当前聊天 chatMetadata.memo_n_sheets 重建，禁止同uid跨分档复用旧实例。
@@ -44,6 +45,7 @@ const runtimes = [
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录接口设置', './scripts/ui/apiModeToggle.js'],
+    ['可见记录模板编辑器', './scripts/ui/templateEditor.js'],
     ['严格表格整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['旧人物虚拟拆分残留清理', './scripts/ui/personTableSplit.js'],
     ['填表提示颜色与时长', './scripts/ui/fillStatusColor.js'],
@@ -82,4 +84,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon89 记录链收口与伊依独立请求隔离版加载完成');
+console.log('[Memo-N][loader] memon90 可见模板编辑与记录链稳定版加载完成');
