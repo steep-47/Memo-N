@@ -122,10 +122,12 @@ function schedule(delay = 250) {
     clearTimeout(timer);
     timer = setTimeout(() => void cleanWorldTables(), delay);
 }
+function scheduleAfterGeneration() { schedule(); }
+
 schedule(500);
 const ended = APP.event_types.GENERATION_ENDED;
 if (ended) {
-    APP.eventSource.on(ended, () => schedule());
-    APP.eventSource.makeLast?.(ended, () => schedule());
+    APP.eventSource.on(ended, scheduleAfterGeneration);
+    APP.eventSource.makeLast?.(ended, scheduleAfterGeneration);
 }
 console.log('[Memo-N] 伊依世界表隔离守卫已加载：按当前六表真实结构清理');
