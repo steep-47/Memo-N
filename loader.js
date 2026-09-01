@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-sixfix5';
+const RUNTIME_VERSION = 'memon89-jsonfix5';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -19,16 +19,16 @@ async function loadRuntime(label, path) {
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['聊天分档Sheet实例隔离', './scripts/runtime/chatSheetIsolation.js'],
-    ['当前表格规则与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
+    ['七表职责与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     // 必须先注册 GENERATION_ENDED 预解析，再加载 recordEngine。
     ['DeepSeek记录块预解析桥', './scripts/runtime/deepSeekPreParser.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
-    // SETTINGS_READY 最终守卫在 recordEngine 后覆盖旧硬编码协议，并按当前真实表格生成映射。
-    ['当前表格双路由记录守卫', './scripts/runtime/deepSeekJsonGuard.js'],
-    ['伊依世界表隔离守卫', './scripts/runtime/worldTableGuard.js'],
+    // SETTINGS_READY 最终守卫必须在 recordEngine 后加载，删除其旧整包JSON协议。
+    ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
+    ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录接口设置', './scripts/ui/apiModeToggle.js'],
     ['严格表格整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
@@ -38,7 +38,6 @@ const runtimes = [
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依预设长期记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
     ['伊依直接角色长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
-    ['伊依当前记录协议覆盖', './scripts/yiyi/yiyiProtocolOverride.js'],
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
@@ -70,4 +69,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon89 六表运行时兼容版加载完成');
+console.log('[Memo-N][loader] memon89 DeepSeek 单协议兼容版加载完成');
