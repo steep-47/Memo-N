@@ -92,9 +92,9 @@ export async function initAppHeaderTableDrawer() {
         settingContainer = header.append($('.memory_enhancement_container').find('#memory_enhancement_settings_inline_drawer_content'));
 
         const templateDrawer = buildTemplateDrawer(tableEditDom);
-        const contextRow = settingContainer.find('#separateReadContextLayers').closest('.checkbox_label');
-        if (contextRow.length) {
-            contextRow.after(templateDrawer);
+        const stepByStepOptions = settingContainer.find('#step_by_step_options');
+        if (stepByStepOptions.length) {
+            stepByStepOptions.after(templateDrawer);
         } else {
             settingContainer.append(templateDrawer);
         }
