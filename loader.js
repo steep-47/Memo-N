@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon87';
-const PUBLIC_VERSION = '0.1.0-memon.87';
+const RUNTIME_VERSION = 'memon88';
+const PUBLIC_VERSION = '0.1.0-memon.88';
 
 async function loadRuntime(label, path) {
     try {
@@ -24,6 +24,7 @@ async function loadRuntime(label, path) {
 // - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
 // - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
 // - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
+// - 每次聊天切换先清空派生Sheet实例缓存；真实表格仍只从当前聊天 chatMetadata.memo_n_sheets 重建，禁止同uid跨分档复用旧实例。
 // - Swipe严格快照恢复后，旧index Swipe/编辑监听必须被安全隔离，禁止再次按旧基线重放覆盖新快照。
 // - 所有记录最终进入同一个严格事务执行器；stale/过期任务只安全作废，不自动重算或重试。
 // - 数据页保持统一横向画布：单指横滑同步全部表格，双指缩放整个tableContainer。
@@ -34,6 +35,7 @@ async function loadRuntime(label, path) {
 // - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['聊天分档Sheet实例隔离', './scripts/runtime/chatSheetIsolation.js'],
     ['七表职责与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
@@ -80,4 +82,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon87 全运行面审计与旧事件隔离恢复版加载完成');
+console.log('[Memo-N][loader] memon88 全运行面审计与聊天分档隔离版加载完成');
