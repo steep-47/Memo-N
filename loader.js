@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-jsonfix3';
+const RUNTIME_VERSION = 'memon89-jsonfix4';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -16,23 +16,6 @@ async function loadRuntime(label, path) {
     }
 }
 
-// Memo-N 稳定运行边界：
-// - recordEngine 是唯一普通一次API协议与记录执行入口。
-// - DeepSeek/中转站不自动识别；全部记录/整理API只由“记录接口”手动指定。
-// - 普通一次API：DeepSeek使用前置JSON变化块后接完整正文；中转站走前置tableEdit，再输出完整正文。
-// - 独立API/手动立即填表：DeepSeek走记录专用JSON；中转站走唯一tableEdit。
-// - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
-// - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
-// - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
-// - 每次聊天切换先清空派生Sheet实例缓存；真实表格仍只从当前聊天 chatMetadata.memo_n_sheets 重建，禁止同uid跨分档复用旧实例。
-// - Swipe严格快照恢复后，旧index Swipe/编辑监听必须被安全隔离，禁止再次按旧基线重放覆盖新快照。
-// - 所有记录最终进入同一个严格事务执行器；stale/过期任务只安全作废，不自动重算或重试。
-// - 数据页保持统一横向画布：单指横滑同步全部表格，双指缩放整个tableContainer。
-// - 七表职责/结构校验继续在请求前执行；表格整理按钮走严格增量整理器。
-// - standaloneAPI保留原插件公开表格导出、模型列表与token估算能力，同时记录请求保持单次网络尝试。
-// - 伊依直接角色与预设桥共享独立长期记忆库；独立记录v4/v3与整理请求必须排除伊依预设注入；中转普通回复顺序固定为前置tableEdit→正文→正文末尾yiyiMemory；记忆写回在记录持久化后串行执行。
-// - memon70-72 tagged JSON仅保留旧回复兼容解析，不用于新请求。
-// - Memo-N 不改SillyTavern原始stream设置；记录失败不自动重试。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['聊天分档Sheet实例隔离', './scripts/runtime/chatSheetIsolation.js'],
@@ -40,7 +23,10 @@ const runtimes = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
+    // 必须先注册 GENERATION_ENDED 预解析，再加载 recordEngine。
+    ['DeepSeek记录块预解析桥', './scripts/runtime/deepSeekPreParser.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    // SETTINGS_READY 最终守卫必须在 recordEngine 后加载，删除其旧整包JSON协议。
     ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -83,4 +69,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon89 DeepSeek 前置JSON变化块兼容版加载完成');
+console.log('[Memo-N][loader] memon89 DeepSeek 单协议兼容版加载完成');
