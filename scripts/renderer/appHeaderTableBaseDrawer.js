@@ -7,7 +7,6 @@ let tableDrawerIcon = null;
 let tableDrawerContent = null;
 let appHeaderTableContainer = null;
 let databaseButton = null;
-let templateButton = null;
 let settingButton = null;
 let inlineDrawerHeaderContent = null;
 
@@ -15,7 +14,6 @@ let tableViewDom = null;
 let tableEditDom = null;
 let settingContainer = null;
 let databaseContentDiv = null;
-let templateContentDiv = null;
 let settingContentDiv = null;
 
 const timeOut = 200;
@@ -26,11 +24,24 @@ let currentActiveButton = null;
 function updateButtonStates(selectedButton) {
     if (currentActiveButton && currentActiveButton.is(selectedButton)) return false;
     databaseButton.css('opacity', '0.5');
-    templateButton.css('opacity', '0.5');
     settingButton.css('opacity', '0.5');
     selectedButton.css('opacity', '1');
     currentActiveButton = selectedButton;
     return true;
+}
+
+function buildTemplateDrawer(content) {
+    const drawer = $(`
+        <div id="settings-template-drawer" class="inline-drawer wide100p" style="margin-top: 8px; margin-bottom: 8px;">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <b><span>模板</span></b>
+                <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
+            </div>
+            <div class="inline-drawer-content" style="display: none; padding-top: 8px;"></div>
+        </div>
+    `);
+    drawer.find('.inline-drawer-content').append(content);
+    return drawer;
 }
 
 function setControlsCollapsed(collapsed) {
@@ -63,7 +74,6 @@ export async function initAppHeaderTableDrawer() {
     tableDrawerContent = $('#table_drawer_content');
     appHeaderTableContainer = $('#app_header_table_container');
     databaseButton = $('#database_button');
-    templateButton = $('#template_button');
     settingButton = $('#setting_button');
     inlineDrawerHeaderContent = $('#inline_drawer_header_content');
 
@@ -71,19 +81,29 @@ export async function initAppHeaderTableDrawer() {
     $('.fa-user-cog').removeClass('fa-user-cog').addClass('fa-user');
 
     if (tableViewDom === null) tableViewDom = await getChatSheetsView(-1);
-    if (tableEditDom === null) tableEditDom = await getEditView(-1);
+
+    if (tableEditDom === null) {
+        tableEditDom = $(`<div class="settings-template-content"></div>`);
+        tableEditDom.append(await getEditView(-1));
+    }
 
     if (settingContainer === null) {
         const header = $(`<div></div>`).append($(`<div style="margin: 10px 0;"></div>`).append(inlineDrawerHeaderContent));
         settingContainer = header.append($('.memory_enhancement_container').find('#memory_enhancement_settings_inline_drawer_content'));
+
+        const templateDrawer = buildTemplateDrawer(tableEditDom);
+        const contextRow = settingContainer.find('#separateReadContextLayers').closest('.checkbox_label');
+        if (contextRow.length) {
+            contextRow.after(templateDrawer);
+        } else {
+            settingContainer.append(templateDrawer);
+        }
     }
 
     databaseContentDiv = $(`<div id="database-content" style="width: 100%; height: 100%; overflow: hidden;"></div>`).append(tableViewDom);
-    templateContentDiv = $(`<div id="template-content" style="width: 100%; height: 100%; display: none; overflow: hidden;"></div>`).append(tableEditDom);
     settingContentDiv = $(`<div id="setting-content" style="width: 100%; height: 100%; display: none; overflow: hidden;"></div>`).append(settingContainer);
 
     appHeaderTableContainer.append(databaseContentDiv);
-    appHeaderTableContainer.append(templateContentDiv);
     appHeaderTableContainer.append(settingContentDiv);
 
     updateButtonStates(databaseButton);
@@ -92,10 +112,6 @@ export async function initAppHeaderTableDrawer() {
 
     databaseButton.on('click', function() {
         if (updateButtonStates(databaseButton)) switchContent(databaseContentDiv);
-    });
-
-    templateButton.on('click', function() {
-        if (updateButtonStates(templateButton)) switchContent(templateContentDiv);
     });
 
     settingButton.on('click', function() {
@@ -134,12 +150,10 @@ export async function openAppHeaderTableDrawer(target = undefined) {
         });
 
         if (target === 'database') databaseButton.trigger('click');
-        if (target === 'editor' || target === 'template') templateButton.trigger('click');
-        if (target === 'setting') settingButton.trigger('click');
+        if (target === 'setting' || target === 'editor') settingButton.trigger('click');
     } else {
         if (target === 'database') databaseButton.trigger('click');
-        if (target === 'editor' || target === 'template') templateButton.trigger('click');
-        if (target === 'setting') settingButton.trigger('click');
+        if (target === 'setting' || target === 'editor') settingButton.trigger('click');
         if (target !== undefined) return;
 
         tableDrawerIcon.toggleClass('openIcon closedIcon');
