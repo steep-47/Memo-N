@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-jsonfix5';
+const RUNTIME_VERSION = 'memon89-sixfix6';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -23,10 +23,8 @@ const runtimes = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
-    // 必须先注册 GENERATION_ENDED 预解析，再加载 recordEngine。
     ['DeepSeek记录块预解析桥', './scripts/runtime/deepSeekPreParser.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
-    // SETTINGS_READY 最终守卫必须在 recordEngine 后加载，删除其旧整包JSON协议。
     ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -46,27 +44,13 @@ function syncPublicVersion() {
     try {
         if (globalThis.window?.memoN && typeof globalThis.window.memoN === 'object') globalThis.window.memoN.VERSION = PUBLIC_VERSION;
         const tag = globalThis.document?.querySelector?.('#tableUpdateTag');
-        if (tag) {
-            tag.style.display = '';
-            tag.textContent = `v${PUBLIC_VERSION}`;
-        }
-    } catch (error) {
-        console.warn('[Memo-N][loader] 同步公开版本号失败', error);
-    }
+        if (tag) { tag.style.display = ''; tag.textContent = `v${PUBLIC_VERSION}`; }
+    } catch (error) { console.warn('[Memo-N][loader] 同步公开版本号失败', error); }
 }
-
 function schedulePublicVersionSync() {
-    syncPublicVersion();
-    queueMicrotask(syncPublicVersion);
-    setTimeout(syncPublicVersion, 0);
-    setTimeout(syncPublicVersion, 500);
+    syncPublicVersion(); queueMicrotask(syncPublicVersion); setTimeout(syncPublicVersion, 0); setTimeout(syncPublicVersion, 500);
 }
-
 schedulePublicVersionSync();
-if (globalThis.document?.readyState === 'loading') {
-    globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
-} else {
-    setTimeout(syncPublicVersion, 0);
-}
-
-console.log('[Memo-N][loader] memon89 DeepSeek 单协议兼容版加载完成');
+if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
+else setTimeout(syncPublicVersion, 0);
+console.log('[Memo-N][loader] memon89 六表运行时兼容版加载完成');
