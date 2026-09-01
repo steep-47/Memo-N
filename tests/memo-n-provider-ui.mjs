@@ -54,8 +54,8 @@ assert.doesNotMatch(swipeRestore, /\?v=memon\d+/u, 'Swipe恢复不得绑定旧�
 assert.doesNotMatch(memoryRules, /preserveSingleApiProtocol/u, '不得继续保留旧固定收尾协议');
 assert.match(memoryRules, /stripLegacyFixedProtocol/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon88'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.88'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon89'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.89'/u);
 for (const modulePath of [
     './scripts/runtime/chatSheetIsolation.js',
     './scripts/runtime/memoryContentRules.js',
@@ -73,7 +73,7 @@ assert.match(chatIsolation, /CHAT_CHANGED/u);
 assert.match(chatIsolation, /DERIVED\.any\.chatSheetMap = \{\}/u);
 assert.match(chatIsolation, /waitingTableIdMap = null/u);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.88');
+assert.equal(manifest.version, '0.1.0-memon.89');
 
 for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`));
 assert.match(defaults, /\[Memo七表独立记录v4\]/u);
@@ -97,6 +97,8 @@ assert.doesNotMatch(presetBridge, /MEMO_N_EDIT_BEGIN|纯文本哨兵/u);
 assert.match(presetBridge, /前置<tableEdit>/u);
 assert.match(presetBridge, /reply字符串末尾/u);
 assert.match(presetBridge, /let processing = false/u);
+assert.match(presetBridge, /\[Memo七表独立记录v4\]/u);
+assert.match(presetBridge, /\[Memo七表独立记录v3\]/u);
 assert.match(yiyiRuntime, /waitRecordPersistence\(chat\)/u);
 assert.doesNotMatch(yiyiRuntime, /CHARACTER_MESSAGE_RENDERED,\s*onMessage/u);
 assert.match(yiyiRuntime, /ledger\(chat\)\[ledgerKey\(chat\)\]/u);
