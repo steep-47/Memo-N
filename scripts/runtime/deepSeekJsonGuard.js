@@ -1,7 +1,8 @@
-import { APP, BASE, USER } from '../../core/manager.js';
+import { APP, BASE } from '../../core/manager.js';
 import { ROUTE, getProviderRoute } from './providerRoute.js';
 
 const RECORD_MARKER = '[Memo-N record envelope v1]';
+const GUARD_MARKER = '[Memo-N DeepSeek JSON最终校验]';
 
 function isManagedRecordRequest(data) {
     if (!data || typeof data !== 'object') return false;
@@ -29,71 +30,33 @@ function tableMapText() {
     }).join('\n');
 }
 
-function buildSchema() {
-    const sheets = currentWorldSheets();
-    const maxTable = Math.max(0, sheets.length - 1);
-    return {
-        name: 'memo_n_record_envelope',
-        strict: true,
-        value: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-                reply: { type: 'string' },
-                changes: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                            op: { type: 'string', enum: ['insert', 'update', 'delete'] },
-                            table: { type: 'integer', minimum: 0, maximum: maxTable },
-                            row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
-                            cells: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    properties: {
-                                        column: { type: 'integer', minimum: 0 },
-                                        value: { anyOf: [{ type: 'string' }, { type: 'number' }] },
-                                    },
-                                    required: ['column', 'value'],
-                                },
-                            },
-                        },
-                        required: ['op', 'table', 'row', 'cells'],
-                    },
-                },
-            },
-            required: ['reply', 'changes'],
-        },
-    };
-}
-
 function reinforceDeepSeekJson(data) {
     if (!isManagedRecordRequest(data)) return;
 
-    // SillyTavern 的 Chat Completion 扩展负载原生识别 json_schema；
-    // 同时保留 DeepSeek 原生 json_object 提示，避免只写 response_format 时约束未真正落到请求。
-    data.json_schema = buildSchema();
-    data.response_format = { type: 'json_object' };
+    // 当前 Chat Completion API / 模型会直接拒绝 response_format/json_schema，
+    // 因此 DeepSeek 模式只使用提示词约束 JSON，不再发送任何结构化输出 API 字段。
+    delete data.json_schema;
+    delete data.response_format;
 
-    const messages = Array.isArray(data.messages) ? data.messages : [];
-    messages.push({
+    if (!Array.isArray(data.messages)) return;
+    data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(GUARD_MARKER));
+    data.messages.push({
         role: 'system',
-        content: `[Memo-N DeepSeek JSON最终校验]\n下面“当前实际表格映射”覆盖前文任何旧的七表名称或列号描述：\n${tableMapText()}\n最终响应必须从字符 { 开始、以字符 } 结束，且只能是一个JSON对象：{"reply":"完整正常正文","changes":[]}。reply内可以包含原本要求的状态栏、选项、列表或其他正文格式，但这些内容必须作为JSON字符串的一部分，不能直接出现在JSON对象外。changes只能引用上面的真实table/column；没有可确认变化时使用空数组。禁止顶层数组、Markdown代码围栏、tableEdit和JSON外文字。`,
+        content: `${GUARD_MARKER}\n下面“当前实际表格映射”覆盖前文任何旧的七表名称或列号描述：\n${tableMapText()}\n\n本轮最终输出必须严格是一个 JSON 对象，不能输出顶层数组，也不能在 JSON 前后输出任何正文、Markdown 或解释。第一个字符必须是 {，最后一个字符必须是 }。固定结构：\n{"reply":"完整正常正文","changes":[]}\nreply 必须包含原本要求的全部正文、状态栏、选项和留言；这些内容都必须放在 reply 字符串里面。changes 只能引用上面的真实 table/column。没有可确认变化时 changes 为 []。`,
     });
 
     globalThis.__memoNDeepSeekJsonGuardProbe = Object.freeze({
         at: Date.now(),
         tableCount: currentWorldSheets().length,
-        jsonSchema: true,
-        jsonObject: true,
+        jsonSchema: false,
+        responseFormat: false,
+        promptOnlyJson: true,
     });
+
+    console.log('[Memo-N] DeepSeek JSON兼容模式：已移除当前API不支持的response_format/json_schema，仅保留最终JSON提示约束');
 }
 
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, reinforceDeepSeekJson);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, reinforceDeepSeekJson);
 
-console.log('[Memo-N] DeepSeek JSON最终校验已加载：使用SillyTavern json_schema + DeepSeek json_object，且按当前真实表格动态约束');
+console.log('[Memo-N] DeepSeek JSON兼容守卫已加载：不再发送response_format/json_schema');
