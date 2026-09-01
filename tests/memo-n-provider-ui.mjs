@@ -8,6 +8,7 @@ const managerTemplate = fs.readFileSync(new URL('../assets/templates/manager.htm
 const template = fs.readFileSync(new URL('../assets/templates/index.html', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../loader.js', import.meta.url), 'utf8');
 const modeRuntime = fs.readFileSync(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
+const chatIsolation = fs.readFileSync(new URL('../scripts/runtime/chatSheetIsolation.js', import.meta.url), 'utf8');
 const structureRepair = fs.readFileSync(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
 const swipeRestore = fs.readFileSync(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
 const memoryRules = fs.readFileSync(new URL('../scripts/runtime/memoryContentRules.js', import.meta.url), 'utf8');
@@ -53,9 +54,10 @@ assert.doesNotMatch(swipeRestore, /\?v=memon\d+/u, 'Swipe恢复不得绑定旧�
 assert.doesNotMatch(memoryRules, /preserveSingleApiProtocol/u, '不得继续保留旧固定收尾协议');
 assert.match(memoryRules, /stripLegacyFixedProtocol/u);
 
-assert.match(loader, /RUNTIME_VERSION = 'memon87'/u);
-assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.87'/u);
+assert.match(loader, /RUNTIME_VERSION = 'memon88'/u);
+assert.match(loader, /PUBLIC_VERSION = '0\.1\.0-memon\.88'/u);
 for (const modulePath of [
+    './scripts/runtime/chatSheetIsolation.js',
     './scripts/runtime/memoryContentRules.js',
     './scripts/runtime/swipeSnapshotRestore.js',
     './scripts/runtime/legacyEventSafety.js',
@@ -67,8 +69,11 @@ for (const modulePath of [
     './scripts/yiyi/yiyiPresetMemoryBridge.js',
     './scripts/yiyi/yiyiMemoryRuntime.js',
 ]) assert.ok(loader.includes(modulePath), `loader遗漏运行时：${modulePath}`);
+assert.match(chatIsolation, /CHAT_CHANGED/u);
+assert.match(chatIsolation, /DERIVED\.any\.chatSheetMap = \{\}/u);
+assert.match(chatIsolation, /waitingTableIdMap = null/u);
 assert.match(loader, /window\.memoN\.VERSION = PUBLIC_VERSION/u);
-assert.equal(manifest.version, '0.1.0-memon.87');
+assert.equal(manifest.version, '0.1.0-memon.88');
 
 for (const name of ['ext_getAllTables','ext_exportAllTablesAsJson','estimateTokenCount','updateModelList']) assert.match(standalone, new RegExp(`export\\s+(?:async\\s+)?function\\s+${name}\\b`));
 assert.match(defaults, /\[Memo七表独立记录v4\]/u);
