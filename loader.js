@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-sixfix4';
+const RUNTIME_VERSION = 'memon89-sixfix5';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -19,6 +19,7 @@ async function loadRuntime(label, path) {
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['聊天分档Sheet实例隔离', './scripts/runtime/chatSheetIsolation.js'],
+    ['当前表格规则与请求前结构校验', './scripts/runtime/memoryContentRules.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
