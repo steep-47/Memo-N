@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-sixfix1';
+const RUNTIME_VERSION = 'memon89-sixfix2';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -37,6 +37,7 @@ const runtimes = [
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依预设长期记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
     ['伊依直接角色长期记忆', './scripts/yiyi/yiyiMemoryRuntime.js'],
+    ['伊依当前记录协议覆盖', './scripts/yiyi/yiyiProtocolOverride.js'],
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
