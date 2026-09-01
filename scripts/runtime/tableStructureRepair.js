@@ -135,6 +135,27 @@ function repairMissingColumnsBeforeCleanup({ notify = true } = {}) {
     return repaired;
 }
 
-const WORLD_MEMORY_HEADERS = Object.fromEntries(currentStructures().map(item => [item?.tableName, Array.isArray(item?.columns) ? [...item.columns] : []]));
+// Do not read USER during module initialization: this module is in index.js's static import cycle.
+// Keep the exported object stable for compatibility and fill it only when runtime functions are called.
+const WORLD_MEMORY_HEADERS = {};
+function syncWorldMemoryHeaders() {
+    for (const key of Object.keys(WORLD_MEMORY_HEADERS)) delete WORLD_MEMORY_HEADERS[key];
+    for (const item of currentStructures()) {
+        const name = normalize(item?.tableName);
+        if (!name) continue;
+        WORLD_MEMORY_HEADERS[name] = Array.isArray(item?.columns) ? [...item.columns] : [];
+    }
+    return WORLD_MEMORY_HEADERS;
+}
+const originalInstallCurrentWorldMemoryGuards = installCurrentWorldMemoryGuards;
+installCurrentWorldMemoryGuards = function installCurrentWorldMemoryGuardsLazy() {
+    syncWorldMemoryHeaders();
+    return originalInstallCurrentWorldMemoryGuards();
+};
+const originalRepairMissingColumnsBeforeCleanup = repairMissingColumnsBeforeCleanup;
+repairMissingColumnsBeforeCleanup = function repairMissingColumnsBeforeCleanupLazy(options) {
+    syncWorldMemoryHeaders();
+    return originalRepairMissingColumnsBeforeCleanup(options);
+};
 
 export { WORLD_MEMORY_HEADERS, conformValueSheetToSchema, installCurrentWorldMemoryGuards, installWorldMemorySchemaGuard, repairMissingColumnsBeforeCleanup };
