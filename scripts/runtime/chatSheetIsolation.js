@@ -21,6 +21,8 @@ if (!globalThis[INSTALL_FLAG]) {
     globalThis[INSTALL_FLAG] = true;
     const changed = APP?.event_types?.CHAT_CHANGED;
     if (changed) {
+        // 只注册一次；makeFirst 负责调整同一个命名函数的既有监听顺序。
+        // 不再先 on() 再 makeFirst()，避免某些事件实现把它当成两次独立注册而重复执行。
         APP.eventSource.on(changed, resetChatSheetInstances);
         APP.eventSource.makeFirst?.(changed, resetChatSheetInstances);
     } else {
