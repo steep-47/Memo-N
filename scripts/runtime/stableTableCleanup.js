@@ -5,7 +5,7 @@ import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js';
 import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js';
 import { ROUTE, getManualProviderRoute } from './providerRoute.js';
-import { changesToStrictCalls } from '../engine/recordEnvelope.js';
+import { changesToStrictCalls, parseRecordEnvelope } from '../engine/recordEnvelope.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
 const INSTALL_FLAG = '__memoStableTableCleanupInstalled';
@@ -91,9 +91,11 @@ function parseDeepSeek(rawContent) {
     try { changes = JSON.parse(source.slice(start + DEEP_BEGIN.length, end).trim()); }
     catch (error) { return { ok:false, error:`DeepSeek整理JSON无效：${error?.message || error}` }; }
     if (!Array.isArray(changes)) return { ok:false, error:'DeepSeek整理内容必须是JSON数组' };
-    const executionInput = changesToStrictCalls(changes);
-    const parsed = parseMemoTableEdit(executionInput.length ? executionInput : 'NO_CHANGE');
-    return parsed.ok ? { ok:true, parsed, executionInput:executionInput.length ? executionInput : ['NO_CHANGE'] } : { ok:false, error:parsed.error };
+    const envelope = parseRecordEnvelope({ reply:'CLEANUP_ONLY', changes });
+    if (!envelope.ok) return { ok:false, error:`DeepSeek整理变化无效：${envelope.error}` };
+    const executionInput = changesToStrictCalls(envelope.changes);
+    const parsed = parseMemoTableEdit(executionInput);
+    return parsed.ok ? { ok:true, parsed, executionInput } : { ok:false, error:parsed.error };
 }
 function parseCleanupResponse(rawContent, route) {
     if (route === ROUTE.DEEPSEEK) return parseDeepSeek(rawContent);
