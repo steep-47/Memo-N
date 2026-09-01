@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-jsonfix1';
+const RUNTIME_VERSION = 'memon89-jsonfix2';
 const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
@@ -41,7 +41,7 @@ const runtimes = [
     ['旧Swipe与消息编辑安全隔离', './scripts/runtime/legacyEventSafety.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
-    ['DeepSeek JSON最终校验', './scripts/runtime/deepSeekJsonGuard.js'],
+    ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录接口设置', './scripts/ui/apiModeToggle.js'],
@@ -83,4 +83,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon89 记录链收口与伊依独立请求隔离版加载完成');
+console.log('[Memo-N][loader] memon89 DeepSeek JSON兼容修复版加载完成');
