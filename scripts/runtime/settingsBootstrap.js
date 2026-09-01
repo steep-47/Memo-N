@@ -35,7 +35,20 @@ function normalizeTableStructure(store) {
 
     const standard = defaults.map((definition, index) => {
         const existing = byName.get(definition.tableName);
-        return { ...clone(definition), ...(existing ? clone(existing) : {}), tableName: definition.tableName, tableIndex: index };
+        const preserved = existing ? clone(existing) : {};
+        // Standard table identity and schema come from the current six-table template.
+        // Preserve user-facing switches/notes, but never let an old saved columns array
+        // overwrite the current schema again.
+        delete preserved.tableName;
+        delete preserved.tableIndex;
+        delete preserved.columns;
+        return {
+            ...clone(definition),
+            ...preserved,
+            tableName: definition.tableName,
+            tableIndex: index,
+            columns: clone(definition.columns),
+        };
     });
 
     const custom = [];
