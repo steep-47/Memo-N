@@ -2,7 +2,7 @@ import { APP, BASE, USER } from '../../core/manager.js';
 import { ROUTE, getProviderRoute } from './providerRoute.js';
 
 const RECORD_MARKER = '[Memo-N record envelope v1]';
-const GUARD_MARKER = '[Memo-N DeepSeek JSON兼容块 v3]';
+const GUARD_MARKER = '[Memo-N DeepSeek JSON兼容块 v4]';
 const BLOCK_BEGIN = 'MEMO_N_DEEPSEEK_JSON_BEGIN';
 const BLOCK_END = 'MEMO_N_DEEPSEEK_JSON_END';
 let pendingDeepSeek = false;
@@ -41,15 +41,13 @@ function reinforceDeepSeekJson(data) {
     delete data.response_format;
 
     if (!Array.isArray(data.messages)) return;
-    // recordEngine 先注入的“整篇 reply+changes JSON”与兼容块协议互相冲突。
-    // DeepSeek 路径在最终发送前必须删除旧协议，只保留一个机器格式要求。
     data.messages = data.messages.filter(message => {
         const content = String(message?.content ?? '');
-        return !content.includes(RECORD_MARKER) && !content.includes(GUARD_MARKER);
+        return !content.includes(RECORD_MARKER) && !content.includes('[Memo-N DeepSeek JSON兼容块');
     });
     data.messages.push({
         role: 'system',
-        content: `${GUARD_MARKER}\n本轮只使用下面这一种记录格式。不要把完整正文放进JSON。\n\n实际输出必须严格按顺序：\n${BLOCK_BEGIN}\n[]\n${BLOCK_END}\n然后立刻输出原本要求的完整正常正文、状态栏、选项和留言。\n\nBEGIN/END 中间只能是一个合法JSON数组，表示本轮表格变化；没有变化就写[]。数组元素固定格式：\n{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}\ninsert 的 row 必须为 null；update/delete 的 row 必须使用当前表格真实存在的行号；delete 的 cells 必须为 []。\n\n当前实际表格映射：\n${tableMapText()}\n\n机器块必须完整闭合并位于正文之前。正文保持原角色卡/预设要求。禁止 tableEdit、Markdown代码围栏、额外机器块、第二份JSON，也禁止输出 {"reply":...} 信封。`,
+        content: `${GUARD_MARKER}\n输出正常正文之前，先完成一次很短的Memo记录头。记录头不是正文，不要省略，也不要把正文塞进JSON。\n\n回复必须从下面两行开始：\n${BLOCK_BEGIN}\n[]\n${BLOCK_END}\n\n其中BEGIN/END之间只能放一个合法JSON数组。若本轮有明确表格变化，把[]替换为变化数组；没有变化就保持[]。之后立即继续原本要求的完整正常正文、状态栏、选项和留言。\n\n变化元素格式：\n{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}\ninsert的row为null；update/delete的row只能抄当前表格真实存在的行号；delete的cells为[]。\n\n当前实际表格映射：\n${tableMapText()}\n\n优先保证记录头完整闭合；正文保持原角色卡/预设要求。不要输出tableEdit、Markdown代码围栏、第二份机器块或{\"reply\":...}信封。`,
     });
 
     globalThis.__memoNDeepSeekJsonGuardProbe = Object.freeze({
@@ -61,7 +59,7 @@ function reinforceDeepSeekJson(data) {
         taggedJsonBlock: true,
     });
 
-    console.log('[Memo-N] DeepSeek兼容模式：已删除旧整包JSON协议，仅保留前置JSON变化块 + 正常正文');
+    console.log('[Memo-N] DeepSeek兼容模式：前置短JSON变化块 + 正常正文');
 }
 
 function latestAssistant() {
@@ -106,7 +104,15 @@ function normalizeDeepSeekReplyBeforeRecordEngine() {
     const fromContent = extractBlock(content);
     const fromReasoning = fromContent ? null : extractBlock(reasoningText(chat));
     const parsed = fromContent || fromReasoning;
-    if (!parsed) return;
+
+    if (!parsed) {
+        if (!content) return;
+        // DeepSeek偶尔完全忽略记录头并直接输出正文。此时绝不能把正文交给JSON解析器，
+        // 也不能从正文猜表格变化；安全降级为“正文保留 + 本轮无机器记录”。
+        chat.mes = JSON.stringify({ reply: content, changes: [] });
+        console.warn('[Memo-N] DeepSeek未返回可解析记录头：已保留正文并安全降级为空变化，不自动重试');
+        return;
+    }
 
     const reply = (fromContent ? parsed.visible : content).trim();
     if (!reply) return;
@@ -120,4 +126,4 @@ globalThis.__memoNNormalizeDeepSeekReply = normalizeDeepSeekReplyBeforeRecordEng
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, reinforceDeepSeekJson);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, reinforceDeepSeekJson);
 
-console.log('[Memo-N] DeepSeek JSON兼容守卫已加载：单一前置JSON变化块协议');
+console.log('[Memo-N] DeepSeek JSON兼容守卫已加载：短记录头 + 正文安全降级');
