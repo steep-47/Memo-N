@@ -39,11 +39,11 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
 - 伊依是后台陪伴者，不是剧情世界实体；伊依自身关系、情绪与共同经历只进入伊依独立长期记忆，不写入世界六表。
 # 六表职责
 - 表0“时空表格”：只保留当前日期、时间、地点（当前描写）、此地角色；时空或在场人物变化时更新，原则上保持一行。
-- 表1“角色特征表格”：记录角色较稳定或持续的身体特征、性格、职业、爱好、喜欢的事物、住所和其他重要信息；不要因一次性状态重复建行。
-- 表2“角色与社交表格”：记录角色与<user>的关系、态度和好感度等社交状态；同一角色优先更新已有行。
-- 表3“任务、命令或者约定表格”：记录仍需执行或遵守的任务、命令、约定及地点/持续时间；已明确完成、取消或失效时按表规则删除。
-- 表4“重要事件历史表格”：只记录以后仍值得记住的重要既成事件，不把普通日常写成流水账。
-- 表5“重要物品表格”：只记录对某人贵重、具有特殊意义或以后仍值得追踪的物品；普通库存不因此全部写入。
+- 表1“角色特征表格”：记录角色较稳定或持续的身体特征、性格、职业、爱好、喜欢的事物和其他重要信息；不要因一次性状态重复建行。
+- 表2“角色与社交表格”：记录角色与<user>的关系、态度、好感度及重要社交关系；同一角色优先更新已有行。
+- 表3“任务、命令或者约定表格”：记录仍需执行或遵守的任务、命令、约定及其完成条件、状态和负责人；已明确完成、取消或失效时按表规则删除。
+- 表4“重要事件历史表格”：只记录以后仍值得记住的重要既成事件及其影响，不把普通日常写成流水账。
+- 表5“重要物品表格”：只记录对某人贵重、具有特殊意义或以后仍值得追踪的物品及其当前状态；普通库存不因此全部写入。
 # 输出
 - 本段只规定“应记录哪些事实”，不规定最终机器格式。
 - 最终JSON变化块或<tableEdit>格式只服从本轮Memo-N按“记录接口”注入的唯一协议，不得自行混用。
@@ -81,10 +81,10 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     separateReadLorebook: false,
     tableStructure: [
         {tableName:'时空表格',tableIndex:0,columns:['日期','时间','地点（当前描写）','此地角色'],enable:true,Required:true,asStatus:true,toChat:true,note:'用于记录时空信息的表格，应保持只有一行',initNode:'本轮需要使用insertRow函数记录当前时间、地点、角色信息',updateNode:'当描写场景、时间或角色发生变化时',deleteNode:'如果本表超过一行，应删除多余行'},
-        {tableName:'角色特征表格',tableIndex:1,columns:['角色名','身体特征','性格','职业','爱好','喜欢的事物（作品、角色、物品等）','住所','其他重要信息'],enable:true,Required:true,asStatus:true,toChat:true,note:'记录角色先天或难以改变的特征。本轮若这些角色出现，需要考虑其应有反应。',initNode:'本轮必须从上下文中找出所有已知角色并使用insertRow插入，角色名不能为空。',insertNode:'本轮出现表中没有的新角色时应插入。',updateNode:'角色身体发生持续性变化，例如伤疤 / 角色产生新的爱好、职业、喜欢的事物 / 角色改变住所 / 角色提到重要信息时。',deleteNode:''},
-        {tableName:'角色与社交表格',tableIndex:2,columns:['角色名','对<user>关系','对<user>态度','对<user>好感度'],enable:true,Required:true,asStatus:true,toChat:true,note:'角色与<user>互动时应考虑其态度。',initNode:'本轮必须从上下文中找出所有已知角色并使用insertRow插入，角色名不能为空。',insertNode:'本轮出现表中没有的新角色时应插入。',updateNode:'角色与<user>的互动已不符合现有记录 / 角色与<user>的关系发生变化时。',deleteNode:''},
-        {tableName:'任务、命令或者约定表格',tableIndex:3,columns:['角色','任务','地点','持续时间'],enable:true,Required:false,asStatus:true,toChat:true,note:'本轮应考虑是否存在需要执行的任务或遵守的约定。',insertNode:'约定在特定时间一起做某事 / 角色收到需要完成某事的命令或任务时。',updateNode:'',deleteNode:'所有人完成约定 / 任务或命令完成 / 任务、命令或约定被取消时。'},
-        {tableName:'重要事件历史表格',tableIndex:4,columns:['角色','事件简述','日期','地点','情绪'],enable:true,Required:true,asStatus:true,toChat:true,note:'记录<user>或角色经历的重要事件。',initNode:'本轮必须从上下文中找出可插入的重要事件并使用insertRow插入。',insertNode:'角色经历值得记忆的重要事件，例如告白、分手等。',updateNode:'',deleteNode:''},
-        {tableName:'重要物品表格',tableIndex:5,columns:['拥有人','物品描述','物品名','重要原因'],enable:true,Required:false,asStatus:true,toChat:true,note:'对某人非常贵重或具有特殊纪念意义的物品。',insertNode:'某人获得贵重或具有特殊意义的物品 / 已有物品获得特殊意义时。',updateNode:'',deleteNode:''},
+        {tableName:'角色特征表格',tableIndex:1,columns:['角色名','身体特征','性格','职业','爱好','喜欢的事物','讨厌的事物','备注'],enable:true,Required:true,asStatus:true,toChat:true,note:'记录角色稳定或持续的个人特征。',initNode:'本轮从上下文中找出已明确的角色并插入，角色名不能为空。',insertNode:'本轮出现表中没有的新角色且有值得长期记录的稳定特征时插入。',updateNode:'角色稳定特征发生明确变化或获得新的长期信息时。',deleteNode:''},
+        {tableName:'角色与社交表格',tableIndex:2,columns:['角色名','对<user>关系','对<user>态度','对<user>好感度','社交圈','与其他角色关系','备注'],enable:true,Required:true,asStatus:true,toChat:true,note:'记录角色与<user>及其他角色之间的重要社交状态。',initNode:'本轮从上下文中找出已明确的角色并插入，角色名不能为空。',insertNode:'本轮出现表中没有的新角色且存在值得记录的社交信息时插入。',updateNode:'角色关系、态度、好感或重要社交关系发生明确变化时。',deleteNode:''},
+        {tableName:'任务、命令或者约定表格',tableIndex:3,columns:['角色','任务','地点','持续时间','完成条件','状态','负责人','备注'],enable:true,Required:false,asStatus:true,toChat:true,note:'记录仍需执行或遵守的任务、命令和约定。',insertNode:'出现新的任务、命令或约定时。',updateNode:'执行状态、负责人、地点、期限或完成条件发生明确变化时。',deleteNode:'任务、命令或约定明确完成、取消或失效且无需继续追踪时。'},
+        {tableName:'重要事件历史表格',tableIndex:4,columns:['角色','事件简述','日期','地点','情绪','影响','相关人物','备注'],enable:true,Required:true,asStatus:true,toChat:true,note:'记录以后仍值得记住的重要既成事件。',initNode:'本轮从上下文中找出值得长期保留的重要事件并插入。',insertNode:'发生对人物、关系、目标或后续剧情有持续影响的重要事件时。',updateNode:'已有事件的影响或关联信息获得明确补充时。',deleteNode:''},
+        {tableName:'重要物品表格',tableIndex:5,columns:['拥有人','物品描述','物品名','重要原因','当前状态','地点','备注'],enable:true,Required:false,asStatus:true,toChat:true,note:'记录贵重、具有特殊意义或以后仍值得追踪的物品。',insertNode:'某人获得贵重或具有特殊意义的物品，或已有物品获得特殊意义时。',updateNode:'物品所有权、状态、地点或重要意义发生明确变化时。',deleteNode:'物品明确永久失去、销毁且无需继续追踪时。'},
     ],
 });
