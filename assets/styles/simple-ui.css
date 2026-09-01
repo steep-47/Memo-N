@@ -1,11 +1,27 @@
 @import url("./style.css");
 
-/* 只隐藏真正的调试/废弃控件。Memo-N 原有的消息模板、独立记录模板、总结模板、
- * 填表模式、独立 API 配置和前端表格设置都必须保持可见，不能被简化皮肤吞掉。 */
 #table_debug_log_button,
 .checkbox_label:has(> #table_switch_debug_mode),
+h4[data-i18n="Message template"],
+div:has(> #dataTable_message_template),
+div:has(> #dataTable_injection_mode),
+label[for="fill_table_time"],
+#fill_table_time,
+#reply_options,
 #step_by_step_options > .checkbox_label:first-child > #step_by_step_use_main_api,
-#step_by_step_options > .checkbox_label:first-child > #step_by_step_use_main_api + span {
+#step_by_step_options > .checkbox_label:first-child > #step_by_step_use_main_api + span,
+#step_by_step_options > .checkbox_label:first-child > label[for="separateReadLorebook"],
+#step_by_step_options > .checkbox_label:first-child > #separateReadLorebook,
+#step_by_step_options > .checkbox_label:first-child > small,
+.checkbox_label:has(> #confirm_before_execution),
+.inline-drawer:has(#custom_api_url),
+#step_by_step_user_prompt,
+label[for="step_by_step_user_prompt"],
+label[for="step_by_step_user_prompt"] ~ .toggle-description,
+#reset_step_by_step_user_prompt,
+#step_by_step_options > div:has(#step_by_step_user_prompt),
+.inline-drawer:has(#rebuild--select),
+.flex1.wide100p:has(#show_settings_in_extension_menu) {
     display: none !important;
 }
 

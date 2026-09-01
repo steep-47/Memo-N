@@ -108,6 +108,7 @@ export async function initAppHeaderTableDrawer() {
 
     updateButtonStates(databaseButton);
     bindControlsCollapse();
+    // 数据控制区默认折叠；需要时点击右上角箭头展开。
     setControlsCollapsed(true);
 
     databaseButton.on('click', function() {
@@ -152,10 +153,6 @@ export async function openAppHeaderTableDrawer(target = undefined) {
         if (target === 'database') databaseButton.trigger('click');
         if (target === 'setting' || target === 'editor') settingButton.trigger('click');
     } else {
-        if (target === 'database') databaseButton.trigger('click');
-        if (target === 'setting' || target === 'editor') settingButton.trigger('click');
-        if (target !== undefined) return;
-
         tableDrawerIcon.toggleClass('openIcon closedIcon');
         tableDrawerContent.toggleClass('openDrawer closedDrawer');
         tableDrawerContent.addClass('resizing').each((_, el) => {

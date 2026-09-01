@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon92';
-const PUBLIC_VERSION = '0.1.0-memon.92';
+const RUNTIME_VERSION = 'memon89';
+const PUBLIC_VERSION = '0.1.0-memon.89';
 
 async function loadRuntime(label, path) {
     try {
@@ -22,7 +22,6 @@ async function loadRuntime(label, path) {
 // - 普通一次API：DeepSeek走JSON reply+changes；中转站走前置tableEdit，再输出完整正文。
 // - 独立API/手动立即填表：DeepSeek走记录专用JSON；中转站走唯一tableEdit。
 // - 基础消息模板、独立填表模板、整理模板本身全部保持传输格式中立，最终协议只在请求末尾注入。
-// - 表格结构“模板”编辑器保留在“设置”页内，继续使用原 tableTemplateEditView，不额外新增顶部模板页。
 // - 表格整理继续保留用户的“总结模板”选择与自定义模板；模板只提供整理语义，最终机器格式仍服从手动记录接口。
 // - “填表行为发生在”是唯一模式选择；旧 step_by_step 只作运行时兼容桥。
 // - 每次聊天切换先清空派生Sheet实例缓存；真实表格仍只从当前聊天 chatMetadata.memo_n_sheets 重建，禁止同uid跨分档复用旧实例。
@@ -83,4 +82,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] memon92 设置内表格模板恢复版加载完成');
+console.log('[Memo-N][loader] memon89 记录链收口与伊依独立请求隔离版加载完成');
