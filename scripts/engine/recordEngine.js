@@ -11,7 +11,6 @@ import {
 const MARKER = '[Memo-N record envelope v1]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
 const OUTPUT_HEADING = '# 输出';
-const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
@@ -42,9 +41,12 @@ function preparePrompt() {
 }
 
 function liveColumnMap() {
-    const sheets = BASE.getChatSheets?.() ?? [];
-    return WORLD_TABLE_NAMES.map((name, tableIndex) => {
-        const sheet = sheets.find(item => item?.name === name);
+    const sheets = (BASE.getChatSheets?.() ?? [])
+        .filter(sheet => sheet?.enable !== false)
+        .filter(sheet => sheet?.sendToContext !== false);
+    if (!sheets.length) return '当前没有可写表格。';
+    return sheets.map((sheet, tableIndex) => {
+        const name = String(sheet?.name ?? `表${tableIndex}`);
         const headers = (sheet?.getHeader?.() ?? []).map(value => String(value ?? '').trim()).filter(Boolean);
         if (!headers.length) return `#${tableIndex} ${name}：当前无法读取表头，本轮不得写此表`;
         return `#${tableIndex} ${name}：${headers.map((header, column) => `${column}=${header}`).join('，')}；合法column范围0-${headers.length - 1}`;
@@ -58,7 +60,7 @@ ${liveColumnMap()}
 
 写cells前必须先在对应table的映射中找到列名，再抄左侧数字作为column；不得按“第1列=1”编号，不得写超出合法范围的column，不得创造不存在的列。没有对应列就不记录该字段。
 世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
-伊依是后台陪伴者，不是剧情世界实体：禁止把伊依写入#0/#3/#4/#5/#6；她只使用独立长期记忆库。`;
+伊依是后台陪伴者，不是剧情世界实体：不得写入任何世界状态表；她只使用独立长期记忆库。`;
 }
 
 function finalContract() {
@@ -83,7 +85,7 @@ updateRow(0,0,{1:"08:30"})
 --></tableEdit>
 - 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
 - updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
-- 七表确实没有任何事实变化时也必须先输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
+- 当前启用表格确实没有任何事实变化时也必须先输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
 - </tableEdit>之后立即开始原本要求的完整正文、状态栏、行动选项和伊依留言等结构；机器块不能替代正文。
 - 不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。
 - 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
@@ -406,4 +408,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站统一走前置tableEdit；无新消息的失败生成不会触碰历史消息');
+console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站统一走前置tableEdit；无新消息的失败生成不会触碰历史消息与表格');
