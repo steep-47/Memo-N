@@ -3,8 +3,7 @@ import { ROUTE, getProviderRoute } from './providerRoute.js';
 
 const RECORD_MARKER = '[Memo-N record envelope v7]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
-const OUTPUT_HEADING = '# 输出';
-const RELAY_GUARD_MARKER = '[Memo-N relay protocol v104]';
+const RELAY_GUARD_MARKER = '[Memo-N relay protocol v106]';
 
 function writableSheets() {
     return (BASE.getChatSheets?.() ?? [])
@@ -25,31 +24,26 @@ function liveTableMap() {
     }).join('\n');
 }
 
-function stripMemoOutputProtocol(text) {
-    const content = String(text ?? '');
-    if (!content.includes(TABLE_PROMPT_MARKER)) return content;
-    const at = content.lastIndexOf(OUTPUT_HEADING);
-    if (at < 0) return content;
-    return content.slice(0, at).trimEnd();
-}
-
-function relayContract() {
+function relayAppendix() {
     return `${RELAY_GUARD_MARKER}
-这是Memo-N在本请求中的唯一表格机器协议。它只负责记录，不改变本请求原有正文、状态栏、时间、金钱、选项、角色内容或它们的格式与顺序。
 
-先按本请求原有指令完整生成正常回复。正常回复完成后，在回复末尾追加且只追加一个完整<tableEdit>记录块；追加记录块是完成本轮回复的一部分，不得省略。
-记录块内部只允许：
+## Memo-N机器记录附录
+上方原有# 输出规则全部照常执行，正文、状态、时间、金钱、选项、角色内容及顺序均保持原要求。
+完成上方全部可见输出后，回复最后必须再追加且只追加一个完整<tableEdit>记录块；这是本轮回复的固定末尾，不得省略。
+
+记录块只使用：
 insertRow(tableIndex,{columnIndex:"value",...})
 updateRow(tableIndex,rowIndex,{columnIndex:"value",...})
 deleteRow(tableIndex,rowIndex)
-没有需要写入的内容时仍必须追加<tableEdit><!-- NO_CHANGE --></tableEdit>。
-不要把insertRow、updateRow、deleteRow写成XML/HTML标签或属性形式，不输出JSON、SQL、Markdown代码围栏或第二套机器协议。
 
-记录判断以“本轮最终正文已经明确成立的事实”和“当前表格已经保存的事实”比较：当前表缺失的明确事实用insert补齐；已有对象出现持续信息变化用update；明确失效按规则delete；只有应保存事实已完整存在且没有变化时才NO_CHANGE。空表首次出现属于该表职责的明确事实时必须insert建立基线。
-updateRow/deleteRow的rowIndex只能使用对应表第一列真实存在的行号；空表只能insertRow。tableIndex和columnIndex严格使用下面当前真实映射：
+没有需要写表的事实也必须以<tableEdit><!-- NO_CHANGE --></tableEdit>结束。
+不要把函数写成XML/HTML标签、JSON、SQL或Markdown代码块。
+
+记录依据是“本轮最终正文已经明确成立的事实”与“当前表格已保存事实”的差异：表里缺失的已确认事实要insert；已有对象的新持续信息要update；明确失效按规则delete；空表出现属于该表职责的明确事实时必须insert建立基线。
+updateRow/deleteRow只能使用对应表第一列真实存在的rowIndex；空表只能insertRow。tableIndex和columnIndex严格使用下面真实映射：
 ${liveTableMap()}
 
-<tableEdit>闭合后本轮Memo-N记录任务结束。`;
+最终回复的最后一个闭合标签必须是</tableEdit>。`;
 }
 
 function apply(data) {
@@ -58,31 +52,36 @@ function apply(data) {
     delete data.json_schema;
     if (data.response_format?.type === 'json_object') delete data.response_format;
 
-    let tablePromptCleaned = 0;
+    let tablePromptPatched = 0;
     const kept = [];
     for (const message of data.messages) {
         const text = String(message?.content ?? '');
-        if (text.includes(RECORD_MARKER) || text.includes(RELAY_GUARD_MARKER)) continue;
+
+        // recordEngine的额外relay system协议只用于建立pending/解析模式；最终请求里移除，避免双协议。
+        if (text.includes(RECORD_MARKER) || text.includes('[Memo-N relay protocol v104]') || text.includes('[Memo-N relay protocol v105]') || text.includes(RELAY_GUARD_MARKER)) continue;
+
         if (text.includes(TABLE_PROMPT_MARKER)) {
-            const cleaned = stripMemoOutputProtocol(text);
-            kept.push({ ...message, content: cleaned });
-            tablePromptCleaned++;
+            // 关键：不再删除、替换、前插原# 输出。保持原消息逐字存在，只在同一条必达table prompt末尾追加机器附录。
+            kept.push({ ...message, content: `${text.trimEnd()}\n\n${relayAppendix()}` });
+            tablePromptPatched++;
         } else {
             kept.push(message);
         }
     }
-    kept.push({ role: 'system', content: relayContract() });
+
+    // 极端情况下没有dataTable prompt时才回退为system附录；正常主链不走这里。
+    if (!tablePromptPatched) kept.push({ role: 'system', content: relayAppendix() });
     data.messages = kept;
 
     globalThis.__memoNRelayTablePromptProbe = Object.freeze({
         at: Date.now(),
         route: ROUTE.RELAY,
-        tablePromptCleaned,
+        tablePromptPatched,
         tableCount: writableSheets().length,
         uniqueRelayProtocol: true,
-        finalRole: 'system',
+        placement: tablePromptPatched ? 'inside-surviving-table-prompt-end' : 'fallback-system-end',
     });
-    console.log(`[Memo-N] 中转站唯一记录协议已重建｜tables=${writableSheets().length}｜prompt=${tablePromptCleaned}`);
+    console.log(`[Memo-N] 中转站记录协议绑定原dataTable prompt末尾｜tables=${writableSheets().length}｜patched=${tablePromptPatched}`);
 }
 
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, apply);
