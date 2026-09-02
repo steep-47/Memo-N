@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon96-exact-column-map';
-const PUBLIC_VERSION = '0.1.0-memon.96';
+const RUNTIME_VERSION = 'memon97-reply-safe-relay-record';
+const PUBLIC_VERSION = '0.1.0-memon.97';
 
 async function loadRuntime(label, path) {
     try {
@@ -53,4 +53,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon96 真实列号映射版加载完成');
+console.log('[Memo-N][loader] memon97 正文安全中转站记录版加载完成');
