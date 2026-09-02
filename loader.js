@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon101-rollback-memon99-baseline';
-const PUBLIC_VERSION = '0.1.0-memon.101';
+const RUNTIME_VERSION = 'memon102-preserve-original-output';
+const PUBLIC_VERSION = '0.1.0-memon.102';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon101 回退至memon99稳定记录基线');
+console.log('[Memo-N][loader] memon102 保留原始输出要求，仅附加中转站记录协议');
