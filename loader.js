@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon107-preset-safe-relay';
-const PUBLIC_VERSION = '0.1.0-memon.107';
+const RUNTIME_VERSION = 'memon109-relay-function-syntax';
+const PUBLIC_VERSION = '0.1.0-memon.109';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon107 已撤回侵入原dataTable prompt的106改动，优先恢复预设完整输出');
+console.log('[Memo-N][loader] memon109 中转tableEdit固定为函数调用语法，保留原预设输出');
