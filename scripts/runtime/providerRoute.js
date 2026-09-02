@@ -52,47 +52,25 @@ function isOfficialDeepSeekHost(rawUrl) {
 export function isDirectDeepSeek(data) {
     const source = sourceOf(data);
     const reverseProxy = reverseProxyOf(data);
-
-    // 只要当前请求明确经过反代，就不能再按DeepSeek官方直连处理。
     if (reverseProxy) return false;
-
-    // SillyTavern原生DeepSeek且未启用反代，才是真正直连。
     if (source === 'deepseek') return true;
-
-    // 自定义(OpenAI兼容)只有当实际目标主机就是DeepSeek官方域名时，才视为直连。
     if (source !== 'custom') return false;
     return isOfficialDeepSeekHost(customUrlOf(data));
 }
 
-export function getProviderRoute(data) {
-    const source = sourceOf(data);
-    const customUrl = customUrlOf(data);
-    const reverseProxy = reverseProxyOf(data);
-
-    // 1) 原生DeepSeek/官方DeepSeek自定义地址，且没有反代。
-    if (isDirectDeepSeek(data)) return ROUTE.DEEPSEEK;
-
-    // 2) 任何明确反代都属于中转路线。优先级必须高于provider名称和模型名称。
-    if (reverseProxy) return ROUTE.RELAY;
-
-    // 3) SillyTavern的自定义(OpenAI兼容)只要不是DeepSeek官方域名，就是中转/兼容端点。
-    if (source === 'custom') return ROUTE.RELAY;
-
-    // 4) 非custom请求如果请求体本轮显式给出了自定义地址，也按中转处理；
-    //    不使用oai_settings里可能残留的custom_url误伤当前原生provider。
-    if (Object.prototype.hasOwnProperty.call(data ?? {}, 'custom_url') && customUrl) return ROUTE.RELAY;
-
-    // 5) 其余官方/原生provider走结构化JSON信封。
-    return ROUTE.NATIVE;
+export function getProviderRoute(_data) {
+    // Memo-N主记录链统一使用纯文本tableEdit协议。
+    // DeepSeek直连、OpenAI兼容中转、反代、自定义端点都走同一条记录协议，
+    // provider信息只保留用于诊断，不再决定请求格式与解析器。
+    return ROUTE.RELAY;
 }
 
 export function providerDebug(data) {
     const source = sourceOf(data);
     const customUrl = customUrlOf(data);
     const reverseProxy = reverseProxyOf(data);
-    const route = getProviderRoute(data);
     return {
-        route,
+        route: ROUTE.RELAY,
         source,
         customUrl,
         customHost: hostnameOf(customUrl),
@@ -100,5 +78,6 @@ export function providerDebug(data) {
         reverseProxyHost: hostnameOf(reverseProxy),
         model: modelOf(data),
         directDeepSeek: isDirectDeepSeek(data),
+        unifiedProtocol: 'tableEdit',
     };
 }
