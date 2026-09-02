@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon94-relay-isolation';
-const PUBLIC_VERSION = '0.1.0-memon.94';
+const RUNTIME_VERSION = 'memon95-relay-record-reinforcement';
+const PUBLIC_VERSION = '0.1.0-memon.95';
 
 async function loadRuntime(label, path) {
     try {
@@ -53,4 +53,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon94 中转站记录与正文隔离版加载完成');
+console.log('[Memo-N][loader] memon95 中转站纯记录强化版加载完成');
