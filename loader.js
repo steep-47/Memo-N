@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-providerfix1';
+const RUNTIME_VERSION = 'memon64-providerfix2';
 
 async function loadRuntime(label, path) {
     try {
@@ -18,9 +18,10 @@ async function loadRuntime(label, path) {
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一正常请求协议与记录执行入口。
 //   DeepSeek真正直连走JSON信封；任何明确反代/中转端点走tableEdit。
-// - providerRoute按“实际请求路径”判断，不再只看provider名称：DeepSeek + reverse_proxy同样属于中转。
-// - 中转tableEdit约束由recordEngine在同一次注入中同步写入七表基础提示与最终收尾契约，恢复稳定约束但不引入第二个协调模块。
-// - 中转分支只解析tableEdit，不再保留旧tagged/JSON fallback；DeepSeek分支只解析JSON，避免协议串线。
+// - providerRoute按实际请求路径判断；providerTransportGuard把“内容协议选择”和“底层结构化输出能力”解耦。
+// - DeepSeek JSON信封不再强制response_format；中转路线会清除残留json_schema/response_format，优先兼容OpenAI兼容中转。
+// - 中转tableEdit约束由recordEngine在同一次注入中同步写入七表基础提示与最终收尾契约。
+// - 中转分支解析tableEdit；DeepSeek分支解析JSON。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
 // - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
@@ -34,6 +35,7 @@ const runtimes = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    ['Provider传输兼容', './scripts/runtime/providerTransportGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -50,4 +52,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 provider路径识别修复版加载完成');
+console.log('[Memo-N][loader] memon64 provider传输兼容修复版加载完成');
