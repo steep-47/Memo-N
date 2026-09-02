@@ -8,7 +8,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v2]';
+const MARKER = '[Memo-N record envelope v3]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
 const OUTPUT_HEADING = '# 输出';
 const handled = new WeakMap();
@@ -69,37 +69,47 @@ ${liveColumnMap()}
 世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
 伊依是后台陪伴者，不是剧情世界实体：不得写入任何世界状态表；她只使用独立长期记忆库。`;
 }
+function visibleReplyRules() {
+    return `
+[可见回复协议保持不变]
+Memo-N机器记录只增加传输外壳，不改变原始预设对用户可见回复的任何要求。
+- 完整保留原始提示中本轮要求出现的全部模块、顺序、标签、分隔与格式；包括但不限于时间/地点戳、金钱/财物戳、状态栏、正文、行动选项、角色留言、伊依留言等。
+- “完整正常正文/回复”指原预设要求的整个可见输出，不是只指故事段落；不得因为先输出机器记录块而省略、合并、改写或重排外围结构。
+- 如果原预设没有要求某个模块，本规则不额外创造；如果原预设要求，就照原格式完整输出。`;
+}
 function finalContract() {
     return `${MARKER}
 本轮最终响应只能是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}]}
-reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes记录为了让当前表格与本轮最终正文中已经明确成立的世界事实保持一致而需要执行的操作；表中缺失的已确认事实同样属于changes，不要求它必须相对上一轮发生变化。
+reply必须包含原预设本轮要求的完整可见输出。changes记录为了让当前表格与本轮最终正文中已经明确成立的世界事实保持一致而需要执行的操作；表中缺失的已确认事实同样属于changes，不要求它必须相对上一轮发生变化。
 每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。
 row只能抄当前表格第一列真实存在的数字。空表只能insert。value只能是字符串或有限数字；同一操作不得重复column。
+${visibleReplyRules()}
 ${sharedRecordRules()}
 禁止输出函数、SQL、Markdown、tableEdit、解释或额外字段。`;
 }
 function relayOutputRules() {
     return `# 输出
-- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划完整正文，再逐表比较正文已经明确成立的事实与当前表格；表中缺失的事实也必须形成记录操作。
-- 实际输出时，第一段必须先输出且只输出一个完整<tableEdit>机器块，然后立刻继续完整正常正文；不要等正文写完后再补机器块。
+- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划原预设要求的完整可见回复，再逐表比较其中已经明确成立的事实与当前表格；表中缺失的事实也必须形成记录操作。
+- 实际输出时，第一段必须先输出且只输出一个完整<tableEdit>机器块，然后立刻继续原预设要求的完整可见回复；不要等正文写完后再补机器块。
 - 格式严格为：\n<tableEdit><!--\ninsertRow(0,{0:"日期",1:"时间"})\n--></tableEdit>
 - 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
 - updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
 - 空表只要正文出现属于该表职责的明确事实就必须insert；不能把“表里什么都没有”判成NO_CHANGE。
 - 只有应保存事实已经完整存在且没有新增、补充、变化或失效时，才输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
-- </tableEdit>之后立即开始原本要求的完整正文、状态栏、行动选项和伊依留言等结构；机器块不能替代正文。
+${visibleReplyRules()}
 - 不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
 }
 function relayContract() {
     return `${MARKER}
-本轮使用Memo-N中转站前置tableEdit记录协议。先在内部规划完整正常回复，然后逐表比较最终正文已经明确成立的事实与当前表格。
-真正开始输出时，第一段必须先给出且只给出一个完整tableEdit机器块；机器块闭合后再输出给用户看的完整正常回复：
+本轮使用Memo-N中转站前置tableEdit记录协议。先在内部规划原预设要求的完整可见回复，然后逐表比较最终回复里已经明确成立的事实与当前表格。
+真正开始输出时，第一段必须先给出且只给出一个完整tableEdit机器块；机器块闭合后立即原样继续原预设要求的完整可见回复：
 <tableEdit><!--
 insertRow(0,{0:"日期",1:"时间"})
 --></tableEdit>
-随后立刻继续正常正文、状态栏、选项和角色留言，不要为了记录省略任何正文组成部分。
+机器块只是前缀，不得把后续“完整回复”缩减成只有故事正文。
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
+${visibleReplyRules()}
 ${sharedRecordRules()}
 不得使用JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
 }
@@ -117,7 +127,7 @@ function reinforceRelayTablePrompt(messages) {
 }
 function reinforceRelayLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N输出硬约束：实际回复第一段必须先输出一个完整<tableEdit><!-- 表格操作或NO_CHANGE --></tableEdit>，闭合后才输出完整正常正文；空表中缺失的已确认事实必须补齐。]`;
+    const reminder = `\n\n[Memo-N输出硬约束：先输出完整<tableEdit><!-- 表格操作或NO_CHANGE --></tableEdit>；闭合后必须继续原预设要求的全部可见输出结构，时间/地点戳、金钱/财物戳、状态栏、正文、选项、角色/伊依留言等凡原预设要求者一项不省略、不重排。空表中缺失的已确认事实必须补齐。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
@@ -303,4 +313,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
-console.log('[Memo-N] 一次API记录引擎已加载：按当前表格缺失/变化执行记录，DeepSeek JSON，中转站前置tableEdit');
+console.log('[Memo-N] 一次API记录引擎已加载：正文协议统一保持原预设，中转站仅额外增加前置tableEdit');
