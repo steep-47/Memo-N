@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-unified1';
+const RUNTIME_VERSION = 'memon64-onecall1';
 
 async function loadRuntime(label, path) {
     try {
@@ -19,7 +19,8 @@ async function loadRuntime(label, path) {
 // - recordEngine 是唯一正常请求协议与记录执行入口。
 // - 主记录链统一使用纯文本tableEdit：DeepSeek直连、中转、反代、自定义端点不再切换两套记录协议。
 // - providerRoute只保留连接信息诊断，不再决定记录协议；避免provider识别误差导致整轮请求/解析串线。
-// - tableEdit约束由recordEngine在同一次注入中同步写入七表基础提示与最终收尾契约。
+// - tableEdit约束由recordEngine写入表格提示与system契约，并由recordContractAnchor在同一请求的最后user消息再次锚定。
+// - recordContractAnchor只修改本轮既有messages，不创建第二API请求。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
 // - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
@@ -33,6 +34,7 @@ const runtimes = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    ['一次API记录契约锚定', './scripts/runtime/recordContractAnchor.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -49,4 +51,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 统一tableEdit协议版加载完成');
+console.log('[Memo-N][loader] memon64 单次API记录锚定版加载完成');
