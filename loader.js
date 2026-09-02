@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-cleanup1';
+const RUNTIME_VERSION = 'memon64-cleanup2';
 
 async function loadRuntime(label, path) {
     try {
@@ -48,4 +48,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 遗留重复模板清理版加载完成');
+console.log('[Memo-N][loader] memon64 遗留持久化表格清理版加载完成');
