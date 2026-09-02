@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-cleanup3';
+const RUNTIME_VERSION = 'memon64-providerfix1';
 
 async function loadRuntime(label, path) {
     try {
@@ -17,7 +17,8 @@ async function loadRuntime(label, path) {
 
 // Memo-N 稳定运行边界：
 // - recordEngine 是唯一正常请求协议与记录执行入口。
-//   DeepSeek直连/NATIVE走JSON信封；中转端点走tableEdit。
+//   DeepSeek真正直连走JSON信封；任何明确反代/中转端点走tableEdit。
+// - providerRoute按“实际请求路径”判断，不再只看provider名称：DeepSeek + reverse_proxy同样属于中转。
 // - 中转tableEdit约束由recordEngine在同一次注入中同步写入七表基础提示与最终收尾契约，恢复稳定约束但不引入第二个协调模块。
 // - 中转分支只解析tableEdit，不再保留旧tagged/JSON fallback；DeepSeek分支只解析JSON，避免协议串线。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
@@ -49,4 +50,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 标签删除修复版加载完成');
+console.log('[Memo-N][loader] memon64 provider路径识别修复版加载完成');
