@@ -4,7 +4,7 @@ import { ROUTE, getProviderRoute } from './providerRoute.js';
 const RECORD_MARKER = '[Memo-N record envelope v7]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
 const OUTPUT_HEADING = '# 输出';
-const RELAY_GUARD_MARKER = '[Memo-N relay protocol v108]';
+const RELAY_GUARD_MARKER = '[Memo-N relay protocol v109]';
 
 function writableSheets() {
     return (BASE.getChatSheets?.() ?? [])
@@ -26,7 +26,7 @@ function liveTableMap() {
 }
 
 function machineRule() {
-    return `Memo-N机器记录：本轮回复第一段先输出一个完整<tableEdit>记录块，闭合后继续执行原有# 输出的全部要求。记录块只使用insertRow(tableIndex,{columnIndex:"value",...})、updateRow(tableIndex,rowIndex,{columnIndex:"value",...})、deleteRow(tableIndex,rowIndex)；无变化也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。机器记录不能替代、删减或重排原有正文、状态、时间、金钱、选项及角色内容。`;
+    return `Memo-N机器记录：本轮回复第一段先输出一个完整<tableEdit>记录块，闭合后继续执行原有# 输出的全部要求。<tableEdit>内部是函数调用文本，不是XML/HTML字段结构。每条操作必须完整照抄以下三种语法之一：insertRow(tableIndex,{columnIndex:"value",...})；updateRow(tableIndex,rowIndex,{columnIndex:"value",...})；deleteRow(tableIndex,rowIndex)。例如：<tableEdit><!-- insertRow(0,{0:"示例"}) --></tableEdit>。rowIndex只能作为updateRow/deleteRow的第二个函数参数出现；字段值只写在花括号对象中。无变化时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。机器记录不能替代、删减或重排原有正文、状态、时间、金钱、选项及角色内容。`;
 }
 
 function reinforceTablePrompt(messages) {
@@ -52,7 +52,7 @@ function reinforceLastUser(messages) {
         const message = messages[i];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
         if (!message.content.includes('[Memo-N记录提醒]')) {
-            message.content = `${message.content.trimEnd()}\n\n[Memo-N记录提醒：回复第一段先给完整<tableEdit>机器块，闭合后完整执行原有回复要求。]`;
+            message.content = `${message.content.trimEnd()}\n\n[Memo-N记录提醒：回复第一段先给完整<tableEdit>机器块；块内只写insertRow/updateRow/deleteRow函数调用或NO_CHANGE，不使用XML字段标签。闭合后完整执行原有回复要求。]`;
         }
         return true;
     }
@@ -76,6 +76,7 @@ function apply(data) {
             && !text.includes('[Memo-N relay protocol v105]')
             && !text.includes('[Memo-N relay protocol v106]')
             && !text.includes('[Memo-N relay protocol v107]')
+            && !text.includes('[Memo-N relay protocol v108]')
             && !text.includes(RELAY_GUARD_MARKER);
     });
 
@@ -90,9 +91,10 @@ function apply(data) {
         lastUserReinforced,
         systemFallback: true,
         originalOutputPreserved: true,
+        functionSyntaxPinned: true,
         tableCount: writableSheets().length,
     });
-    console.log(`[Memo-N] 中转站三点记录协议｜table=${tablePromptReinforced}｜user=${lastUserReinforced}`);
+    console.log(`[Memo-N] 中转站三点记录协议｜table=${tablePromptReinforced}｜user=${lastUserReinforced}｜syntax=function-only`);
 }
 
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, apply);
