@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon98-relay-bridge';
-const PUBLIC_VERSION = '0.1.0-memon.98';
+const RUNTIME_VERSION = 'memon99-relay-function-syntax';
+const PUBLIC_VERSION = '0.1.0-memon.99';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon98 relay bridge loaded');
+console.log('[Memo-N][loader] memon99 中转站函数语法固定版加载完成');
