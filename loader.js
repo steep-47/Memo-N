@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon104-unique-relay-protocol';
-const PUBLIC_VERSION = '0.1.0-memon.104';
+const RUNTIME_VERSION = 'memon105-relay-protocol-clean';
+const PUBLIC_VERSION = '0.1.0-memon.105';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon104 中转站最终请求只保留一套tableEdit机器协议');
+console.log('[Memo-N][loader] memon105 中转站唯一tableEdit协议；DeepSeek兼容层不再参与relay');
