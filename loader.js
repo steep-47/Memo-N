@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64';
+const RUNTIME_VERSION = 'memon64-cleanup1';
 
 async function loadRuntime(label, path) {
     try {
@@ -28,6 +28,7 @@ async function loadRuntime(label, path) {
 // - loader只启动有运行时副作用的入口模块；纯工具库由实际调用者import。
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
@@ -47,4 +48,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 中转tableEdit稳定约束恢复版加载完成');
+console.log('[Memo-N][loader] memon64 遗留重复模板清理版加载完成');
