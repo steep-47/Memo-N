@@ -27,13 +27,13 @@ function tableMapText() {
     }).join('\n');
 }
 function independentOperationRules() {
-    return `# Memo-N独立记录操作语义\n当前实际表格映射：\n${tableMapText()}\n- 只维护本轮最终正文已经明确发生或确认的变化，不写剧情，不猜测未知。\n- table和column必须严格使用上面的当前真实映射；row只能抄当前表第一列真实存在的rowIndex。\n- 已有对象优先update，真正新增才insert，明确失效才delete；空表首次记录只能insert。\n- 不修改表头，不把reasoning、草稿、候选文本或最终正文未采用的内容写入表格。\n- 没有变化必须按本轮接口协议明确返回空变化，不得省略机器结果。`;
+    return `# Memo-N独立记录操作语义\n当前实际表格映射：\n${tableMapText()}\n- 维护本轮最终正文已经明确成立、对后续有用的当前世界状态和重要记忆，不把记录条件误解成“必须相对上一轮发生变化”。\n- 每张表都要把本轮明确事实与当前表比较：应保存但表中缺失的事实用insert补齐；已有行内容改变或新增长期字段用update；明确失效才delete；只有应保存事实已经完整存在且没有变化时才返回无变化。\n- 开局、首次建表或相关表为空时要主动建立基线：当前时空/在场人物进入时空表；角色姓名、年龄、种族、修为、身份、稳定能力/功法等明确资料进入角色特征表；关系、任务、重要事件和重要物品按各表职责记录。\n- table和column必须严格使用上面的当前真实映射；row只能抄当前表第一列真实存在的rowIndex。\n- 已有对象优先update，真正新增才insert，明确失效才delete；空表首次记录只能insert。\n- 不修改表头，不把reasoning、草稿、候选文本或最终正文未采用的内容写入表格。\n- 逐表比较后确实没有缺失、新增、变化或失效时，才按本轮接口协议明确返回空变化。`;
 }
 function deepSeekContract() {
-    return `[Memo-N DeepSeek 独立记录短块协议]\n这是记录专用请求，不输出剧情正文。最终响应必须且只能是：\n${DEEP_BEGIN}\n[]\n${DEEP_END}\nBEGIN/END中间只能是合法JSON数组。没有变化写[]；有变化时数组元素固定为：{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}。\ninsert的row必须为null；update/delete必须使用真实rowIndex；delete的cells必须为[]。\n禁止reply信封、tableEdit、Markdown代码围栏、解释和第二份JSON。\n当前实际表格：\n${tableMapText()}`;
+    return `[Memo-N DeepSeek 独立记录短块协议]\n这是记录专用请求，不输出剧情正文。先逐表比较本轮最终正文中的已确认事实与当前实际表格；表中缺失的应保存事实也属于变化，只有已经完整存在且没有新增、变化或失效时才返回空数组。最终响应必须且只能是：\n${DEEP_BEGIN}\n[]\n${DEEP_END}\nBEGIN/END中间只能是合法JSON数组。没有变化写[]；有变化时数组元素固定为：{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}。\ninsert的row必须为null；update/delete必须使用真实rowIndex；delete的cells必须为[]。\n禁止reply信封、tableEdit、Markdown代码围栏、解释和第二份JSON。\n当前实际表格：\n${tableMapText()}`;
 }
 function relayContract() {
-    return `[Memo-N 中转站独立记录 tableEdit 协议]\n这是记录专用请求，不输出剧情正文。最终必须且只能输出一个完整<tableEdit>...</tableEdit>。\n只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。\n没有变化输出<tableEdit><!-- NO_CHANGE --></tableEdit>。\n当前实际表格：\n${tableMapText()}\n禁止JSON、剧情、SQL、Markdown代码围栏或解释。`;
+    return `[Memo-N 中转站独立记录 tableEdit 协议]\n这是记录专用请求，不输出剧情正文。先逐表比较本轮最终正文中的已确认事实与当前实际表格；表中缺失的应保存事实也属于变化，只有已经完整存在且没有新增、变化或失效时才NO_CHANGE。最终必须且只能输出一个完整<tableEdit>...</tableEdit>。\n只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。\n没有变化输出<tableEdit><!-- NO_CHANGE --></tableEdit>。\n当前实际表格：\n${tableMapText()}\n禁止JSON、剧情、SQL、Markdown代码围栏或解释。`;
 }
 function isAppendGeneration(type) {
     const value = String(type ?? '').toLowerCase();
@@ -222,128 +222,85 @@ function captureLiveSheets() {
     return snapshots;
 }
 function restoreLiveSheets(snapshots) {
-    for (const [sheet, data] of snapshots ?? []) sheet.loadJson(copyValue(data));
-}
-function capturePieceState(piece) {
-    const id = Number(piece?.swipe_id);
-    return {
-        hash:copyHashSheets(piece?.memo_n_hash_sheets),
-        hadHash:!!piece && Object.prototype.hasOwnProperty.call(piece, 'memo_n_hash_sheets'),
-        extra:copyValue(piece?.extra), mes:String(piece?.mes ?? ''), swipeId:id,
-        swipe:Array.isArray(piece?.swipes) && Number.isInteger(id) && id >= 0 && id < piece.swipes.length ? piece.swipes[id] : undefined,
-        swipeInfo:Array.isArray(piece?.swipe_info) && Number.isInteger(id) && id >= 0 && piece.swipe_info[id] ? copyValue(piece.swipe_info[id]) : undefined,
-    };
-}
-function restorePieceState(piece, state) {
-    if (!piece || !state) return;
-    if (state.hadHash) piece.memo_n_hash_sheets = copyHashSheets(state.hash); else delete piece.memo_n_hash_sheets;
-    piece.extra = copyValue(state.extra) ?? {};
-    piece.mes = state.mes;
-    const id = state.swipeId;
-    if (Array.isArray(piece.swipes) && Number.isInteger(id) && id >= 0 && id < piece.swipes.length) piece.swipes[id] = state.swipe ?? state.mes;
-    if (Array.isArray(piece.swipe_info) && Number.isInteger(id) && id >= 0) {
-        if (state.swipeInfo !== undefined) piece.swipe_info[id] = copyValue(state.swipeInfo);
-        else if (piece.swipe_info[id]) {
-            delete piece.swipe_info[id].memo_n_swipe_hash_sheets;
-            if (piece.swipe_info[id].extra) delete piece.swipe_info[id].extra.memo_n_swipe_hash_sheets;
-        }
+    if (!(snapshots instanceof Map)) return false;
+    for (const [sheet, data] of snapshots) {
+        if (!sheet || typeof sheet.init !== 'function') return false;
+        sheet.init(copyValue(data));
     }
+    return true;
 }
-function prepareAutoBaseline(piece, options) {
-    const append = !options.forceFull && isAppendGeneration(options.generationType);
-    const baseline = append && piece?.memo_n_hash_sheets ? copyHashSheets(piece.memo_n_hash_sheets) : previousBaselineForCurrentPiece(piece);
-    if (baseline) return restoreHashSheets(baseline);
-    const empty = BASE.initHashSheet?.();
-    return empty?.memo_n_hash_sheets ? restoreHashSheets(empty.memo_n_hash_sheets) : false;
-}
-function refreshCommittedViews({ reload = false } = {}) {
+async function persistIndependentSnapshot(piece, options = {}) {
+    const sessionChat = options.sessionChat;
+    if (sessionChat && USER.getContext?.()?.chat !== sessionChat) return 'detached';
     try {
-        BASE.refreshContextView?.();
-        updateSystemMessageTableStatus?.();
-        if (reload) reloadCurrentChat();
-    } catch (error) { console.warn('[Memo] 记录已经提交，但视图刷新失败', error); }
-}
-export async function TableTwoStepSummary(mode = 'manual', options = {}) {
-    if (USER.tableBaseSetting.isExtensionAble === false) return false;
-    if (!['auto','manual'].includes(mode)) return false;
-    if (mode === 'auto' && USER.tableBaseSetting.step_by_step === false) return false;
-    const currentPiece = USER.getChatPiece?.()?.piece;
-    const todoPiece = options.targetPiece || currentPiece;
-    if (!todoPiece) {
-        if (mode === 'manual') EDITOR.error('未找到待填表的对话片段，请至少生成一条角色回复。');
-        return false;
-    }
-    const todoChats = options.todoChats ?? String(todoPiece.mes ?? '');
-    if (mode === 'manual') {
-        const confirmResult = await newPopupConfirm(`<p>累计 ${String(todoChats).length} 长度的文本，是否开始独立填表？</p>`, '取消', '执行填表', 'stepwiseSummaryConfirm', '不再提示', '一直选是');
-        if (confirmResult === false) return false;
-        return manualSummaryChat(todoChats, confirmResult, { ...options, targetPiece:todoPiece });
-    }
-    return manualSummaryChat(todoChats, 'dont_remind_active', { ...options, targetPiece:todoPiece });
-}
-export async function manualSummaryChat(todoChats, confirmResult, options = {}) {
-    const sessionChat = USER.getContext?.()?.chat;
-    const sessionActive = () => USER.getContext?.()?.chat === sessionChat;
-    const currentPiece = USER.getChatPiece?.()?.piece;
-    const initialPiece = options.targetPiece || currentPiece;
-    if (!initialPiece || !Array.isArray(sessionChat) || !sessionChat.includes(initialPiece)) return false;
-    const isAutoMode = confirmResult === 'dont_remind_active';
-    if (isAutoMode) {
-        const targetBackup = capturePieceState(initialPiece);
-        const sheetBackup = captureLiveSheets();
-        const liveHash = currentPiece && currentPiece !== initialPiece ? copyHashSheets(currentPiece.memo_n_hash_sheets) : null;
-        try {
-            if (!prepareAutoBaseline(initialPiece, options)) throw new Error('无法恢复独立记录前的明确表格基线');
-            if (initialPiece === currentPiece) repairMissingColumnsBeforeCleanup({ notify:false });
-            saveMemoSnapshot(initialPiece);
-            const effectiveOptions = { ...(options.forceFull ? { ...options, generationType:'normal', baseMes:'' } : options), sessionChat };
-            const latestTodo = options.forceFull ? String(initialPiece.mes ?? '') : String(todoChats ?? '');
-            const ok = await runIndependentApi(latestTodo, initialPiece, true, effectiveOptions);
-            if (ok === 'detached') return 'detached';
-            if (ok === 'stale' || !ok) {
-                restorePieceState(initialPiece, targetBackup);
-                if (sessionActive()) { restoreLiveSheets(sheetBackup); if (targetBackup.hash) restoreHashSheets(targetBackup.hash); }
-                return ok === 'stale' ? 'stale' : false;
-            }
-            return true;
-        } catch (error) {
-            console.error('[Memo][independent] 自动记录失败，恢复执行前状态', error);
-            restorePieceState(initialPiece, targetBackup);
-            if (sessionActive()) { restoreLiveSheets(sheetBackup); if (targetBackup.hash) restoreHashSheets(targetBackup.hash); }
-            return false;
-        } finally {
-            if (sessionActive()) {
-                if (currentPiece && currentPiece !== initialPiece && liveHash) restoreHashSheets(liveHash);
-                refreshCommittedViews();
-            }
-        }
-    }
-    const backup = capturePieceState(initialPiece);
-    const sheetBackup = captureLiveSheets();
-    const baseline = previousBaselineForCurrentPiece(initialPiece);
-    try {
-        const baselineReady = baseline ? restoreHashSheets(baseline) : (() => {
-            const empty = BASE.initHashSheet?.();
-            return empty?.memo_n_hash_sheets ? restoreHashSheets(empty.memo_n_hash_sheets) : false;
-        })();
-        if (!baselineReady) throw new Error('无法恢复手动填表前的明确表格基线');
-        repairMissingColumnsBeforeCleanup({ notify:false });
-        saveMemoSnapshot(initialPiece);
-        const ok = await runIndependentApi(todoChats, initialPiece, false, { generationType:'manual', sessionChat });
-        if (ok === 'detached') return 'detached';
-        if (!ok) throw new Error('手动填表未成功完成');
-        refreshCommittedViews({ reload:true });
+        saveMemoSnapshot(piece);
+        await USER.saveChat();
+        if (sessionChat && USER.getContext?.()?.chat !== sessionChat) return 'detached';
         return true;
     } catch (error) {
-        console.error('[Memo][manual-refill] 手动填表失败，恢复原状态', error);
-        restorePieceState(initialPiece, backup);
-        if (sessionActive()) {
-            restoreLiveSheets(sheetBackup);
-            if (backup.hash) restoreHashSheets(backup.hash);
-            await USER.saveChat?.();
-            refreshCommittedViews();
-            EDITOR.warning('手动填表失败：已恢复执行前的原表格、正文和Swipe快照，不会留下半成品。');
-        }
+        console.error('[Memo][independent] 独立记录快照保存失败', error);
         return false;
     }
+}
+async function runIndependentTransaction(todoChats, referencePiece, isSilentMode, options = {}) {
+    const liveBefore = captureLiveSheets();
+    const pieceBefore = {
+        mes: referencePiece?.mes,
+        memo_n_hash_sheets: copyHashSheets(referencePiece?.memo_n_hash_sheets),
+        memo_n_swipe_hash_sheets: copyValue(referencePiece?.memo_n_swipe_hash_sheets),
+        extra: copyValue(referencePiece?.extra),
+        swipe_info: copyValue(referencePiece?.swipe_info),
+        swipes: copyValue(referencePiece?.swipes),
+    };
+    try {
+        const result = await runIndependentApi(todoChats, referencePiece, isSilentMode, options);
+        if (result !== true) {
+            restoreLiveSheets(liveBefore);
+            if (referencePiece) Object.assign(referencePiece, pieceBefore);
+            return result;
+        }
+        const persisted = await persistIndependentSnapshot(referencePiece, options);
+        if (persisted !== true) {
+            restoreLiveSheets(liveBefore);
+            if (referencePiece) Object.assign(referencePiece, pieceBefore);
+            return persisted;
+        }
+        return true;
+    } catch (error) {
+        restoreLiveSheets(liveBefore);
+        if (referencePiece) Object.assign(referencePiece, pieceBefore);
+        console.error('[Memo][independent] 独立记录事务失败', error);
+        return false;
+    }
+}
+
+export async function TableTwoStepSummary(mode = 'auto', options = {}) {
+    const chat = USER.getContext?.()?.chat;
+    if (!Array.isArray(chat)) return false;
+    const targetPiece = options.targetPiece || [...chat].reverse().find(piece => piece?.is_user === false);
+    if (!targetPiece) return false;
+    const todoChats = options.todoChats ?? targetPiece.mes;
+    const expectedVisible = stripMachine(todoChats);
+    const referenceSnapshot = previousBaselineForCurrentPiece(targetPiece);
+    if (referenceSnapshot) restoreHashSheets(referenceSnapshot);
+    const result = await runIndependentTransaction(todoChats, targetPiece, mode === 'silent', {
+        ...options,
+        sessionChat: chat,
+        expectedVisible,
+    });
+    if (result === true) {
+        try { updateSystemMessageTableStatus?.(); } catch (_) {}
+        if (mode !== 'silent') EDITOR.success('独立填表完成');
+    }
+    return result;
+}
+
+export async function manualTableUpdate() {
+    const ok = await newPopupConfirm('立即填表', '将根据当前消息和表格执行一次独立记录。是否继续？');
+    if (!ok) return false;
+    const result = await TableTwoStepSummary('manual', { forceFull:true });
+    if (result === true) {
+        try { await reloadCurrentChat?.(); } catch (_) {}
+    }
+    return result;
 }
