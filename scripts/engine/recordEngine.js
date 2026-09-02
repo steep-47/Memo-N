@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon96';
 import { ROUTE, getProviderRoute, providerDebug } from '../runtime/providerRoute.js';
 import {
     changesToStrictCalls,
@@ -8,7 +8,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v5]';
+const MARKER = '[Memo-N record envelope v6]';
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
@@ -46,10 +46,12 @@ function liveColumnMap() {
     if (!sheets.length) return '当前没有可写表格。';
     return sheets.map((sheet, tableIndex) => {
         const name = String(sheet?.name ?? `表${tableIndex}`);
-        const headers = (sheet?.getHeader?.() ?? []).map(value => String(value ?? '').trim()).filter(Boolean);
+        const rawHeaders = sheet?.getHeader?.() ?? [];
+        const columns = rawHeaders.map((value, column) => ({ column, header: String(value ?? '').trim() }));
+        const usable = columns.filter(item => item.header);
         const state = sheet?.isEmpty?.() ? '空表' : `已有${Math.max(0, Number(sheet?.getRowCount?.() ?? 1) - 1)}行`;
-        if (!headers.length) return `#${tableIndex} ${name}：当前无法读取表头，本轮不得写此表`;
-        return `#${tableIndex} ${name}（${state}）：${headers.map((header, column) => `${column}=${header}`).join('，')}；合法column范围0-${headers.length - 1}`;
+        if (!usable.length) return `#${tableIndex} ${name}：当前无法读取可用表头，本轮不得写此表`;
+        return `#${tableIndex} ${name}（${state}）：${usable.map(item => `${item.column}=${item.header}`).join('，')}；允许column仅为[${usable.map(item => item.column).join(',')}]`;
     }).join('\n');
 }
 function sharedRecordRules() {
@@ -63,7 +65,8 @@ ${liveColumnMap()}
 - 已有记录明确失效：按表规则delete。
 - 空表没有任何既有记录可供比较；只要本轮最终正文出现属于该表职责的明确事实，就必须insert建立基线，不能因为“没有上一轮变化”而NO_CHANGE。
 - 只有逐表比较后，应保存的事实已经完整存在，且没有新增、变化、补充或失效，才允许NO_CHANGE/空changes。
-写cells前必须先在对应table的映射中找到列名，再抄左侧数字作为column；不得按“第1列=1”编号，不得写超出合法范围的column，不得创造不存在的列。没有对应列就不记录该字段。
+生成每个cells或tableEdit对象前，先找到对应table上方“允许column仅为[...]”列表；对象中的每个column/key都必须逐个从该列表原样抄取。列号是0基索引，不把第1列写成1，也不按字段数量自行顺延。某字段找不到对应表头时，只省略该字段，其他合法字段照常记录。
+输出记录块前再做一次列号自检：只保留允许列表中的数字；任何不在允许列表中的数字都不应进入最终记录操作。
 世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
 伊依是后台陪伴者，不是剧情世界实体：不得写入任何世界状态表；她只使用独立长期记忆库。`;
 }
@@ -96,7 +99,7 @@ function reinforceRelayRecordTask(messages) {
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
-        message.content = `${message.content.trimEnd()}\n\n[Memo-N记录任务：本轮输出必须以一个完整<tableEdit>记录块开头；无操作也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。记录块闭合后此任务结束。]`;
+        message.content = `${message.content.trimEnd()}\n\n[Memo-N记录任务：本轮输出必须以一个完整<tableEdit>记录块开头；无操作也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。记录块中的列号必须只从当前真实表格的允许column列表中抄取。记录块闭合后此任务结束。]`;
         return true;
     }
     return false;
@@ -276,4 +279,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
-console.log('[Memo-N] 一次API记录引擎已加载：正文归原预设，中转站独立强化tableEdit记录任务');
+console.log('[Memo-N] 一次API记录引擎已加载：正文归原预设，中转站强化真实column映射与tableEdit记录任务');
