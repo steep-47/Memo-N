@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon106-relay-prompt-bound';
-const PUBLIC_VERSION = '0.1.0-memon.106';
+const RUNTIME_VERSION = 'memon107-preset-safe-relay';
+const PUBLIC_VERSION = '0.1.0-memon.107';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon106 relay协议绑定到原dataTable prompt末尾，不再替换原输出');
+console.log('[Memo-N][loader] memon107 已撤回侵入原dataTable prompt的106改动，优先恢复预设完整输出');
