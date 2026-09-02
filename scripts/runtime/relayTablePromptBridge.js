@@ -4,7 +4,7 @@ import { ROUTE, getProviderRoute } from './providerRoute.js';
 const RECORD_MARKER = '[Memo-N record envelope v7]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
 const OUTPUT_HEADING = '# 输出';
-const RELAY_GUARD_MARKER = '[Memo-N relay protocol v107]';
+const RELAY_GUARD_MARKER = '[Memo-N relay protocol v108]';
 
 function writableSheets() {
     return (BASE.getChatSheets?.() ?? [])
@@ -25,28 +25,42 @@ function liveTableMap() {
     }).join('\n');
 }
 
-function stripMemoOutputProtocol(text) {
-    const content = String(text ?? '');
-    if (!content.includes(TABLE_PROMPT_MARKER)) return content;
-    const at = content.lastIndexOf(OUTPUT_HEADING);
-    if (at < 0) return content;
-    return content.slice(0, at).trimEnd();
+function machineRule() {
+    return `Memo-N机器记录：本轮回复第一段先输出一个完整<tableEdit>记录块，闭合后继续执行原有# 输出的全部要求。记录块只使用insertRow(tableIndex,{columnIndex:"value",...})、updateRow(tableIndex,rowIndex,{columnIndex:"value",...})、deleteRow(tableIndex,rowIndex)；无变化也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。机器记录不能替代、删减或重排原有正文、状态、时间、金钱、选项及角色内容。`;
+}
+
+function reinforceTablePrompt(messages) {
+    let count = 0;
+    for (const message of messages) {
+        const text = String(message?.content ?? '');
+        if (!text.includes(TABLE_PROMPT_MARKER)) continue;
+        const at = text.lastIndexOf(OUTPUT_HEADING);
+        if (at >= 0) {
+            const head = text.slice(0, at + OUTPUT_HEADING.length);
+            const originalOutput = text.slice(at + OUTPUT_HEADING.length);
+            message.content = `${head}\n- ${machineRule()}${originalOutput}`;
+        } else {
+            message.content = `${text.trimEnd()}\n\n# Memo-N机器记录补充\n${machineRule()}`;
+        }
+        count++;
+    }
+    return count;
+}
+
+function reinforceLastUser(messages) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const message = messages[i];
+        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
+        if (!message.content.includes('[Memo-N记录提醒]')) {
+            message.content = `${message.content.trimEnd()}\n\n[Memo-N记录提醒：回复第一段先给完整<tableEdit>机器块，闭合后完整执行原有回复要求。]`;
+        }
+        return true;
+    }
+    return false;
 }
 
 function relayContract() {
-    return `${RELAY_GUARD_MARKER}
-这是Memo-N在本请求中的唯一表格机器协议。它只负责记录，不改变本请求原有正文格式与内容要求。
-
-先完整执行本请求原有回复要求。原有回复完成后，在末尾追加且只追加一个完整<tableEdit>记录块。
-记录块内部只允许：
-insertRow(tableIndex,{columnIndex:"value",...})
-updateRow(tableIndex,rowIndex,{columnIndex:"value",...})
-deleteRow(tableIndex,rowIndex)
-没有需要写入的内容时追加<tableEdit><!-- NO_CHANGE --></tableEdit>。
-
-记录判断以本轮最终正文已经明确成立的事实与当前表格已保存事实比较：缺失事实insert，已有对象的新持续信息update，明确失效按规则delete，只有已经完整存在且无变化时NO_CHANGE。
-updateRow/deleteRow只能使用对应表第一列真实存在的rowIndex；空表只能insertRow。tableIndex和columnIndex严格使用下面当前真实映射：
-${liveTableMap()}`;
+    return `${RELAY_GUARD_MARKER}\n这是本轮Memo-N中转站记录协议的最终兜底，不取代任何原有输出要求。\n${machineRule()}\n当前真实表格映射：\n${liveTableMap()}\n空表出现属于该表职责的明确事实时用insertRow建立基线；updateRow/deleteRow只能使用真实存在的rowIndex。`;
 }
 
 function apply(data) {
@@ -55,24 +69,30 @@ function apply(data) {
     delete data.json_schema;
     if (data.response_format?.type === 'json_object') delete data.response_format;
 
-    const kept = [];
-    for (const message of data.messages) {
+    data.messages = data.messages.filter(message => {
         const text = String(message?.content ?? '');
-        if (text.includes(RECORD_MARKER) || text.includes('[Memo-N relay protocol v104]') || text.includes('[Memo-N relay protocol v105]') || text.includes('[Memo-N relay protocol v106]') || text.includes(RELAY_GUARD_MARKER)) continue;
-        kept.push(message);
-    }
-    kept.push({ role: 'system', content: relayContract() });
-    data.messages = kept;
+        return !text.includes(RECORD_MARKER)
+            && !text.includes('[Memo-N relay protocol v104]')
+            && !text.includes('[Memo-N relay protocol v105]')
+            && !text.includes('[Memo-N relay protocol v106]')
+            && !text.includes('[Memo-N relay protocol v107]')
+            && !text.includes(RELAY_GUARD_MARKER);
+    });
+
+    const tablePromptReinforced = reinforceTablePrompt(data.messages);
+    const lastUserReinforced = reinforceLastUser(data.messages);
+    data.messages.push({ role: 'system', content: relayContract() });
 
     globalThis.__memoNRelayTablePromptProbe = Object.freeze({
         at: Date.now(),
         route: ROUTE.RELAY,
-        tablePromptUntouched: true,
+        tablePromptReinforced,
+        lastUserReinforced,
+        systemFallback: true,
+        originalOutputPreserved: true,
         tableCount: writableSheets().length,
-        uniqueRelayProtocol: true,
-        placement: 'separate-system-after-original-preset',
     });
-    console.log(`[Memo-N] 中转站回退为非侵入记录协议｜tables=${writableSheets().length}`);
+    console.log(`[Memo-N] 中转站三点记录协议｜table=${tablePromptReinforced}｜user=${lastUserReinforced}`);
 }
 
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, apply);
