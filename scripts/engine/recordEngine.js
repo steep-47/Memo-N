@@ -8,7 +8,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v6]';
+const MARKER = '[Memo-N record envelope v7]';
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
@@ -84,25 +84,11 @@ function relayContract() {
     return `${MARKER}
 [Memo-N附加记录任务]
 本任务只负责表格记录，不对其余回复提出任何格式或内容要求。
-最终输出的第一个字符必须是“<”，并立即输出且完整闭合下面这种机器记录块：
-<tableEdit><!--
-insertRow(0,{0:"日期",1:"时间"})
---></tableEdit>
-每一轮都必须输出且只能输出一个<tableEdit>记录块；有记录操作就写操作，没有记录操作也必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>，不得省略记录块。
+最终输出必须先完整输出且只输出一个<tableEdit>机器记录块；有操作就写操作，没有操作也必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
+机器记录块闭合后，Memo-N任务结束，后续内容完全继续执行本请求原有指令。
 记录块内只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)，或者NO_CHANGE。
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。
-${sharedRecordRules()}
-记录块闭合后，本附加任务结束；之后继续执行本请求中原本已经存在的指令。`;
-}
-function reinforceRelayRecordTask(messages) {
-    if (!Array.isArray(messages)) return false;
-    for (let index = messages.length - 1; index >= 0; index--) {
-        const message = messages[index];
-        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
-        message.content = `${message.content.trimEnd()}\n\n[Memo-N记录任务：本轮输出必须以一个完整<tableEdit>记录块开头；无操作也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。记录块中的列号必须只从当前真实表格的允许column列表中抄取。记录块闭合后此任务结束。]`;
-        return true;
-    }
-    return false;
+${sharedRecordRules()}`;
 }
 const schema = {
     name: 'memo_n_record_envelope', strict: true,
@@ -127,14 +113,12 @@ function inject(data) {
     const route = getProviderRoute(data);
     const relayMode = route === ROUTE.RELAY;
     const info = providerDebug(data);
-    let recordTaskReinforced = false;
     pending = { at: Date.now(), type: armed.type, session, startLength: Array.isArray(session) ? session.length : 0, base,
         baseMes: String(base?.mes ?? ''), baseSwipeId: Number(base?.swipe_id ?? -1), baseReasoning: base ? reasoningText(base) : '',
         responseMode: relayMode ? 'relay_tableedit' : 'json', route };
     armed = null;
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        recordTaskReinforced = relayMode ? reinforceRelayRecordTask(data.messages) : false;
         data.messages.push({ role: 'system', content: relayMode ? relayContract() : finalContract() });
     }
     if (route === ROUTE.DEEPSEEK) { delete data.json_schema; data.response_format = { type: 'json_object' }; }
@@ -145,7 +129,7 @@ function inject(data) {
     globalThis.__memoNLastRequestProbe = Object.freeze({ at: Date.now(), route, responseMode: relayMode ? 'relay_tableedit_leading' : 'json',
         messageCount: messages.length, markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
         relayTableEditPresent: relayMode && messages.some(message => String(message?.content ?? '').includes('<tableEdit>')),
-        tablePromptReinforced: 0, recordTaskReinforced, lastUserReinforced: recordTaskReinforced, finalRole: String(last?.role ?? ''), provider: info?.route ?? route });
+        tablePromptReinforced: 0, recordTaskReinforced: false, lastUserReinforced: false, finalRole: String(last?.role ?? ''), provider: info?.route ?? route });
 }
 function syncSwipe(chat) { const id = Number(chat?.swipe_id); if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes; }
 function copySnapshot(value) { if (!value || typeof value !== 'object') return null; try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); } }
@@ -279,4 +263,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
-console.log('[Memo-N] 一次API记录引擎已加载：正文归原预设，中转站强化真实column映射与tableEdit记录任务');
+console.log('[Memo-N] 一次API记录引擎已加载：正文归原预设，中转站仅在system层强化tableEdit记录');
