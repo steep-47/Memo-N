@@ -56,6 +56,12 @@ function sharedRecordRules() {
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
 
+记录判断比较“本轮最终正文已经明确成立、应当持续保存的事实”与“当前表格已经保存的事实”。
+- 正文中明确成立、属于某表职责、但当前表尚未保存：insert补齐。
+- 当前表已有对应对象，而正文给出新的持续信息或状态改变：update已有行。
+- 已有记录在正文中明确失效：按表规则delete。
+- 空表没有既有记录可比较；只要本轮最终正文出现属于该表职责的明确事实，就用insert建立基线。
+- 逐表比较后，应保存事实已经完整存在且没有新增、补充、变化或失效时，才表示无变化。
 写cells前必须先在对应table的映射中找到列名，再抄左侧数字作为column；不得按“第1列=1”编号，不得写超出合法范围的column，不得创造不存在的列。没有对应列就不记录该字段。
 世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
 伊依是后台陪伴者，不是剧情世界实体：禁止把伊依写入#0/#3/#4/#5/#6；她只使用独立长期记忆库。`;
@@ -65,8 +71,8 @@ function finalContract() {
     return `${MARKER}
 本轮最终响应只能是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
-reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes只记录本轮正文已经明确确认的事实变化。
-每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。没有变化时changes必须是[]。
+reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes记录为了让当前表格与本轮最终正文中已经明确成立、应持续保存的事实保持一致而需要执行的操作；表中缺失的已确认事实同样需要记录。
+每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。只有逐表比较确认当前表已完整覆盖应保存事实且没有新增、变化或失效时，changes才为[]。
 row只能抄当前表格第一列真实存在的数字。空表只能insert。value只能是字符串或有限数字；同一操作不得重复column。
 日期、时间、地点、当前场景人物发生变化时必须维护表0。
 ${sharedRecordRules()}
@@ -75,7 +81,7 @@ ${sharedRecordRules()}
 
 function relayOutputRules() {
     return `# 输出
-- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划完整正文与本轮明确变化，不输出规划过程。
+- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划完整正文，再逐表比较最终正文已经明确成立、应持续保存的事实与当前表格；当前表缺失的已确认事实也属于待记录内容。
 - 实际输出时，第一段必须先输出且只输出一个完整<tableEdit>机器块，然后立刻继续完整正常正文；不要等正文写完后再补机器块。
 - 格式必须严格为：
 <tableEdit><!--
@@ -83,7 +89,8 @@ updateRow(0,0,{1:"08:30"})
 --></tableEdit>
 - 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
 - updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
-- 七表确实没有任何事实变化时也必须先输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
+- 空表只要最终正文出现属于该表职责的明确事实，就用insert建立基线。
+- 只有逐表比较确认应保存事实已经完整存在且没有新增、补充、变化或失效时，才输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
 - </tableEdit>之后立即开始原本要求的完整正文、状态栏、行动选项和伊依留言等结构；机器块不能替代正文。
 - 不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。
 - 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
@@ -91,14 +98,14 @@ updateRow(0,0,{1:"08:30"})
 
 function relayContract() {
     return `${MARKER}
-本轮使用Memo-N中转站前置tableEdit记录协议。你可以先在内部规划完整正常回复及其已经明确成立的事实变化，但不要输出规划过程。
+本轮使用Memo-N中转站前置tableEdit记录协议。你可以先在内部规划完整正常回复，再逐表比较最终正文已经明确成立、应持续保存的事实与当前表格，但不要输出规划过程。
 真正开始输出时，第一段必须先给出且只给出一个完整tableEdit机器块；机器块闭合后再输出给用户看的完整正常回复。这样即使正文较长，也不能把记录机器块拖到回复末尾：
 <tableEdit><!--
 updateRow(0,0,{1:"08:30"})
 --></tableEdit>
 随后立刻继续正常正文、状态栏、选项和角色留言，不要为了记录省略任何正文组成部分。
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时第一段仍必须输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
+只有逐表比较确认应保存事实已经完整存在且没有新增、补充、变化或失效时，第一段才输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
 ${sharedRecordRules()}
 不得使用JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
 }
@@ -161,16 +168,10 @@ function inject(data) {
     let userReinforced = false;
 
     pending = {
-        at: Date.now(),
-        type: armed.type,
-        session,
+        at: Date.now(), type: armed.type, session,
         startLength: Array.isArray(session) ? session.length : 0,
-        base,
-        baseMes: String(base?.mes ?? ''),
-        baseSwipeId: Number(base?.swipe_id ?? -1),
-        baseReasoning: base ? reasoningText(base) : '',
-        responseMode: relayMode ? 'relay_tableedit' : 'json',
-        route,
+        base, baseMes: String(base?.mes ?? ''), baseSwipeId: Number(base?.swipe_id ?? -1),
+        baseReasoning: base ? reasoningText(base) : '', responseMode: relayMode ? 'relay_tableedit' : 'json', route,
     };
     armed = null;
 
@@ -197,204 +198,78 @@ function inject(data) {
 
     const messages = Array.isArray(data.messages) ? data.messages : [];
     const last = messages.at(-1);
-    globalThis.__memoNLastRequestProbe = Object.freeze({
-        at: Date.now(),
-        route,
-        responseMode: relayMode ? 'relay_tableedit_leading' : 'json',
-        messageCount: messages.length,
+    globalThis.__memoNLastRequestProbe = Object.freeze({ at: Date.now(), route,
+        responseMode: relayMode ? 'relay_tableedit_leading' : 'json', messageCount: messages.length,
         markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
         relayTableEditPresent: relayMode && messages.some(message => String(message?.content ?? '').includes('<tableEdit>')),
-        tablePromptReinforced: reinforced,
-        lastUserReinforced: userReinforced,
-        finalRole: String(last?.role ?? ''),
-    });
+        tablePromptReinforced: reinforced, lastUserReinforced: userReinforced, finalRole: String(last?.role ?? '') });
 }
 
-function syncSwipe(chat) {
-    const id = Number(chat?.swipe_id);
-    if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes;
-}
-function copySnapshot(value) {
-    if (!value || typeof value !== 'object') return null;
-    try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); }
-}
-function previousSnapshot(chatId) {
-    const id = Number(chatId);
-    return Number.isInteger(id) && id > 0 ? BASE.getLastSheetsPiece(id - 1, 1000, false)?.piece?.memo_n_hash_sheets : BASE.initHashSheet?.()?.memo_n_hash_sheets;
-}
+function syncSwipe(chat) { const id = Number(chat?.swipe_id); if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes; }
+function copySnapshot(value) { if (!value || typeof value !== 'object') return null; try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); } }
+function previousSnapshot(chatId) { const id = Number(chatId); return Number.isInteger(id) && id > 0 ? BASE.getLastSheetsPiece(id - 1, 1000, false)?.piece?.memo_n_hash_sheets : BASE.initHashSheet?.()?.memo_n_hash_sheets; }
 function setStatus(chat, envelope, execution) {
     const record = envelope?.tableEdit ? String(envelope.tableEdit) : JSON.stringify(envelope?.changes ?? []);
-    Object.defineProperty(chat, '__memoStrictExecution', { configurable: true, writable: true, value: {
-        swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit: record,
-        ok: execution.ok === true, changed: execution.changed === true, noChange: execution.noChange === true,
-        count: Number(execution.count || 0), error: String(execution.error || ''), at: Date.now(), engine: 'Memo-N',
-    } });
+    Object.defineProperty(chat, '__memoStrictExecution', { configurable: true, writable: true, value: { swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit: record,
+        ok: execution.ok === true, changed: execution.changed === true, noChange: execution.noChange === true, count: Number(execution.count || 0), error: String(execution.error || ''), at: Date.now(), engine: 'Memo-N' } });
 }
 async function preserveFailureBaseline(chatId, chat, appendMode) {
-    if (!appendMode) {
-        const restored = restoreMemoSnapshot(previousSnapshot(chatId));
-        if (!restored.ok) return false;
-    }
+    if (!appendMode) { const restored = restoreMemoSnapshot(previousSnapshot(chatId)); if (!restored.ok) return false; }
     try { saveMemoSnapshot(chat); await USER.saveChat(); return true; } catch (error) { console.error('[Memo-N] 失败基线保存失败', error); return false; }
 }
-function incompleteEnvelope(envelope) {
-    const error = String(envelope?.error || '');
-    return envelope?.ok === false && (/响应不是合法JSON：Unexpected end of JSON input/i.test(error) || /记录块尚未闭合/.test(error));
-}
+function incompleteEnvelope(envelope) { const error = String(envelope?.error || ''); return envelope?.ok === false && (/响应不是合法JSON：Unexpected end of JSON input/i.test(error) || /记录块尚未闭合/.test(error)); }
 function reasoningText(chat) {
     const swipeId = Number(chat?.swipe_id);
-    const swipeReasoning = Number.isInteger(swipeId) && swipeId >= 0
-        ? chat?.swipe_info?.[swipeId]?.extra?.reasoning
-        : '';
+    const swipeReasoning = Number.isInteger(swipeId) && swipeId >= 0 ? chat?.swipe_info?.[swipeId]?.extra?.reasoning : '';
     return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
 }
 function selectEnvelope(chat, job, appendMode) {
-    const current = String(chat?.mes ?? '');
-    const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
-    const reasoning = reasoningText(chat);
-    const fingerprint = `${current}\u241f${reasoning}`;
-
+    const current = String(chat?.mes ?? ''); const content = (appendMode ? current.slice(job.baseMes.length) : current).trim(); const reasoning = reasoningText(chat); const fingerprint = `${current}\u241f${reasoning}`;
     if (job.responseMode === 'relay_tableedit') {
-        const contentTableEdit = content ? parseRelayTableEditEnvelope(content) : null;
-        if (contentTableEdit?.ok) return { current, envelope: contentTableEdit, source: 'relay-tableedit-content', fingerprint };
-        const reasoningTableEdit = reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
-        if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'relay-tableedit-reasoning', fingerprint };
-
-        // 仅兼容 memon70-72 的旧 tagged JSON 回复，不作为新请求协议。
-        const legacyContent = content ? parseRelayTaggedEnvelope(content) : null;
-        if (legacyContent?.ok) return { current, envelope: legacyContent, source: 'relay-legacy-tagged-content', fingerprint };
-        const legacyReasoning = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
-        if (legacyReasoning?.ok) return { current, envelope: legacyReasoning, source: 'relay-legacy-tagged-reasoning', fingerprint };
-
-        const envelope = contentTableEdit || reasoningTableEdit || parseRelayTableEditEnvelope('');
-        return { current, envelope, source: 'relay-none', fingerprint };
+        const contentTableEdit = content ? parseRelayTableEditEnvelope(content) : null; if (contentTableEdit?.ok) return { current, envelope: contentTableEdit, source: 'relay-tableedit-content', fingerprint };
+        const reasoningTableEdit = reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null; if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'relay-tableedit-reasoning', fingerprint };
+        const legacyContent = content ? parseRelayTaggedEnvelope(content) : null; if (legacyContent?.ok) return { current, envelope: legacyContent, source: 'relay-legacy-tagged-content', fingerprint };
+        const legacyReasoning = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null; if (legacyReasoning?.ok) return { current, envelope: legacyReasoning, source: 'relay-legacy-tagged-reasoning', fingerprint };
+        const envelope = contentTableEdit || reasoningTableEdit || parseRelayTableEditEnvelope(''); return { current, envelope, source: 'relay-none', fingerprint };
     }
-
-    const contentEnvelope = content ? parseRecordEnvelope(content) : null;
-    if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
-    const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null;
-    if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint };
-    const envelope = contentEnvelope || reasoningEnvelope || parseRecordEnvelope('');
-    return { current, envelope, source: contentEnvelope ? 'content' : reasoningEnvelope ? 'reasoning' : 'none', fingerprint };
+    const contentEnvelope = content ? parseRecordEnvelope(content) : null; if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
+    const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null; if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint };
+    const envelope = contentEnvelope || reasoningEnvelope || parseRecordEnvelope(''); return { current, envelope, source: contentEnvelope ? 'content' : reasoningEnvelope ? 'reasoning' : 'none', fingerprint };
 }
 async function waitForCompleteEnvelope(chat, job, appendMode) {
-    let selected = selectEnvelope(chat, job, appendMode);
-    if (selected.envelope.ok || !incompleteEnvelope(selected.envelope)) return selected;
-    for (let attempt = 0; attempt < 25; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 120));
-        if (job.session && USER?.getContext?.()?.chat !== job.session) return { ...selected, detached: true };
-        const latest = selectEnvelope(chat, job, appendMode);
-        if (latest.fingerprint === selected.fingerprint) continue;
-        selected = latest;
-        if (selected.envelope.ok || !incompleteEnvelope(selected.envelope)) break;
-    }
+    let selected = selectEnvelope(chat, job, appendMode); if (selected.envelope.ok || !incompleteEnvelope(selected.envelope)) return selected;
+    for (let attempt = 0; attempt < 25; attempt++) { await new Promise(resolve => setTimeout(resolve, 120)); if (job.session && USER?.getContext?.()?.chat !== job.session) return { ...selected, detached: true }; const latest = selectEnvelope(chat, job, appendMode); if (latest.fingerprint === selected.fingerprint) continue; selected = latest; if (selected.envelope.ok || !incompleteEnvelope(selected.envelope)) break; }
     return selected;
 }
 async function unpack(chatId) {
-    const job = pending;
-    if (!job || Date.now() - job.at > 300000) { pending = null; return false; }
-    if (job.session && USER?.getContext?.()?.chat !== job.session) { pending = null; return false; }
-    const chat = USER?.getContext?.()?.chat?.[chatId];
-    if (!chat || chat.is_user || handled.get(chat) === chat.mes) return false;
-    let current = String(chat.mes ?? '');
-    const isAppend = appendType(job.type) && job.base === chat && job.baseMes && current.startsWith(job.baseMes);
-    const waited = await waitForCompleteEnvelope(chat, job, isAppend);
-    if (waited.detached) { pending = null; return false; }
-    current = waited.current;
-    const envelope = waited.envelope;
-    pending = null;
-    if (!envelope.ok) {
-        if (envelope.reply) {
-            chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
-            syncSwipe(chat);
-        }
-        await preserveFailureBaseline(chatId, chat, isAppend);
-        setStatus(chat, { changes: [] }, { ok: false, error: envelope.error });
-        EDITOR.warning(`Memo-N记录未写入：${envelope.error}。正文已保留，不会自动重试。`);
-        return false;
-    }
-    chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
-    syncSwipe(chat);
-    if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
-    if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站tableEdit记录块');
-    if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站回复读取tableEdit记录块并剥离');
-    if (waited.source.startsWith('relay-legacy-tagged')) console.log('[Memo-N] 已兼容读取memon70-72旧tagged JSON记录块');
-    handled.set(chat, chat.mes);
-    const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
-    const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
-    const executionInput = envelope.tableEdit ? envelope.tableEdit : changesToStrictCalls(envelope.changes);
-    const execution = baseline.ok ? executeMemoTableEdit(executionInput, chat) : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
-    setStatus(chat, envelope, execution);
-    try {
-        await USER.saveChat();
-    } catch (error) {
-        const rollback = baselineSnapshot ? restoreMemoSnapshot(copySnapshot(baselineSnapshot)) : { ok: false, error: '缺少回滚基线' };
-        try { if (rollback.ok) saveMemoSnapshot(chat); } catch (snapshotError) { rollback.ok = false; rollback.error = `${rollback.error || ''}；消息快照回滚失败：${snapshotError?.message || snapshotError}`; }
-        const failed = { ok: false, changed: false, noChange: false, count: 0, error: `聊天保存失败：${error?.message || error}${rollback.ok ? '；表格已回滚' : `；表格回滚异常：${rollback.error}`}` };
-        setStatus(chat, envelope, failed);
-        EDITOR.error(`Memo-N保存失败：${failed.error}`);
-        return false;
-    }
-    if (execution.ok && execution.changed) {
-        try { await BASE.refreshContextView?.(); }
-        catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); }
-    }
-    if (job.session === USER?.getContext?.()?.chat) USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat);
-    if (!execution.ok) EDITOR.warning(`Memo-N记录失败：${execution.error}。正文已保留，表格未部分写入。`);
-    return execution.ok === true;
+    const job = pending; if (!job || Date.now() - job.at > 300000) { pending = null; return false; } if (job.session && USER?.getContext?.()?.chat !== job.session) { pending = null; return false; }
+    const chat = USER?.getContext?.()?.chat?.[chatId]; if (!chat || chat.is_user || handled.get(chat) === chat.mes) return false;
+    let current = String(chat.mes ?? ''); const isAppend = appendType(job.type) && job.base === chat && job.baseMes && current.startsWith(job.baseMes);
+    const waited = await waitForCompleteEnvelope(chat, job, isAppend); if (waited.detached) { pending = null; return false; } current = waited.current; const envelope = waited.envelope; pending = null;
+    if (!envelope.ok) { if (envelope.reply) { chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply; syncSwipe(chat); } await preserveFailureBaseline(chatId, chat, isAppend); setStatus(chat, { changes: [] }, { ok: false, error: envelope.error }); EDITOR.warning(`Memo-N记录未写入：${envelope.error}。正文已保留，不会自动重试。`); return false; }
+    chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply; syncSwipe(chat);
+    handled.set(chat, chat.mes); const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId)); const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
+    const executionInput = envelope.tableEdit ? envelope.tableEdit : changesToStrictCalls(envelope.changes); const execution = baseline.ok ? executeMemoTableEdit(executionInput, chat) : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error }; setStatus(chat, envelope, execution);
+    try { await USER.saveChat(); } catch (error) { const rollback = baselineSnapshot ? restoreMemoSnapshot(copySnapshot(baselineSnapshot)) : { ok: false, error: '缺少回滚基线' }; try { if (rollback.ok) saveMemoSnapshot(chat); } catch (snapshotError) { rollback.ok = false; rollback.error = `${rollback.error || ''}；消息快照回滚失败：${snapshotError?.message || snapshotError}`; } const failed = { ok: false, changed: false, noChange: false, count: 0, error: `聊天保存失败：${error?.message || error}${rollback.ok ? '；表格已回滚' : `；表格回滚异常：${rollback.error}`}` }; setStatus(chat, envelope, failed); EDITOR.error(`Memo-N保存失败：${failed.error}`); return false; }
+    if (execution.ok && execution.changed) { try { await BASE.refreshContextView?.(); } catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); } }
+    if (job.session === USER?.getContext?.()?.chat) USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat); if (!execution.ok) EDITOR.warning(`Memo-N记录失败：${execution.error}。正文已保留，表格未部分写入。`); return execution.ok === true;
 }
 
-function handleRendered(chatId) {
-    const id = Number(chatId);
-    if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id;
-}
-
+function handleRendered(chatId) { const id = Number(chatId); if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id; }
 function candidateMatchesJob(chat, index, job) {
     if (!chat || chat.is_user === true || !job) return false;
-    if (job.base) {
-        if (chat === job.base) {
-            return String(chat.mes ?? '') !== job.baseMes
-                || Number(chat.swipe_id ?? -1) !== job.baseSwipeId
-                || reasoningText(chat) !== job.baseReasoning;
-        }
-        // Swipe/重新生成可能用新消息对象替换原来的最后一条，但不会倒退到更早的历史消息。
-        return index >= Math.max(0, Number(job.startLength || 0) - 1);
-    }
-    // 普通生成在 SETTINGS_READY 时最后一条仍是用户消息；只接受之后新追加的助手消息。
+    if (job.base) { if (chat === job.base) return String(chat.mes ?? '') !== job.baseMes || Number(chat.swipe_id ?? -1) !== job.baseSwipeId || reasoningText(chat) !== job.baseReasoning; return index >= Math.max(0, Number(job.startLength || 0) - 1); }
     return index >= Number(job.startLength || 0);
 }
-
 function resolveCompletedChatId(job) {
-    const chat = USER?.getContext?.()?.chat;
-    if (!Array.isArray(chat) || !chat.length || !job || chat !== job.session) return null;
-    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length
-        && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) {
-        return lastRenderedChatId;
-    }
-    for (let i = chat.length - 1; i >= 0; i--) {
-        if (candidateMatchesJob(chat[i], i, job)) return i;
-    }
-    return null;
+    const chat = USER?.getContext?.()?.chat; if (!Array.isArray(chat) || !chat.length || !job || chat !== job.session) return null;
+    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) return lastRenderedChatId;
+    for (let i = chat.length - 1; i >= 0; i--) if (candidateMatchesJob(chat[i], i, job)) return i; return null;
 }
-
 function handleGenerationEnded() {
-    const job = pending;
-    if (!job) return;
-    const chatId = resolveCompletedChatId(job);
-    lastRenderedChatId = null;
-    if (!Number.isInteger(chatId)) {
-        // 请求失败、slash command中断或取消时可能没有产生任何新助手消息。
-        // 此时绝不能退回去解析/改写上一条旧助手消息，也绝不能恢复旧消息对应的表格基线。
-        pending = null;
-        console.log('[Memo-N] 本轮生成结束但没有产生新的/变化后的助手消息：记录任务安全丢弃，不触碰历史消息与表格');
-        return;
-    }
-    const chat = USER?.getContext?.()?.chat?.[chatId];
-    const persistence = unpack(chatId);
-    if (chat && persistence && typeof persistence.then === 'function') {
-        Object.defineProperty(chat, '__memoStrictPersistence', { configurable: true, writable: true, value: persistence });
-        void persistence.catch(error => console.error('[Memo-N] 生成结束后记录任务异常', error));
-    }
+    const job = pending; if (!job) return; const chatId = resolveCompletedChatId(job); lastRenderedChatId = null;
+    if (!Number.isInteger(chatId)) { pending = null; console.log('[Memo-N] 本轮生成结束但没有产生新的/变化后的助手消息：记录任务安全丢弃，不触碰历史消息与表格'); return; }
+    const chat = USER?.getContext?.()?.chat?.[chatId]; const persistence = unpack(chatId); if (chat && persistence && typeof persistence.then === 'function') { Object.defineProperty(chat, '__memoStrictPersistence', { configurable: true, writable: true, value: persistence }); void persistence.catch(error => console.error('[Memo-N] 生成结束后记录任务异常', error)); }
 }
 
 APP.eventSource.on(APP.event_types.GENERATION_STARTED, arm);
