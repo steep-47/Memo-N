@@ -8,7 +8,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v1]';
+const MARKER = '[Memo-N record envelope v2]';
 const TABLE_PROMPT_MARKER = '# dataTable 世界状态记忆';
 const OUTPUT_HEADING = '# 输出';
 const handled = new WeakMap();
@@ -36,75 +36,73 @@ function arm(type, _options, dryRun) {
     lastRenderedChatId = null;
     if (armed) pending = null;
 }
-function preparePrompt() {
-    // Memo-N 不修改 SillyTavern 的流式设置。
-}
+function preparePrompt() {}
 
-function liveColumnMap() {
-    const sheets = (BASE.getChatSheets?.() ?? [])
+function writableSheets() {
+    return (BASE.getChatSheets?.() ?? [])
         .filter(sheet => sheet?.enable !== false)
         .filter(sheet => sheet?.sendToContext !== false);
+}
+function liveColumnMap() {
+    const sheets = writableSheets();
     if (!sheets.length) return '当前没有可写表格。';
     return sheets.map((sheet, tableIndex) => {
         const name = String(sheet?.name ?? `表${tableIndex}`);
         const headers = (sheet?.getHeader?.() ?? []).map(value => String(value ?? '').trim()).filter(Boolean);
+        const state = sheet?.isEmpty?.() ? '空表' : `已有${Math.max(0, Number(sheet?.getRowCount?.() ?? 1) - 1)}行`;
         if (!headers.length) return `#${tableIndex} ${name}：当前无法读取表头，本轮不得写此表`;
-        return `#${tableIndex} ${name}：${headers.map((header, column) => `${column}=${header}`).join('，')}；合法column范围0-${headers.length - 1}`;
+        return `#${tableIndex} ${name}（${state}）：${headers.map((header, column) => `${column}=${header}`).join('，')}；合法column范围0-${headers.length - 1}`;
     }).join('\n');
 }
-
 function sharedRecordRules() {
     return `
-[当前真实列号映射｜column严格从0开始]
+[当前真实表格与列号映射｜column严格从0开始]
 ${liveColumnMap()}
 
+记录判断必须比较“本轮最终正文明确成立的事实”与“当前表里已经保存的事实”，不是只问这些事实相对上一轮有没有变化。
+- 正文中已经明确成立、属于某表职责、但当前表没有保存：这是待记录内容，insert补齐。
+- 当前表已有对应对象，但正文给出新的持续信息或状态改变：update已有行。
+- 已有记录明确失效：按表规则delete。
+- 空表没有任何既有记录可供比较；只要本轮最终正文出现属于该表职责的明确事实，就必须insert建立基线，不能因为“没有上一轮变化”而NO_CHANGE。
+- 只有逐表比较后，应保存的事实已经完整存在，且没有新增、变化、补充或失效，才允许NO_CHANGE/空changes。
 写cells前必须先在对应table的映射中找到列名，再抄左侧数字作为column；不得按“第1列=1”编号，不得写超出合法范围的column，不得创造不存在的列。没有对应列就不记录该字段。
 世界书人物与剧情自动生成NPC完全同规则：只按已确认事实记录，不因来源不同改变记录策略。
 伊依是后台陪伴者，不是剧情世界实体：不得写入任何世界状态表；她只使用独立长期记忆库。`;
 }
-
 function finalContract() {
     return `${MARKER}
 本轮最终响应只能是一个JSON对象，JSON外不得出现任何字符：
-{"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
-reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes只记录本轮正文已经明确确认的事实变化。
-每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。没有变化时changes必须是[]。
+{"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":null,"cells":[{"column":0,"value":"值"}]}]}
+reply必须包含完整正文、状态栏、选项和角色留言，并保持原有写作要求。changes记录为了让当前表格与本轮最终正文中已经明确成立的世界事实保持一致而需要执行的操作；表中缺失的已确认事实同样属于changes，不要求它必须相对上一轮发生变化。
+每个变更固定包含op/table/row/cells。insert的row必须为null；update/delete的row必须是整数；delete的cells必须为[]。
 row只能抄当前表格第一列真实存在的数字。空表只能insert。value只能是字符串或有限数字；同一操作不得重复column。
-日期、时间、地点、当前场景人物发生变化时必须维护表0。
 ${sharedRecordRules()}
 禁止输出函数、SQL、Markdown、tableEdit、解释或额外字段。`;
 }
-
 function relayOutputRules() {
     return `# 输出
-- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划完整正文与本轮明确变化，不输出规划过程。
+- 本轮为Memo-N中转站前置tableEdit记录模式。先在内部规划完整正文，再逐表比较正文已经明确成立的事实与当前表格；表中缺失的事实也必须形成记录操作。
 - 实际输出时，第一段必须先输出且只输出一个完整<tableEdit>机器块，然后立刻继续完整正常正文；不要等正文写完后再补机器块。
-- 格式必须严格为：
-<tableEdit><!--
-updateRow(0,0,{1:"08:30"})
---></tableEdit>
+- 格式严格为：\n<tableEdit><!--\ninsertRow(0,{0:"日期",1:"时间"})\n--></tableEdit>
 - 只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
 - updateRow/deleteRow只能使用当前表格第一列真实存在的rowIndex；空表首次记录只能insertRow。
-- 当前启用表格确实没有任何事实变化时也必须先输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
+- 空表只要正文出现属于该表职责的明确事实就必须insert；不能把“表里什么都没有”判成NO_CHANGE。
+- 只有应保存事实已经完整存在且没有新增、补充、变化或失效时，才输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
 - </tableEdit>之后立即开始原本要求的完整正文、状态栏、行动选项和伊依留言等结构；机器块不能替代正文。
-- 不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。
-- 日期、时间、地点、当前场景人物任一发生变化时必须维护表0。`;
+- 不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
 }
-
 function relayContract() {
     return `${MARKER}
-本轮使用Memo-N中转站前置tableEdit记录协议。你可以先在内部规划完整正常回复及其已经明确成立的事实变化，但不要输出规划过程。
-真正开始输出时，第一段必须先给出且只给出一个完整tableEdit机器块；机器块闭合后再输出给用户看的完整正常回复。这样即使正文较长，也不能把记录机器块拖到回复末尾：
+本轮使用Memo-N中转站前置tableEdit记录协议。先在内部规划完整正常回复，然后逐表比较最终正文已经明确成立的事实与当前表格。
+真正开始输出时，第一段必须先给出且只给出一个完整tableEdit机器块；机器块闭合后再输出给用户看的完整正常回复：
 <tableEdit><!--
-updateRow(0,0,{1:"08:30"})
+insertRow(0,{0:"日期",1:"时间"})
 --></tableEdit>
 随后立刻继续正常正文、状态栏、选项和角色留言，不要为了记录省略任何正文组成部分。
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。唯一允许的操作是insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)。
-没有任何事实变化时第一段仍必须输出：<tableEdit><!-- NO_CHANGE --></tableEdit>。
 ${sharedRecordRules()}
 不得使用JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
 }
-
 function reinforceRelayTablePrompt(messages) {
     let rewritten = 0;
     const output = relayOutputRules();
@@ -112,17 +110,14 @@ function reinforceRelayTablePrompt(messages) {
         const content = String(message?.content ?? '');
         if (!content.includes(TABLE_PROMPT_MARKER)) continue;
         const index = content.lastIndexOf(OUTPUT_HEADING);
-        message.content = index >= 0
-            ? `${content.slice(0, index).trimEnd()}\n${output}`
-            : `${content.trimEnd()}\n${output}`;
+        message.content = index >= 0 ? `${content.slice(0, index).trimEnd()}\n${output}` : `${content.trimEnd()}\n${output}`;
         rewritten++;
     }
     return rewritten;
 }
-
 function reinforceRelayLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N输出硬约束：实际回复第一段必须先输出一个完整<tableEdit><!-- 表格操作或NO_CHANGE --></tableEdit>，闭合后才输出完整正常正文。]`;
+    const reminder = `\n\n[Memo-N输出硬约束：实际回复第一段必须先输出一个完整<tableEdit><!-- 表格操作或NO_CHANGE --></tableEdit>，闭合后才输出完整正常正文；空表中缺失的已确认事实必须补齐。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
@@ -131,26 +126,21 @@ function reinforceRelayLastUser(messages) {
     }
     return false;
 }
-
 const schema = {
     name: 'memo_n_record_envelope', strict: true,
     value: {
         type: 'object', additionalProperties: false,
         properties: {
             reply: { type: 'string' },
-            changes: {
-                type: 'array', items: { type: 'object', additionalProperties: false,
-                    properties: { op: { type: 'string', enum: ['insert', 'update', 'delete'] }, table: { type: 'integer', minimum: 0 },
-                        row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
-                        cells: { type: 'array', items: { type: 'object', additionalProperties: false,
-                            properties: { column: { type: 'integer', minimum: 0 }, value: { anyOf: [{ type: 'string' }, { type: 'number' }] } },
-                            required: ['column', 'value'] } } },
-                    required: ['op', 'table', 'row', 'cells'] },
-            },
+            changes: { type: 'array', items: { type: 'object', additionalProperties: false,
+                properties: { op: { type: 'string', enum: ['insert', 'update', 'delete'] }, table: { type: 'integer', minimum: 0 },
+                    row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
+                    cells: { type: 'array', items: { type: 'object', additionalProperties: false,
+                        properties: { column: { type: 'integer', minimum: 0 }, value: { anyOf: [{ type: 'string' }, { type: 'number' }] } }, required: ['column', 'value'] } } },
+                required: ['op', 'table', 'row', 'cells'] } },
         }, required: ['reply', 'changes'],
     },
 };
-
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
     const context = USER.getContext?.();
@@ -161,93 +151,42 @@ function inject(data) {
     const info = providerDebug(data);
     let reinforced = 0;
     let userReinforced = false;
-
-    pending = {
-        at: Date.now(),
-        type: armed.type,
-        session,
-        startLength: Array.isArray(session) ? session.length : 0,
-        base,
-        baseMes: String(base?.mes ?? ''),
-        baseSwipeId: Number(base?.swipe_id ?? -1),
-        baseReasoning: base ? reasoningText(base) : '',
-        responseMode: relayMode ? 'relay_tableedit' : 'json',
-        route,
-    };
+    pending = { at: Date.now(), type: armed.type, session, startLength: Array.isArray(session) ? session.length : 0, base,
+        baseMes: String(base?.mes ?? ''), baseSwipeId: Number(base?.swipe_id ?? -1), baseReasoning: base ? reasoningText(base) : '',
+        responseMode: relayMode ? 'relay_tableedit' : 'json', route };
     armed = null;
-
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
         reinforced = relayMode ? reinforceRelayTablePrompt(data.messages) : 0;
         userReinforced = relayMode ? reinforceRelayLastUser(data.messages) : false;
         data.messages.push({ role: 'system', content: relayMode ? relayContract() : finalContract() });
-        if (relayMode) console.log(`[Memo-N] 中转站前置tableEdit约束已注入｜tablePrompt=${reinforced}｜lastUser=${userReinforced}`);
     }
-
-    if (route === ROUTE.DEEPSEEK) {
-        delete data.json_schema;
-        data.response_format = { type: 'json_object' };
-        console.log(`[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封｜route=${info.route}`);
-    } else if (relayMode) {
-        delete data.json_schema;
-        if (data.response_format?.type === 'json_object') delete data.response_format;
-        console.log(`[Memo-N] 已接管本轮一次API：中转站前置tableEdit记录块｜route=${info.route}`);
-    } else {
-        data.json_schema = structuredClone(schema);
-        console.log(`[Memo-N] 已接管本轮一次API：JSON记录信封｜route=${route}`);
-    }
-
+    if (route === ROUTE.DEEPSEEK) { delete data.json_schema; data.response_format = { type: 'json_object' }; }
+    else if (relayMode) { delete data.json_schema; if (data.response_format?.type === 'json_object') delete data.response_format; }
+    else data.json_schema = structuredClone(schema);
     const messages = Array.isArray(data.messages) ? data.messages : [];
     const last = messages.at(-1);
-    globalThis.__memoNLastRequestProbe = Object.freeze({
-        at: Date.now(),
-        route,
-        responseMode: relayMode ? 'relay_tableedit_leading' : 'json',
-        messageCount: messages.length,
-        markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
+    globalThis.__memoNLastRequestProbe = Object.freeze({ at: Date.now(), route, responseMode: relayMode ? 'relay_tableedit_leading' : 'json',
+        messageCount: messages.length, markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
         relayTableEditPresent: relayMode && messages.some(message => String(message?.content ?? '').includes('<tableEdit>')),
-        tablePromptReinforced: reinforced,
-        lastUserReinforced: userReinforced,
-        finalRole: String(last?.role ?? ''),
-    });
+        tablePromptReinforced: reinforced, lastUserReinforced: userReinforced, finalRole: String(last?.role ?? '') });
 }
-
-function syncSwipe(chat) {
-    const id = Number(chat?.swipe_id);
-    if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes;
-}
-function copySnapshot(value) {
-    if (!value || typeof value !== 'object') return null;
-    try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); }
-}
-function previousSnapshot(chatId) {
-    const id = Number(chatId);
-    return Number.isInteger(id) && id > 0 ? BASE.getLastSheetsPiece(id - 1, 1000, false)?.piece?.memo_n_hash_sheets : BASE.initHashSheet?.()?.memo_n_hash_sheets;
-}
+function syncSwipe(chat) { const id = Number(chat?.swipe_id); if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes; }
+function copySnapshot(value) { if (!value || typeof value !== 'object') return null; try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); } }
+function previousSnapshot(chatId) { const id = Number(chatId); return Number.isInteger(id) && id > 0 ? BASE.getLastSheetsPiece(id - 1, 1000, false)?.piece?.memo_n_hash_sheets : BASE.initHashSheet?.()?.memo_n_hash_sheets; }
 function setStatus(chat, envelope, execution) {
     const record = envelope?.tableEdit ? String(envelope.tableEdit) : JSON.stringify(envelope?.changes ?? []);
-    Object.defineProperty(chat, '__memoStrictExecution', { configurable: true, writable: true, value: {
-        swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit: record,
-        ok: execution.ok === true, changed: execution.changed === true, noChange: execution.noChange === true,
-        count: Number(execution.count || 0), error: String(execution.error || ''), at: Date.now(), engine: 'Memo-N',
-    } });
+    Object.defineProperty(chat, '__memoStrictExecution', { configurable: true, writable: true, value: { swipeId: Number(chat?.swipe_id ?? 0), mes: String(chat?.mes ?? ''), tableEdit: record,
+        ok: execution.ok === true, changed: execution.changed === true, noChange: execution.noChange === true, count: Number(execution.count || 0), error: String(execution.error || ''), at: Date.now(), engine: 'Memo-N' } });
 }
 async function preserveFailureBaseline(chatId, chat, appendMode) {
-    if (!appendMode) {
-        const restored = restoreMemoSnapshot(previousSnapshot(chatId));
-        if (!restored.ok) return false;
-    }
+    if (!appendMode) { const restored = restoreMemoSnapshot(previousSnapshot(chatId)); if (!restored.ok) return false; }
     try { saveMemoSnapshot(chat); await USER.saveChat(); return true; } catch (error) { console.error('[Memo-N] 失败基线保存失败', error); return false; }
 }
-function incompleteEnvelope(envelope) {
-    const error = String(envelope?.error || '');
-    return envelope?.ok === false && (/响应不是合法JSON：Unexpected end of JSON input/i.test(error) || /记录块尚未闭合/.test(error));
-}
+function incompleteEnvelope(envelope) { const error = String(envelope?.error || ''); return envelope?.ok === false && (/响应不是合法JSON：Unexpected end of JSON input/i.test(error) || /记录块尚未闭合/.test(error)); }
 function reasoningText(chat) {
     const swipeId = Number(chat?.swipe_id);
-    const swipeReasoning = Number.isInteger(swipeId) && swipeId >= 0
-        ? chat?.swipe_info?.[swipeId]?.extra?.reasoning
-        : '';
+    const swipeReasoning = Number.isInteger(swipeId) && swipeId >= 0 ? chat?.swipe_info?.[swipeId]?.extra?.reasoning : '';
     return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
 }
 function selectEnvelope(chat, job, appendMode) {
@@ -255,23 +194,18 @@ function selectEnvelope(chat, job, appendMode) {
     const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
-
     if (job.responseMode === 'relay_tableedit') {
         const contentTableEdit = content ? parseRelayTableEditEnvelope(content) : null;
         if (contentTableEdit?.ok) return { current, envelope: contentTableEdit, source: 'relay-tableedit-content', fingerprint };
         const reasoningTableEdit = reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
         if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'relay-tableedit-reasoning', fingerprint };
-
-        // 仅兼容 memon70-72 的旧 tagged JSON 回复，不作为新请求协议。
         const legacyContent = content ? parseRelayTaggedEnvelope(content) : null;
         if (legacyContent?.ok) return { current, envelope: legacyContent, source: 'relay-legacy-tagged-content', fingerprint };
         const legacyReasoning = reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
         if (legacyReasoning?.ok) return { current, envelope: legacyReasoning, source: 'relay-legacy-tagged-reasoning', fingerprint };
-
         const envelope = contentTableEdit || reasoningTableEdit || parseRelayTableEditEnvelope('');
         return { current, envelope, source: 'relay-none', fingerprint };
     }
-
     const contentEnvelope = content ? parseRecordEnvelope(content) : null;
     if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
     const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null;
@@ -306,10 +240,7 @@ async function unpack(chatId) {
     const envelope = waited.envelope;
     pending = null;
     if (!envelope.ok) {
-        if (envelope.reply) {
-            chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
-            syncSwipe(chat);
-        }
+        if (envelope.reply) { chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply; syncSwipe(chat); }
         await preserveFailureBaseline(chatId, chat, isAppend);
         setStatus(chat, { changes: [] }, { ok: false, error: envelope.error });
         EDITOR.warning(`Memo-N记录未写入：${envelope.error}。正文已保留，不会自动重试。`);
@@ -317,80 +248,46 @@ async function unpack(chatId) {
     }
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
-    if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
-    if (waited.source === 'relay-tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取中转站tableEdit记录块');
-    if (waited.source === 'relay-tableedit-content') console.log('[Memo-N] 已从中转站回复读取tableEdit记录块并剥离');
-    if (waited.source.startsWith('relay-legacy-tagged')) console.log('[Memo-N] 已兼容读取memon70-72旧tagged JSON记录块');
     handled.set(chat, chat.mes);
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' } : restoreMemoSnapshot(baselineSnapshot);
     const executionInput = envelope.tableEdit ? envelope.tableEdit : changesToStrictCalls(envelope.changes);
     const execution = baseline.ok ? executeMemoTableEdit(executionInput, chat) : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
     setStatus(chat, envelope, execution);
-    try {
-        await USER.saveChat();
-    } catch (error) {
+    try { await USER.saveChat(); }
+    catch (error) {
         const rollback = baselineSnapshot ? restoreMemoSnapshot(copySnapshot(baselineSnapshot)) : { ok: false, error: '缺少回滚基线' };
         try { if (rollback.ok) saveMemoSnapshot(chat); } catch (snapshotError) { rollback.ok = false; rollback.error = `${rollback.error || ''}；消息快照回滚失败：${snapshotError?.message || snapshotError}`; }
         const failed = { ok: false, changed: false, noChange: false, count: 0, error: `聊天保存失败：${error?.message || error}${rollback.ok ? '；表格已回滚' : `；表格回滚异常：${rollback.error}`}` };
-        setStatus(chat, envelope, failed);
-        EDITOR.error(`Memo-N保存失败：${failed.error}`);
-        return false;
+        setStatus(chat, envelope, failed); EDITOR.error(`Memo-N保存失败：${failed.error}`); return false;
     }
-    if (execution.ok && execution.changed) {
-        try { await BASE.refreshContextView?.(); }
-        catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); }
-    }
+    if (execution.ok && execution.changed) { try { await BASE.refreshContextView?.(); } catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); } }
     if (job.session === USER?.getContext?.()?.chat) USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat);
     if (!execution.ok) EDITOR.warning(`Memo-N记录失败：${execution.error}。正文已保留，表格未部分写入。`);
     return execution.ok === true;
 }
-
-function handleRendered(chatId) {
-    const id = Number(chatId);
-    if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id;
-}
-
+function handleRendered(chatId) { const id = Number(chatId); if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id; }
 function candidateMatchesJob(chat, index, job) {
     if (!chat || chat.is_user === true || !job) return false;
     if (job.base) {
-        if (chat === job.base) {
-            return String(chat.mes ?? '') !== job.baseMes
-                || Number(chat.swipe_id ?? -1) !== job.baseSwipeId
-                || reasoningText(chat) !== job.baseReasoning;
-        }
-        // Swipe/重新生成可能用新消息对象替换原来的最后一条，但不会倒退到更早的历史消息。
+        if (chat === job.base) return String(chat.mes ?? '') !== job.baseMes || Number(chat.swipe_id ?? -1) !== job.baseSwipeId || reasoningText(chat) !== job.baseReasoning;
         return index >= Math.max(0, Number(job.startLength || 0) - 1);
     }
-    // 普通生成在 SETTINGS_READY 时最后一条仍是用户消息；只接受之后新追加的助手消息。
     return index >= Number(job.startLength || 0);
 }
-
 function resolveCompletedChatId(job) {
     const chat = USER?.getContext?.()?.chat;
     if (!Array.isArray(chat) || !chat.length || !job || chat !== job.session) return null;
-    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length
-        && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) {
-        return lastRenderedChatId;
-    }
-    for (let i = chat.length - 1; i >= 0; i--) {
-        if (candidateMatchesJob(chat[i], i, job)) return i;
-    }
+    if (Number.isInteger(lastRenderedChatId) && lastRenderedChatId >= 0 && lastRenderedChatId < chat.length && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) return lastRenderedChatId;
+    for (let i = chat.length - 1; i >= 0; i--) if (candidateMatchesJob(chat[i], i, job)) return i;
     return null;
 }
-
 function handleGenerationEnded() {
     const job = pending;
     if (!job) return;
     const chatId = resolveCompletedChatId(job);
     lastRenderedChatId = null;
-    if (!Number.isInteger(chatId)) {
-        // 请求失败、slash command中断或取消时可能没有产生任何新助手消息。
-        // 此时绝不能退回去解析/改写上一条旧助手消息，也绝不能恢复旧消息对应的表格基线。
-        pending = null;
-        console.log('[Memo-N] 本轮生成结束但没有产生新的/变化后的助手消息：记录任务安全丢弃，不触碰历史消息与表格');
-        return;
-    }
+    if (!Number.isInteger(chatId)) { pending = null; return; }
     const chat = USER?.getContext?.()?.chat?.[chatId];
     const persistence = unpack(chatId);
     if (chat && persistence && typeof persistence.then === 'function') {
@@ -398,7 +295,6 @@ function handleGenerationEnded() {
         void persistence.catch(error => console.error('[Memo-N] 生成结束后记录任务异常', error));
     }
 }
-
 APP.eventSource.on(APP.event_types.GENERATION_STARTED, arm);
 APP.eventSource.on(APP.event_types.CHAT_COMPLETION_PROMPT_READY, preparePrompt);
 APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_PROMPT_READY, preparePrompt);
@@ -407,5 +303,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
-
-console.log('[Memo-N] 一次API记录引擎已加载：DeepSeek走JSON信封，中转站统一走前置tableEdit；无新消息的失败生成不会触碰历史消息与表格');
+console.log('[Memo-N] 一次API记录引擎已加载：按当前表格缺失/变化执行记录，DeepSeek JSON，中转站前置tableEdit');
