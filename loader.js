@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon97-reply-safe-relay-record';
-const PUBLIC_VERSION = '0.1.0-memon.97';
+const RUNTIME_VERSION = 'memon98-relay-bridge';
+const PUBLIC_VERSION = '0.1.0-memon.98';
 
 async function loadRuntime(label, path) {
     try {
@@ -25,6 +25,7 @@ const runtimes = [
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['DeepSeek记录块预解析桥', './scripts/runtime/deepSeekPreParser.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    ['中转站表格记录桥', './scripts/runtime/relayTablePromptBridge.js'],
     ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -53,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon97 正文安全中转站记录版加载完成');
+console.log('[Memo-N][loader] memon98 relay bridge loaded');
