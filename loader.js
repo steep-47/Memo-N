@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'relay-clean-test1';
-const PUBLIC_VERSION = '0.1.0-relay-clean-test.1';
+const RUNTIME_VERSION = 'relay-clean-test2';
+const PUBLIC_VERSION = '0.1.0-relay-clean-test.2';
 
 async function loadRuntime(label, path) {
     try {
@@ -69,4 +69,4 @@ if (globalThis.document?.readyState === 'loading') {
     setTimeout(syncPublicVersion, 0);
 }
 
-console.log('[Memo-N][loader] relay-clean-test.1 干净恢复测试版加载完成');
+console.log('[Memo-N][loader] relay-clean-test.2 干净恢复测试版加载完成');
