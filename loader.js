@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon105-relay-protocol-clean';
-const PUBLIC_VERSION = '0.1.0-memon.105';
+const RUNTIME_VERSION = 'memon106-relay-prompt-bound';
+const PUBLIC_VERSION = '0.1.0-memon.106';
 
 async function loadRuntime(label, path) {
     try {
@@ -54,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon105 中转站唯一tableEdit协议；DeepSeek兼容层不再参与relay');
+console.log('[Memo-N][loader] memon106 relay协议绑定到原dataTable prompt末尾，不再替换原输出');
