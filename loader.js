@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon89-sixfix7';
-const PUBLIC_VERSION = '0.1.0-memon.89';
+const RUNTIME_VERSION = 'memon90-live-table-map';
+const PUBLIC_VERSION = '0.1.0-memon.90';
 
 async function loadRuntime(label, path) {
     try {
@@ -53,4 +53,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon89 六表运行时兼容版加载完成');
+console.log('[Memo-N][loader] memon90 当前表格动态映射修复版加载完成');
