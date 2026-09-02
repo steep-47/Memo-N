@@ -8,7 +8,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v4]';
+const MARKER = '[Memo-N record envelope v5]';
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
@@ -79,14 +79,27 @@ ${sharedRecordRules()}
 }
 function relayContract() {
     return `${MARKER}
-Memo-N只负责附加表格记录，不负责也不改变可见回复的内容、结构、顺序或格式。请照常遵循原有全部提示生成回复；在最终输出最前面额外放置一个<tableEdit>机器块，随后直接继续你原本要输出的内容。
+[Memo-N附加记录任务]
+本任务只负责表格记录，不对其余回复提出任何格式或内容要求。
+最终输出的第一个字符必须是“<”，并立即输出且完整闭合下面这种机器记录块：
 <tableEdit><!--
 insertRow(0,{0:"日期",1:"时间"})
 --></tableEdit>
-机器块内只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)，或者NO_CHANGE。
+每一轮都必须输出且只能输出一个<tableEdit>记录块；有记录操作就写操作，没有记录操作也必须输出<tableEdit><!-- NO_CHANGE --></tableEdit>，不得省略记录块。
+记录块内只允许insertRow(tableIndex,{columnIndex:value,...})、updateRow(tableIndex,rowIndex,{columnIndex:value,...})、deleteRow(tableIndex,rowIndex)，或者NO_CHANGE。
 只有当前表格里真实存在的rowIndex才能用于updateRow/deleteRow；空表首次记录只能insertRow。
 ${sharedRecordRules()}
-<tableEdit>闭合后不要根据Memo-N重新组织、补写、删减或重排可见回复，继续执行原有提示即可。不得输出JSON记录信封、tagged JSON哨兵、SQL、Markdown代码围栏或解释。`;
+记录块闭合后，本附加任务结束；之后继续执行本请求中原本已经存在的指令。`;
+}
+function reinforceRelayRecordTask(messages) {
+    if (!Array.isArray(messages)) return false;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        const message = messages[index];
+        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
+        message.content = `${message.content.trimEnd()}\n\n[Memo-N记录任务：本轮输出必须以一个完整<tableEdit>记录块开头；无操作也输出<tableEdit><!-- NO_CHANGE --></tableEdit>。记录块闭合后此任务结束。]`;
+        return true;
+    }
+    return false;
 }
 const schema = {
     name: 'memo_n_record_envelope', strict: true,
@@ -111,12 +124,14 @@ function inject(data) {
     const route = getProviderRoute(data);
     const relayMode = route === ROUTE.RELAY;
     const info = providerDebug(data);
+    let recordTaskReinforced = false;
     pending = { at: Date.now(), type: armed.type, session, startLength: Array.isArray(session) ? session.length : 0, base,
         baseMes: String(base?.mes ?? ''), baseSwipeId: Number(base?.swipe_id ?? -1), baseReasoning: base ? reasoningText(base) : '',
         responseMode: relayMode ? 'relay_tableedit' : 'json', route };
     armed = null;
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
+        recordTaskReinforced = relayMode ? reinforceRelayRecordTask(data.messages) : false;
         data.messages.push({ role: 'system', content: relayMode ? relayContract() : finalContract() });
     }
     if (route === ROUTE.DEEPSEEK) { delete data.json_schema; data.response_format = { type: 'json_object' }; }
@@ -127,7 +142,7 @@ function inject(data) {
     globalThis.__memoNLastRequestProbe = Object.freeze({ at: Date.now(), route, responseMode: relayMode ? 'relay_tableedit_leading' : 'json',
         messageCount: messages.length, markerPresent: messages.some(message => String(message?.content ?? '').includes(MARKER)),
         relayTableEditPresent: relayMode && messages.some(message => String(message?.content ?? '').includes('<tableEdit>')),
-        tablePromptReinforced: 0, lastUserReinforced: false, finalRole: String(last?.role ?? ''), provider: info?.route ?? route });
+        tablePromptReinforced: 0, recordTaskReinforced, lastUserReinforced: recordTaskReinforced, finalRole: String(last?.role ?? ''), provider: info?.route ?? route });
 }
 function syncSwipe(chat) { const id = Number(chat?.swipe_id); if (Array.isArray(chat?.swipes) && Number.isInteger(id) && id >= 0 && id < chat.swipes.length) chat.swipes[id] = chat.mes; }
 function copySnapshot(value) { if (!value || typeof value !== 'object') return null; try { return BASE.copyHashSheets(value); } catch (_) { return structuredClone(value); } }
@@ -261,4 +276,4 @@ APP.eventSource.makeLast?.(APP.event_types.CHAT_COMPLETION_SETTINGS_READY, injec
 APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
-console.log('[Memo-N] 一次API记录引擎已加载：Memo-N只附加机器记录，不再改写表格Prompt或最后User消息');
+console.log('[Memo-N] 一次API记录引擎已加载：正文归原预设，中转站独立强化tableEdit记录任务');
