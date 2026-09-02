@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon90-live-table-map';
-const PUBLIC_VERSION = '0.1.0-memon.90';
+const RUNTIME_VERSION = 'memon91-state-progress';
+const PUBLIC_VERSION = '0.1.0-memon.91';
 
 async function loadRuntime(label, path) {
     try {
@@ -25,6 +25,7 @@ const runtimes = [
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['DeepSeek记录块预解析桥', './scripts/runtime/deepSeekPreParser.js'],
     ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
+    ['状态推进记录守卫', './scripts/runtime/stateProgressInvariant.js'],
     ['DeepSeek JSON兼容守卫', './scripts/runtime/deepSeekJsonGuard.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -53,4 +54,4 @@ function schedulePublicVersionSync() {
 schedulePublicVersionSync();
 if (globalThis.document?.readyState === 'loading') globalThis.document.addEventListener('DOMContentLoaded', schedulePublicVersionSync, { once: true });
 else setTimeout(syncPublicVersion, 0);
-console.log('[Memo-N][loader] memon90 当前表格动态映射修复版加载完成');
+console.log('[Memo-N][loader] memon91 状态推进记录守卫版加载完成');
