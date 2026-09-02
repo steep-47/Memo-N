@@ -5,14 +5,19 @@ defaultSettings.table_cell_width_mode ??= 'wide1_2_cell';
 
 const STANDARD_NAMES = ['时空表格','角色特征表格','角色与社交表格','任务、命令或者约定表格','重要事件历史表格','重要物品表格'];
 const LEGACY_SEVEN_NAMES = new Set(['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表','人物表']);
-const STEP_MARKER = '[Memo当前表格独立记录v5]';
+const STEP_MARKER = '[Memo当前表格独立记录v6]';
+const CURRENT_OLD_MARKERS = [
+    '[Memo当前表格独立记录v5]',
+    '六张表维护对后续仍有用的事实状态与重要记忆，不是关键词出现日志',
+    '只记录本轮最终正文已经明确发生或确认的变化；已有对象优先update，禁止重复insert',
+];
 
 function clone(value) {
     if (value === null || typeof value !== 'object') return value;
     try { return structuredClone(value); } catch (_) { return JSON.parse(JSON.stringify(value)); }
 }
 
-function isKnownGeneratedSevenPrompt(text) {
+function isKnownGeneratedPrompt(text) {
     const value = String(text || '');
     return value.includes('## 表格：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件')
         || value.includes('[Memo七表独立记录v4]')
@@ -20,7 +25,8 @@ function isKnownGeneratedSevenPrompt(text) {
         || value.includes('[Memo七表整理v3]')
         || value.includes('[Memo七表整理v2]')
         || value.includes('只根据已确认事实维护现有七张表')
-        || value.includes('按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件');
+        || value.includes('按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件')
+        || CURRENT_OLD_MARKERS.some(marker => value.includes(marker));
 }
 
 function normalizeTableStructure(store) {
@@ -36,18 +42,25 @@ function normalizeTableStructure(store) {
     const standard = defaults.map((definition, index) => {
         const existing = byName.get(definition.tableName);
         const preserved = existing ? clone(existing) : {};
-        // Standard table identity and schema come from the current six-table template.
-        // Preserve user-facing switches/notes, but never let an old saved columns array
-        // overwrite the current schema again.
         delete preserved.tableName;
         delete preserved.tableIndex;
         delete preserved.columns;
+        delete preserved.note;
+        delete preserved.initNode;
+        delete preserved.insertNode;
+        delete preserved.updateNode;
+        delete preserved.deleteNode;
         return {
             ...clone(definition),
             ...preserved,
             tableName: definition.tableName,
             tableIndex: index,
             columns: clone(definition.columns),
+            note: definition.note,
+            initNode: definition.initNode,
+            insertNode: definition.insertNode,
+            updateNode: definition.updateNode,
+            deleteNode: definition.deleteNode,
         };
     });
 
@@ -68,29 +81,20 @@ function normalizeTableStructure(store) {
 
 function migrateKnownGeneratedPrompts(store) {
     let changed = false;
-    if (!String(store.message_template || '').trim() || isKnownGeneratedSevenPrompt(store.message_template)) {
-        store.message_template = defaultSettings.message_template;
-        changed = true;
-    }
-    if (!String(store.step_by_step_user_prompt || '').trim() || isKnownGeneratedSevenPrompt(store.step_by_step_user_prompt)) {
-        store.step_by_step_user_prompt = defaultSettings.step_by_step_user_prompt;
-        changed = true;
-    }
-    if (!String(store.refresh_system_message_template || '').trim() || isKnownGeneratedSevenPrompt(store.refresh_system_message_template)) {
-        store.refresh_system_message_template = defaultSettings.refresh_system_message_template;
-        changed = true;
-    }
-    if (!String(store.refresh_user_message_template || '').trim() || isKnownGeneratedSevenPrompt(store.refresh_user_message_template)) {
-        store.refresh_user_message_template = defaultSettings.refresh_user_message_template;
-        changed = true;
-    }
-    if (!String(store.rebuild_default_system_message_template || '').trim() || isKnownGeneratedSevenPrompt(store.rebuild_default_system_message_template)) {
-        store.rebuild_default_system_message_template = defaultSettings.rebuild_default_system_message_template;
-        changed = true;
-    }
-    if (!String(store.rebuild_default_message_template || '').trim() || isKnownGeneratedSevenPrompt(store.rebuild_default_message_template)) {
-        store.rebuild_default_message_template = defaultSettings.rebuild_default_message_template;
-        changed = true;
+    for (const key of [
+        'message_template',
+        'step_by_step_user_prompt',
+        'refresh_system_message_template',
+        'refresh_user_message_template',
+        'rebuild_default_system_message_template',
+        'rebuild_default_message_template',
+    ]) {
+        if (!String(store[key] || '').trim() || isKnownGeneratedPrompt(store[key])) {
+            if (store[key] !== defaultSettings[key]) {
+                store[key] = clone(defaultSettings[key]);
+                changed = true;
+            }
+        }
     }
     return changed;
 }
