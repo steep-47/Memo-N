@@ -58,26 +58,23 @@ export function isDirectDeepSeek(data) {
     return isOfficialDeepSeekHost(customUrlOf(data));
 }
 
-export function getProviderRoute(_data) {
-    // Memo-N主记录链统一使用纯文本tableEdit协议。
-    // DeepSeek直连、OpenAI兼容中转、反代、自定义端点都走同一条记录协议，
-    // provider信息只保留用于诊断，不再决定请求格式与解析器。
-    return ROUTE.RELAY;
+export function getProviderRoute(data) {
+    return isDirectDeepSeek(data) ? ROUTE.DEEPSEEK : ROUTE.RELAY;
 }
 
 export function providerDebug(data) {
     const source = sourceOf(data);
     const customUrl = customUrlOf(data);
     const reverseProxy = reverseProxyOf(data);
+    const route = getProviderRoute(data);
     return {
-        route: ROUTE.RELAY,
+        route,
         source,
         customUrl,
         customHost: hostnameOf(customUrl),
         reverseProxy,
         reverseProxyHost: hostnameOf(reverseProxy),
         model: modelOf(data),
-        directDeepSeek: isDirectDeepSeek(data),
-        unifiedProtocol: 'tableEdit',
+        directDeepSeek: route === ROUTE.DEEPSEEK,
     };
 }
