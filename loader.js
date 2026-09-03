@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-onecall1';
+const RUNTIME_VERSION = 'memon64-onecall2';
 
 async function loadRuntime(label, path) {
     try {
@@ -21,6 +21,7 @@ async function loadRuntime(label, path) {
 // - providerRoute只保留连接信息诊断，不再决定记录协议；避免provider识别误差导致整轮请求/解析串线。
 // - tableEdit约束由recordEngine写入表格提示与system契约，并由recordContractAnchor在同一请求的最后user消息再次锚定。
 // - recordContractAnchor只修改本轮既有messages，不创建第二API请求。
+// - legacyTableStructureCleanup固定删除旧版时空/角色特征/社交/旧任务/旧事件/旧物品六表，只保留当前七表结构。
 // - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
 // - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
 // - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
@@ -51,4 +52,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 单次API记录锚定版加载完成');
+console.log('[Memo-N][loader] memon64 单次API + 旧六表清理版加载完成');
