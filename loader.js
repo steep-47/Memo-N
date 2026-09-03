@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-onecall2';
+const RUNTIME_VERSION = 'memon64-deepseek-clean1';
 
 async function loadRuntime(label, path) {
     try {
@@ -15,19 +15,10 @@ async function loadRuntime(label, path) {
     }
 }
 
-// Memo-N 稳定运行边界：
-// - recordEngine 是唯一正常请求协议与记录执行入口。
-// - 主记录链统一使用纯文本tableEdit：DeepSeek直连、中转、反代、自定义端点不再切换两套记录协议。
-// - providerRoute只保留连接信息诊断，不再决定记录协议；避免provider识别误差导致整轮请求/解析串线。
-// - tableEdit约束由recordEngine写入表格提示与system契约，并由recordContractAnchor在同一请求的最后user消息再次锚定。
-// - recordContractAnchor只修改本轮既有messages，不创建第二API请求。
-// - legacyTableStructureCleanup固定删除旧版时空/角色特征/社交/旧任务/旧事件/旧物品六表，只保留当前七表结构。
-// - 记录提示动态读取当前真实七表，column严格0-based；执行器只校验，不猜、不自动修正越界列。
-// - 不在生成前常驻自动修表层。旧结构迁移仍由既有迁移/整理工具按明确操作处理。
-// - 伊依不属于世界七表；她使用独立全局长期记忆库，世界表守卫只负责隔离误写。
-// - Memo-N 不改SillyTavern原始stream设置。
-// - 成功提示只在严格执行与saveChat真正完成后显示。
-// - loader只启动有运行时副作用的入口模块；纯工具库由实际调用者import。
+// memon64 clean baseline:
+// direct DeepSeek uses the native one-call JSON record envelope;
+// other providers keep the existing tableEdit path untouched.
+// No second API call, no automatic retry, no stream override.
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
@@ -52,4 +43,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 单次API + 旧六表清理版加载完成');
+console.log('[Memo-N][loader] memon64 DeepSeek clean runtime loaded');
