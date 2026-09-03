@@ -1,5 +1,14 @@
 import applicationFunctionManager from '../../services/appFuncManager.js';
 
+const OBSOLETE_SHEET_NAMES = new Set([
+    '时空表格',
+    '角色特征表格',
+    '角色与社交表格',
+    '任务、命令或者约定表格',
+    '重要事件历史表格',
+    '重要物品表格',
+]);
+
 function normalizeName(value) {
     return String(value ?? '').trim().replace(/\s+/g, ' ');
 }
@@ -17,16 +26,23 @@ function uniqueMappedUids(values, remap, validUids) {
     return result;
 }
 
-function dedupeNamedSheets(list) {
+function cleanNamedSheets(list) {
     if (!Array.isArray(list)) return { list, removed: 0, remap: new Map() };
 
     const kept = [];
     const firstUidByName = new Map();
     const remap = new Map();
+    let removed = 0;
 
     for (const item of list) {
         const name = normalizeName(item?.name);
         const uid = item?.uid;
+
+        // 固定七表之外的旧默认表属于历史遗留，直接删除。
+        if (OBSOLETE_SHEET_NAMES.has(name)) {
+            removed++;
+            continue;
+        }
 
         if (!name || !uid) {
             kept.push(item);
@@ -41,9 +57,10 @@ function dedupeNamedSheets(list) {
         }
 
         remap.set(uid, firstUid);
+        removed++;
     }
 
-    return { list: kept, removed: list.length - kept.length, remap };
+    return { list: kept, removed, remap };
 }
 
 try {
@@ -54,9 +71,9 @@ try {
     let removedTemplates = 0;
     let removedChatSheets = 0;
 
-    // 1. 清理全局模板库。截图中的下拉标签在“模板”作用域时来自这里。
+    // 1. 清理全局模板库，防止旧表以后再次被新聊天或模板选择带回来。
     if (root && Array.isArray(root.memo_n_table_database_templates)) {
-        const result = dedupeNamedSheets(root.memo_n_table_database_templates);
+        const result = cleanNamedSheets(root.memo_n_table_database_templates);
         if (result.removed > 0) {
             root.memo_n_table_database_templates = result.list;
             removedTemplates = result.removed;
@@ -74,10 +91,10 @@ try {
         }
     }
 
-    // 2. 清理当前聊天已经落盘的重复 Sheet。截图中的下拉标签在“聊天”作用域时来自这里。
+    // 2. 清理当前聊天已经落盘的旧表和同名重复表。
     const metadata = context?.chatMetadata;
     if (metadata && Array.isArray(metadata.memo_n_sheets)) {
-        const result = dedupeNamedSheets(metadata.memo_n_sheets);
+        const result = cleanNamedSheets(metadata.memo_n_sheets);
         if (result.removed > 0) {
             metadata.memo_n_sheets = result.list;
             removedChatSheets = result.removed;
@@ -97,20 +114,20 @@ try {
 
     if (settingsChanged) {
         const saving = applicationFunctionManager.saveSettings?.() ?? applicationFunctionManager.saveSettingsDebounced?.();
-        saving?.catch?.(error => console.warn('[Memo-N][cleanup] 保存模板去重结果失败:', error));
+        saving?.catch?.(error => console.warn('[Memo-N][cleanup] 保存模板清理结果失败:', error));
     }
 
     if (chatChanged) {
         const saving = applicationFunctionManager.saveChat?.();
-        saving?.catch?.(error => console.warn('[Memo-N][cleanup] 保存聊天表格去重结果失败:', error));
+        saving?.catch?.(error => console.warn('[Memo-N][cleanup] 保存聊天表格清理结果失败:', error));
     }
 
     const total = removedTemplates + removedChatSheets;
     if (total > 0) {
-        console.log(`[Memo-N][cleanup] 已删除遗留重复项 ${total} 个（模板 ${removedTemplates}，当前聊天 ${removedChatSheets}）`);
-        globalThis?.toastr?.success?.(`Memo-N 已删除 ${total} 个遗留重复表格项`);
+        console.log(`[Memo-N][cleanup] 已删除遗留表格 ${total} 个（模板 ${removedTemplates}，当前聊天 ${removedChatSheets}）`);
+        globalThis?.toastr?.success?.(`Memo-N 已删除 ${total} 个遗留表格`);
     } else {
-        console.log('[Memo-N][cleanup] 模板库和当前聊天均未发现同名重复表格');
+        console.log('[Memo-N][cleanup] 未发现遗留旧表或同名重复表');
     }
 } catch (error) {
     console.warn('[Memo-N][cleanup] 遗留表格数据清理失败:', error);
