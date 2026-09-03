@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-deepseek-clean1';
+const RUNTIME_VERSION = 'memon64-deepseek-clean2';
 
 async function loadRuntime(label, path) {
     try {
@@ -15,18 +15,13 @@ async function loadRuntime(label, path) {
     }
 }
 
-// memon64 clean baseline:
-// direct DeepSeek uses the native one-call JSON record envelope;
-// other providers keep the existing tableEdit path untouched.
-// No second API call, no automatic retry, no stream override.
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
-    ['Memo-N一次API记录引擎', './scripts/engine/recordEngine.js'],
-    ['一次API记录契约锚定', './scripts/runtime/recordContractAnchor.js'],
+    ['DeepSeek一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
