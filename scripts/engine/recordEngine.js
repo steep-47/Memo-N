@@ -60,18 +60,38 @@ function recordContract() {
     return `${MARKER}
 本轮最终响应必须是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
-reply负责完整正文，必须保留原本要求的状态栏、行动选项、伊依留言等正常内容。changes只记录本轮正文已经明确确认的事实变化。
+
+reply负责完整正文，必须保留原本要求的状态栏、行动选项、伊依留言等正常内容。changes是同一轮回复的记忆维护结果，不是附带随便记几项：必须以最终reply中已经明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
 
-规则：
-- insert的row必须为null；update/delete的row必须是当前表格第一列真实存在的整数。
-- delete的cells必须为[]；insert/update的cells只写真实存在的column。
-- 没有事实变化时changes必须为[]。
-- 日期、时间、地点、当前场景人物发生变化时必须维护表0。
+[逐表记忆审计｜完成reply后按0→1→2→3→4→5→6全部检查]
+#0 当前状态表：维护当前日期、时间、地点、当前场景人物。只要正文明确发生时间推进、地点改变、场景人物进入/离开，就检查对应字段；该表最多维护当前有效状态，不保存流水账。
+#1 角色状态表：只记录玩家本人。检查姓名、性别、种族、年龄、修为、灵根/体质、灵力、神识、身体状态、灵石、钱财、技能/术法、擅长、其他状态等本轮新确认或变化内容。未知信息留空，不根据名字、外貌或常识猜测。
+#2 背包表：检查玩家实际获得、消耗、丢失、交付、数量变化、品质/状态变化的物品。只保存当前实际持有库存；已经失去且不再持有的项目按现有表语义更新或删除。
+#3 当前任务与约定表：检查新接受的任务、命令、承诺、约定、期限、地点、相关人物，以及本轮状态变化。已经明确完成、取消、失效的事项不继续当作进行中事项保留。
+#4 人物主表：只记录值得持续识别的NPC稳定信息。首次明确出现的重要NPC应检查是否需要建立；已有NPC优先update，不重复insert。维护姓名、性别、种族/血脉、修炼体系/路径、别名/称呼、身份/所属、外貌特征、性格、与玩家关系、长期重要信息。正式姓名出现后应更新旧的描述性称呼记录，而不是另建同一人物。
+#5 人物发展表：对已经进入长期追踪的NPC检查本轮最新发展锚点，包括姓名、原生修为/境界、主要能力、当前地点、年龄、最后确认时间、当前重要状态、主要目标/重要事项。年龄与最后确认时间是不同字段；只更新本轮实际新确认或发生变化的字段，不模拟离线成长。
+#6 历史事件表：只记录会影响未来推演的重要既成节点，例如突破/失败、势力加入退出、婚姻或重要亲属变化、重伤残疾/寿元重大损耗、重大机缘、战争/宗门覆灭导致处境改变、死亡等。普通日常、普通修炼、微小财富变化不要写入历史表。
+
+[完整性判断]
+- 不要因为某项变化看起来“小”就漏掉：只要它属于七表当前状态字段且正文已明确确认，就应检查是否需要insert/update/delete。
+- 同一段正文可能同时影响多张表；例如“到新地点并遇见新NPC且接受约定”应分别检查表0、表3、表4、表5，而不是只记其中一项。
+- 玩家本人只进表1；NPC不进表1。NPC稳定身份进表4，最新发展进表5，重大既成节点才进表6。
+- 表4和表5通过同一NPC姓名关联；确认同一人后不要重复建档。身份信息不足时宁可暂不合并，也不要猜测。
+- 修为只记录人物自身原生修炼体系的真实名称/阶段，不按战力换算成人族境界。
+- 未知、未确认、仅推测、模型自行补全的内容不记录；不要为了“详细”制造事实。
+- 完成逐表检查后，再生成changes；changes应覆盖本轮所有确定需要维护的字段，而不是只挑最显眼的几项。
+
+[操作规则]
+- insert仅用于当前表中没有该对象/事实且本轮首次明确确认；insert的row必须为null。
+- update用于当前表中已经存在的对象/事实；row必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
+- delete只用于当前表中真实存在且已明确失效/消失的记录；delete的cells必须为[]。
+- insert/update的cells只能使用上方当前真实列号映射中存在的column，不得创造列，不得越界。
+- 没有任何事实变化时changes必须为[]。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
-- 不得输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
+- 最终只输出JSON对象本身；不得输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
 }
 
 function inject(data) {
@@ -101,7 +121,7 @@ function inject(data) {
 
     delete data.json_schema;
     data.response_format = { type: 'json_object' };
-    console.log('[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封');
+    console.log('[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封 + 七表逐表审计');
 }
 
 function syncSwipe(chat) {
@@ -317,4 +337,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] DeepSeek一次API记录引擎已加载');
+console.log('[Memo-N] DeepSeek一次API记录引擎已加载：逐表审计版');
