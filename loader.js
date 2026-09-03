@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-deepseek-audit1';
+const RUNTIME_VERSION = 'memon64-deepseek-audit2';
 
 async function loadRuntime(label, path) {
     try {
@@ -20,6 +20,7 @@ const runtimes = [
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
+    ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['DeepSeek一次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
@@ -38,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 DeepSeek audit runtime loaded');
+console.log('[Memo-N][loader] memon64 DeepSeek audit2 runtime loaded');
