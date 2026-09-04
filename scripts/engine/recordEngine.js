@@ -99,6 +99,9 @@ function recordContract() {
 本轮最终响应必须是一个JSON对象，JSON外不得出现任何字符：
 {"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
 
+[多轮格式说明]
+历史中的assistant消息已经由Memo-N解包成普通正文，只用于延续剧情，不是本轮输出格式示例。本轮仍须在思考完成后继续生成最终content，并让最终content完整包含上述JSON对象；不得停在reasoning_content，也不得照抄历史正文的普通文本格式。
+
 reply负责完整正文，必须保留原本要求的状态栏、行动选项、伊依留言等正常内容。changes是同一轮回复的记忆维护结果，不是附带随便记几项：必须以最终reply中已经明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
@@ -246,9 +249,16 @@ function reasoningText(chat) {
     return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
 }
 
-function looksLikeEnvelope(raw) {
+function envelopeCandidate(raw) {
     const text = String(raw ?? '').trim().replace(/^```(?:json)?\s*/i, '');
-    return text.startsWith('{') && text.includes('"reply"') && text.includes('"changes"');
+    return text.startsWith('{')
+        || (text.includes('{') && text.includes('"reply"') && text.includes('"changes"'));
+}
+
+function sameGeneratedText(left, right) {
+    const a = String(left ?? '').trim();
+    const b = String(right ?? '').trim();
+    return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
 }
 
 function selectEnvelope(chat, job, appendMode) {
@@ -257,13 +267,31 @@ function selectEnvelope(chat, job, appendMode) {
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
-    const contentEnvelope = content ? parseRecordEnvelope(content) : null;
+    const contentIsCandidate = envelopeCandidate(content);
+    const contentEnvelope = contentIsCandidate ? parseRecordEnvelope(content) : null;
     if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
 
-    const reasoningEnvelope = looksLikeEnvelope(reasoning) ? parseRecordEnvelope(reasoning) : null;
+    const reasoningIsCandidate = envelopeCandidate(reasoning);
+    const reasoningEnvelope = reasoningIsCandidate ? parseRecordEnvelope(reasoning) : null;
     if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint };
 
-    if (!content && reasoning && !reasoningEnvelope) {
+    if (content && !contentIsCandidate) {
+        const routedReasoning = sameGeneratedText(content, reasoning);
+        return {
+            current,
+            envelope: {
+                ok: false,
+                error: routedReasoning
+                    ? '生成在思考阶段结束，未收到最终JSON正文'
+                    : '最终正文未按Memo-N的JSON记录格式返回',
+                ...(routedReasoning ? {} : { reply: content }),
+            },
+            source: routedReasoning ? 'reasoning-incomplete' : 'plain-content',
+            fingerprint,
+        };
+    }
+
+    if (!content && reasoning && !reasoningIsCandidate) {
         return {
             current,
             envelope: { ok: false, error: '生成在思考阶段结束，未收到最终JSON正文' },
@@ -282,7 +310,7 @@ function selectEnvelope(chat, job, appendMode) {
 
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
-    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
+    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束|最终正文未按Memo-N的JSON记录格式返回/i.test(error);
 }
 
 async function waitForCompleteEnvelope(chat, job, appendMode) {
