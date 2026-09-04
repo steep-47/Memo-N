@@ -1,4 +1,4 @@
-import { changesToStrictCalls, parseRecordEnvelope, parseRelayTaggedEnvelope, RELAY_TAG_START, RELAY_TAG_END } from '../scripts/engine/recordEnvelope.js';
+import { changesToStrictCalls, parseRecordEnvelope, parseRelayTableEditEnvelope, parseRelayTaggedEnvelope, RELAY_TAG_START, RELAY_TAG_END } from '../scripts/engine/recordEnvelope.js';
 
 const valid = parseRecordEnvelope(JSON.stringify({
     reply: '正文',
@@ -42,6 +42,17 @@ const brokenStructure = parseRecordEnvelope(`{"reply":"正文
 第二行","changes":[}`);
 if (brokenStructure.ok) throw new Error('控制字符规范化错误修复了残缺JSON结构');
 
+const native = parseRelayTableEditEnvelope('<tableEdit><!-- updateRow(0,0,{1:"08:25"}) --></tableEdit>\n\n正常正文\n\n1. 继续前进。');
+if (!native.ok || native.reply !== '正常正文\n\n1. 继续前进。' || !native.tableEdit.includes('updateRow(0,0,')) {
+    throw new Error(`原生tableEdit解析失败：${native.error}`);
+}
+const nativeReasoning = parseRelayTableEditEnvelope('<tableEdit><!-- NO_CHANGE --></tableEdit>', '正文来自content');
+if (!nativeReasoning.ok || nativeReasoning.reply !== '正文来自content' || !nativeReasoning.noChange) throw new Error('思考区原生tableEdit未与正文安全合并');
+const nativeIncomplete = parseRelayTableEditEnvelope('<tableEdit><!-- updateRow(0,0,');
+if (nativeIncomplete.ok || !/尚未闭合/.test(nativeIncomplete.error)) throw new Error('未闭合原生tableEdit没有进入等待状态');
+const nativeDuplicate = parseRelayTableEditEnvelope('<tableEdit><!-- NO_CHANGE --></tableEdit>正文<tableEdit><!-- NO_CHANGE --></tableEdit>');
+if (nativeDuplicate.ok || !/重复/.test(nativeDuplicate.error) || nativeDuplicate.reply !== '正文') throw new Error('重复原生tableEdit没有安全拒绝或保留正文');
+
 const relayChanges = [
     { op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:25' }] },
     { op: 'insert', table: 6, row: null, cells: [{ column: 0, value: '12500年01月01日' }, { column: 3, value: '进入后山猎道' }] },
@@ -77,4 +88,4 @@ if (incompleteRelay.ok || !/尚未闭合/.test(incompleteRelay.error) || incompl
 const badRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[{"op":"INSERT INTO"}]\n${RELAY_TAG_END}`);
 if (badRelay.ok || badRelay.reply !== '正文') throw new Error('非法中转站变更被接受或正文未保留');
 
-console.log('memo-n-envelope PASS: strict-json + leading mobile-safe relay parsing, legacy comment compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
+console.log('memo-n-envelope PASS: native tableEdit + legacy tagged/JSON compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');

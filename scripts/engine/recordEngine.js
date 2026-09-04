@@ -1,15 +1,13 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
-import { isDirectDeepSeek } from '../runtime/providerRoute.js';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon71';
 import {
-    RELAY_TAG_END,
-    RELAY_TAG_START,
     changesToStrictCalls,
     parseRecordEnvelope,
+    parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N one-call relay v3]';
+const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -64,19 +62,19 @@ function liveColumnMap() {
 
 function recordContract() {
     return `${MARKER}
-本轮不要把正文包进JSON。思考完成后，实际输出的第一段先给出一个Memo-N机器记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
+本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
 
 机器记录块格式：
-${RELAY_TAG_START}
-[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]
-${RELAY_TAG_END}
+<tableEdit><!--
+insertRow(tableIndex,{columnIndex:"value"})
+updateRow(tableIndex,rowIndex,{columnIndex:"value"})
+deleteRow(tableIndex,rowIndex)
+--></tableEdit>
 
-记录块中只放本轮changes的合法JSON数组；正文不进入JSON。即使七表都没有变化，也先输出空数组记录块，再输出正常正文：
-${RELAY_TAG_START}
-[]
-${RELAY_TAG_END}
+记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。即使七表都没有变化，也先输出无变化记录块，再输出正常正文：
+<tableEdit><!-- NO_CHANGE --></tableEdit>
 
-changes是同一轮回复的记忆维护结果，必须以本轮规划并即将输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
+tableEdit是同一轮回复的记忆维护结果，必须以本轮规划并即将输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
@@ -97,16 +95,16 @@ ${liveColumnMap()}
 - 表4和表5通过同一NPC姓名关联；确认同一人后不要重复建档。身份信息不足时宁可暂不合并，也不要猜测。
 - 修为只记录人物自身原生修炼体系的真实名称/阶段，不按战力换算成人族境界。
 - 未知、未确认、仅推测、模型自行补全的内容不记录；不要为了“详细”制造事实。
-- 完成逐表检查后，再生成changes；changes应覆盖本轮所有确定需要维护的字段，而不是只挑最显眼的几项。
+- 完成逐表检查后，再生成tableEdit；记录操作应覆盖本轮所有确定需要维护的字段，而不是只挑最显眼的几项。
 
 [操作规则]
-- insert仅用于当前表中没有该对象/事实且本轮首次明确确认；insert的row必须为null。
-- update用于当前表中已经存在的对象/事实；row必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
-- delete只用于当前表中真实存在且已明确失效/消失的记录；delete的cells必须为[]。
-- insert/update的cells只能使用上方当前真实列号映射中存在的column，不得创造列，不得越界。
-- 没有任何事实变化时changes必须为[]。
+- insertRow仅用于当前表中没有该对象/事实且本轮首次明确确认。
+- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
+- deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
+- insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
+- 没有任何事实变化时使用NO_CHANGE。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
-- 记录块必须是实际输出第一段，${RELAY_TAG_END}之后立刻输出完整正常正文；不输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
+- 记录块必须是实际输出第一段，</tableEdit>之后立刻输出完整正常正文。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
 }
 
 function clearCustomResponseFormat(data) {
@@ -121,11 +119,11 @@ function clearCustomResponseFormat(data) {
 
 function reinforceLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出 ${RELAY_TAG_START}、changes JSON数组、${RELAY_TAG_END}；随后输出完整正常正文、状态栏、行动选项和其他数据块。无表格变化时changes使用空数组。]`;
+    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
-        if (!message.content.includes(RELAY_TAG_START)) message.content = `${message.content.trimEnd()}${reminder}`;
+        if (!message.content.includes('<tableEdit>')) message.content = `${message.content.trimEnd()}${reminder}`;
         return true;
     }
     return false;
@@ -134,20 +132,17 @@ function reinforceLastUser(messages) {
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
 
-    if (!isDirectDeepSeek(data)) {
-        armed = null;
-        pending = null;
-        return;
-    }
-
     const context = USER.getContext?.();
     const base = lastAssistant();
     pending = {
         at: Date.now(),
         type: armed.type,
         session: context?.chat,
+        startLength: Array.isArray(context?.chat) ? context.chat.length : 0,
         base,
         baseMes: String(base?.mes ?? ''),
+        baseSwipeId: Number(base?.swipe_id ?? -1),
+        baseReasoning: base ? reasoningText(base) : '',
     };
     armed = null;
 
@@ -160,7 +155,7 @@ function inject(data) {
     delete data.response_format;
     delete data.json_schema;
     clearCustomResponseFormat(data);
-    console.log('[Memo-N] 已接管本轮一次API：前置记录块 + 正常正文 + 七表逐表审计');
+    console.log('[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
 }
 
 function syncSwipe(chat) {
@@ -188,7 +183,7 @@ function setStatus(chat, envelope, execution) {
         value: {
             swipeId: Number(chat?.swipe_id ?? 0),
             mes: String(chat?.mes ?? ''),
-            tableEdit: JSON.stringify(envelope?.changes ?? []),
+            tableEdit: String(envelope?.tableEdit ?? JSON.stringify(envelope?.changes ?? [])),
             ok: execution.ok === true,
             changed: execution.changed === true,
             noChange: execution.noChange === true,
@@ -234,13 +229,18 @@ function selectEnvelope(chat, job, appendMode) {
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
-    const contentRelay = parseRelayTaggedEnvelope(content);
-    if (contentRelay.ok) return { current, envelope: contentRelay, source: 'relay-content', fingerprint };
+    const contentTableEdit = parseRelayTableEditEnvelope(content);
+    if (contentTableEdit.ok) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
-    // Some OpenAI-compatible relays place the trailing machine block in reasoning
-    // while keeping the visible reply in content. Content always remains the reply.
+    // 部分兼容接口把机器块放入当前Swipe的思考区，但正文仍在content。
+    const reasoningTableEdit = content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
+    if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning', fingerprint };
+
+    // 兼容更新前已经开始生成的MEMO_N_CHANGES块。
+    const contentRelay = parseRelayTaggedEnvelope(content);
+    if (contentRelay.ok) return { current, envelope: contentRelay, source: 'legacy-tagged-content', fingerprint };
     const reasoningRelay = content && reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
-    if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'relay-reasoning', fingerprint };
+    if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'legacy-tagged-reasoning', fingerprint };
 
     // Keep compatibility with a response that was already in flight under the old
     // whole-response JSON contract when the extension was updated.
@@ -249,15 +249,21 @@ function selectEnvelope(chat, job, appendMode) {
     const legacyReasoning = legacyEnvelopeCandidate(reasoning) ? parseRecordEnvelope(reasoning) : null;
     if (legacyReasoning?.ok) return { current, envelope: legacyReasoning, source: 'legacy-reasoning', fingerprint };
 
+    if (/尚未闭合/.test(contentTableEdit.error)) {
+        return { current, envelope: contentTableEdit, source: 'tableedit-content-incomplete', fingerprint };
+    }
+    if (reasoningTableEdit && /尚未闭合/.test(reasoningTableEdit.error)) {
+        return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning-incomplete', fingerprint };
+    }
     if (/尚未闭合/.test(contentRelay.error)) {
-        return { current, envelope: contentRelay, source: 'relay-content-incomplete', fingerprint };
+        return { current, envelope: contentRelay, source: 'legacy-tagged-content-incomplete', fingerprint };
     }
     if (reasoningRelay && /尚未闭合/.test(reasoningRelay.error)) {
         return { current, envelope: reasoningRelay, source: 'relay-reasoning-incomplete', fingerprint };
     }
 
     if (content) {
-        return { current, envelope: contentRelay, source: 'plain-content', fingerprint };
+        return { current, envelope: contentTableEdit, source: 'plain-content', fingerprint };
     }
 
     if (reasoning) {
@@ -271,7 +277,7 @@ function selectEnvelope(chat, job, appendMode) {
 
     return {
         current,
-        envelope: contentRelay,
+        envelope: contentTableEdit,
         source: 'none',
         fingerprint,
     };
@@ -327,7 +333,7 @@ async function unpack(chatId) {
 
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
-    if (waited.source === 'relay-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取记录块，正文保持content');
+    if (waited.source === 'tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取tableEdit，正文保持content');
     if (waited.source.startsWith('legacy-')) console.log('[Memo-N] 已兼容拆包更新前仍在生成的旧JSON信封');
     handled.set(chat, chat.mes);
 
@@ -336,8 +342,9 @@ async function unpack(chatId) {
         ? { ok: !!baselineSnapshot, error: baselineSnapshot ? '' : 'Continue缺少当前表格基线' }
         : restoreMemoSnapshot(baselineSnapshot);
 
+    const executionInput = envelope.tableEdit || changesToStrictCalls(envelope.changes);
     const execution = baseline.ok
-        ? executeMemoTableEdit(changesToStrictCalls(envelope.changes), chat)
+        ? executeMemoTableEdit(executionInput, chat)
         : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
 
     setStatus(chat, envelope, execution);
@@ -379,20 +386,34 @@ function handleRendered(chatId) {
     if (Number.isInteger(id) && id >= 0) lastRenderedChatId = id;
 }
 
-function resolveCompletedChatId() {
+function candidateMatchesJob(chat, index, job) {
+    if (!chat || chat.is_user === true || !job) return false;
+    if (job.base) {
+        if (chat === job.base) {
+            return String(chat.mes ?? '') !== job.baseMes
+                || Number(chat.swipe_id ?? -1) !== job.baseSwipeId
+                || reasoningText(chat) !== job.baseReasoning;
+        }
+        return index >= Math.max(0, Number(job.startLength || 0) - 1);
+    }
+    return index >= Number(job.startLength || 0);
+}
+
+function resolveCompletedChatId(job) {
     const chat = USER?.getContext?.()?.chat;
-    if (!Array.isArray(chat) || !chat.length) return null;
+    if (!Array.isArray(chat) || !chat.length || !job || chat !== job.session) return null;
     if (Number.isInteger(lastRenderedChatId)
         && lastRenderedChatId >= 0
         && lastRenderedChatId < chat.length
-        && chat[lastRenderedChatId]?.is_user === false) return lastRenderedChatId;
-    for (let i = chat.length - 1; i >= 0; i--) if (chat[i]?.is_user === false) return i;
+        && candidateMatchesJob(chat[lastRenderedChatId], lastRenderedChatId, job)) return lastRenderedChatId;
+    for (let i = chat.length - 1; i >= 0; i--) if (candidateMatchesJob(chat[i], i, job)) return i;
     return null;
 }
 
 function handleGenerationEnded() {
-    if (!pending) return;
-    const chatId = resolveCompletedChatId();
+    const job = pending;
+    if (!job) return;
+    const chatId = resolveCompletedChatId(job);
     lastRenderedChatId = null;
     if (!Number.isInteger(chatId)) { pending = null; return; }
 
@@ -411,4 +432,4 @@ APP.eventSource.on(APP.event_types.CHARACTER_MESSAGE_RENDERED, handleRendered);
 APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
-console.log('[Memo-N] DeepSeek一次API记录引擎已加载：逐表审计版');
+console.log('[Memo-N] 单次API原生tableEdit记录引擎已加载');

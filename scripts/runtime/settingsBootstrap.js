@@ -32,7 +32,7 @@ const TRANSPORT_NEUTRAL_OUTPUT = `# 输出
 - 本段只规定“应记录哪些事实”，不规定最终机器传输格式。
 - 最终传输格式只服从本轮请求末尾由Memo-N一次API记录引擎注入的唯一记录协议。
 - 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时按最终协议表示“无变化”。`;
-const RECORD_MODE_MIGRATION_KEY = 'record_mode_independent_v70';
+const RECORD_MODE_MIGRATION_KEY = 'record_mode_single_api_v71';
 
 function normalizeBaseTablePrompt(template) {
     let source = String(template || '')
@@ -97,9 +97,9 @@ try {
         for (const [key, value] of Object.entries(defaultSettings)) if (!(key in store)) store[key] = clone(value);
 
         if (!recordModeMigrated) {
-            store.independent_record_api_enabled = true;
+            store.independent_record_api_enabled = false;
             store[RECORD_MODE_MIGRATION_KEY] = true;
-            console.log('[Memo-N][settings] 已切换为独立记录：正文请求保持原样，完成后后台单独填表');
+            console.log('[Memo-N][settings] 已恢复单次API记录：同一回复内完成tableEdit与正文');
         }
 
         const normalizedMessageTemplate = normalizeBaseTablePrompt(store.message_template);

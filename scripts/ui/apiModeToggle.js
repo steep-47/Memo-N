@@ -58,7 +58,7 @@ function createToggle() {
 
     const hint = document.createElement('small');
     hint.className = 'toggle-description justifyLeft';
-    hint.textContent = '（推荐开启：正文保持原样，完成后额外调用1次API稳定记录）';
+    hint.textContent = '（默认关闭：正文与填表共用1次API；开启后会额外调用1次记录API）';
 
     input.addEventListener('change', () => applyMode(input.checked, true));
     label.append(input, text, hint);

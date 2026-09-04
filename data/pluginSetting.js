@@ -20,7 +20,7 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     tableDebugModeAble: false,
     isAiReadTable: true,
     isAiWriteTable: true,
-    independent_record_api_enabled: true,
+    independent_record_api_enabled: false,
     updateIndex: 6,
     injection_mode: 'deep_system',
     deep: 1,

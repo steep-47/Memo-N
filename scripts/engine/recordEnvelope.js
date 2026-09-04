@@ -257,6 +257,41 @@ export function parseRecordEnvelope(raw) {
 }
 
 /**
+ * Parse one native tableEdit block while preserving all visible text around it.
+ * fallbackReply is used when a relay routes tableEdit to reasoning and the
+ * normal reply remains in content.
+ */
+export function parseRelayTableEditEnvelope(raw, fallbackReply = '') {
+    const text = String(raw ?? '');
+    const fallback = String(fallbackReply ?? '').trim();
+    const open = /<tableEdit\b[^>]*>/i.exec(text);
+    if (!open) return { ok: false, error: '未找到Memo-N记录块', reply: fallback || text.trim() };
+
+    const regex = /<tableEdit\b[^>]*>([\s\S]*?)<\/tableEdit>/ig;
+    const matches = [...text.matchAll(regex)];
+    if (!matches.length) {
+        return { ok: false, error: 'Memo-N记录块尚未闭合', reply: fallback || text.slice(0, open.index).trim() };
+    }
+    if (matches.length !== 1) {
+        return { ok: false, error: 'Memo-N记录块重复', reply: fallback || text.replace(regex, '').trim() };
+    }
+
+    const match = matches[0];
+    const visible = [text.slice(0, match.index).trim(), text.slice(match.index + match[0].length).trim()]
+        .filter(Boolean).join('\n\n').trim();
+    const body = String(match[1] ?? '').trim();
+    if (!body) return { ok: false, error: 'Memo-N记录块为空', reply: fallback || visible };
+
+    return {
+        ok: true,
+        reply: fallback || visible,
+        tableEdit: match[0],
+        noChange: /\bNO_CHANGE\b/i.test(body),
+        error: '',
+    };
+}
+
+/**
  * Parse the one-call relay format used by thinking models:
  * visible reply first, then one hidden JSON array containing only table changes.
  * A fallback reply is supplied when the machine block was routed to reasoning.

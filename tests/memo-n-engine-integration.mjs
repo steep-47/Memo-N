@@ -3,25 +3,21 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
-    .replace("import { isDirectDeepSeek } from '../runtime/providerRoute.js';", 'const { isDirectDeepSeek } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon71';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
-    RELAY_TAG_END,
-    RELAY_TAG_START,
     changesToStrictCalls,
     parseRecordEnvelope,
+    parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';`, `const {
-    RELAY_TAG_END,
-    RELAY_TAG_START,
     changesToStrictCalls,
     parseRecordEnvelope,
+    parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } = globalThis.__memoNMocks;`);
 
 const envelopeModule = await import('../scripts/engine/recordEnvelope.js');
-const { RELAY_TAG_END, RELAY_TAG_START } = envelopeModule;
-const relay = (reply, changes = []) => `${RELAY_TAG_START}\n${JSON.stringify(changes)}\n${RELAY_TAG_END}\n\n${reply}`;
+const tableEdit = (reply, calls = 'NO_CHANGE') => `<tableEdit><!-- ${calls} --></tableEdit>\n\n${reply}`;
 
 const handlers = new Map();
 const on = (event, handler) => {
@@ -87,17 +83,18 @@ globalThis.__memoNMocks = {
         getContext: () => context,
         saveChat: async () => { if (saveFails) throw new Error('injected save failure'); return true; },
     },
-    isDirectDeepSeek: data => ['deepseek', 'custom'].includes(String(data?.chat_completion_source || '')),
     ...envelopeModule,
     restoreMemoSnapshot: snapshot => { restoreCalls.push(structuredClone(snapshot)); return { ok: true, error: '' }; },
     saveMemoSnapshot: piece => { piece.memo_n_hash_sheets = { state: 'saved' }; return true; },
-    executeMemoTableEdit: calls => {
-        executeCalls.push(calls);
+    executeMemoTableEdit: raw => {
+        executeCalls.push(raw);
+        const text = Array.isArray(raw) ? raw.join('\n') : String(raw);
+        if (text.includes('INSERT INTO')) return { ok: false, changed: false, noChange: false, count: 0, error: '存在无法识别或不允许的tableEdit内容' };
         return {
             ok: true,
-            changed: calls[0] !== 'NO_CHANGE',
-            noChange: calls[0] === 'NO_CHANGE',
-            count: calls[0] === 'NO_CHANGE' ? 0 : calls.length,
+            changed: !text.includes('NO_CHANGE'),
+            noChange: text.includes('NO_CHANGE'),
+            count: text.includes('NO_CHANGE') ? 0 : 1,
             error: '',
         };
     },
@@ -131,15 +128,15 @@ const request = await armRequest();
 if (request.response_format || request.json_schema) throw new Error('一次API仍强制整篇JSON');
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
-if (!request.messages[0]?.content.includes(RELAY_TAG_START) || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮记录协议锚点');
+if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
 const contract = request.messages.at(-1)?.content || '';
-if (!contract.includes('[Memo-N one-call relay v3]') || !contract.includes(RELAY_TAG_START) || !contract.includes('实际输出的第一段先给出一个Memo-N机器记录块')) {
+if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
     throw new Error('前置记录协议未正确注入');
 }
 
 const first = {
     is_user: false,
-    mes: relay('第一轮正常正文', [{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:02' }] }]),
+    mes: tableEdit('第一轮正常正文', 'updateRow(0,0,{1:"08:02"})'),
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -147,16 +144,16 @@ const first = {
 currentChat.push(first);
 await complete(1);
 if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离记录块');
-if (executeCalls.length !== 1 || !executeCalls[0][0].startsWith('updateRow(0,0,')) throw new Error('首轮变更未进入严格事务');
+if (executeCalls.length !== 1 || !String(executeCalls[0]).includes('updateRow(0,0,')) throw new Error('首轮tableEdit未进入严格事务');
 
 currentChat.push({ is_user: true, mes: '继续行动' });
 const secondRequest = await armRequest();
-if (secondRequest.response_format || secondRequest.json_schema || !secondRequest.messages.at(-1)?.content.includes(RELAY_TAG_START)) {
+if (secondRequest.response_format || secondRequest.json_schema || !secondRequest.messages.at(-1)?.content.includes('<tableEdit>')) {
     throw new Error('第二轮请求协议发生漂移');
 }
 const second = {
     is_user: false,
-    mes: relay('第二轮正常正文', [{ op: 'insert', table: 4, row: null, cells: [{ column: 0, value: '赶驴老汉' }] }]),
+    mes: tableEdit('第二轮正常正文', 'insertRow(4,{0:"赶驴老汉"})'),
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -167,7 +164,7 @@ if (second.mes !== '第二轮正常正文' || executeCalls.length !== 2) throw n
 
 currentChat = [previous];
 await armRequest();
-const reasoningBlock = `${RELAY_TAG_START}\n${JSON.stringify([{ op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:15' }] }])}\n${RELAY_TAG_END}`;
+const reasoningBlock = '<tableEdit><!-- updateRow(0,0,{1:"08:15"}) --></tableEdit>';
 const splitChannels = {
     is_user: false,
     mes: '正文来自content',
@@ -183,14 +180,14 @@ currentChat = [previous];
 await armRequest();
 const delayed = {
     is_user: false,
-    mes: `${RELAY_TAG_START}\n[`,
+    mes: '<tableEdit><!-- updateRow(0,0,',
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
 };
 currentChat.push(delayed);
 setTimeout(() => {
-    delayed.mes = relay('延迟完成正文', [{ op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '钥匙' }] }]);
+    delayed.mes = tableEdit('延迟完成正文', 'insertRow(2,{0:"钥匙"})');
 }, 180);
 await complete(1);
 if (delayed.mes !== '延迟完成正文' || executeCalls.length !== 4) throw new Error('提前结束事件没有等待记录块闭合');
@@ -206,15 +203,15 @@ if (!warnings.some(message => message.includes('未找到Memo-N记录块'))) thr
 currentChat = [{ ...previous, memo_n_hash_sheets: { state: 'continue' } }];
 const continuing = currentChat[0];
 await armRequest('continue');
-continuing.mes = `${continuing.mes}\n\n${relay('续写正文', [])}`;
+continuing.mes = `${continuing.mes}\n\n${tableEdit('续写正文')}`;
 await complete(0);
-if (continuing.mes !== '旧正文\n\n续写正文' || !executeCalls.at(-1)?.includes('NO_CHANGE')) throw new Error('Continue增量拆包或基线处理失败');
+if (continuing.mes !== '旧正文\n\n续写正文' || !String(executeCalls.at(-1)).includes('NO_CHANGE')) throw new Error('Continue增量拆包或基线处理失败');
 
 currentChat = [previous];
 await armRequest();
 const invalid = {
     is_user: false,
-    mes: relay('非法变更仍保留正文', [{ op: 'INSERT INTO', table: 2, row: null, cells: [] }]),
+    mes: tableEdit('非法变更仍保留正文', 'INSERT INTO memo VALUES (1)'),
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -224,10 +221,16 @@ await complete(1);
 if (invalid.mes !== '非法变更仍保留正文' || invalid.__memoStrictExecution?.ok !== false) throw new Error('非法变更未安全保留正文');
 
 currentChat = [previous];
+const callsBeforeAbortedGeneration = executeCalls.length;
+await armRequest();
+await run(events.GENERATION_ENDED);
+if (executeCalls.length !== callsBeforeAbortedGeneration || previous.__memoStrictPersistence) throw new Error('中断生成错误处理了上一条助手消息');
+
+currentChat = [previous];
 await armRequest();
 const failing = {
     is_user: false,
-    mes: relay('保存失败正文', [{ op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '药草' }] }]),
+    mes: tableEdit('保存失败正文', 'insertRow(2,{0:"药草"})'),
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -244,4 +247,8 @@ const untouchedRequest = await armRequest();
 if (untouchedRequest.messages.length !== 1 || untouchedRequest.messages[0]?.content !== '行动') throw new Error('独立记录模式仍改写了正文请求消息');
 if (untouchedRequest.response_format?.type !== 'json_object' || !untouchedRequest.json_schema?.stale || !untouchedRequest.custom_include_body.includes('response_format')) throw new Error('独立记录模式仍改写了正文请求参数');
 
-console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, save-rollback=1');
+independentMode = false;
+const otherProviderRequest = await armRequest('normal', 'openai');
+if (!otherProviderRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('非DeepSeek正文API没有使用同一单次记录链路');
+
+console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, provider-neutral=1');
