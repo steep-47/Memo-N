@@ -177,6 +177,9 @@ function inject(data) {
     }
 
     delete data.response_format;
+    // 酒馆预设的stop会同时截断DeepSeek思考流；思考中命中停止词时，
+    // API会在最终JSON正文开始前结束。记录信封必须完整闭合，因此本轮不携带stop。
+    delete data.stop;
     if (transport === 'native') {
         // SillyTavern 的原生 DeepSeek 后端只通过 json_schema 分支生成
         // response_format: { type: 'json_object' }。
