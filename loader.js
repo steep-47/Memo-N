@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon71-native-tableedit-one-call';
+const RUNTIME_VERSION = 'memon72-history-pattern-continuity';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon71 native tableEdit one-call runtime loaded');
+console.log('[Memo-N][loader] memon72 one-call history continuity runtime loaded');

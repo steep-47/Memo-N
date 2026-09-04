@@ -121,6 +121,7 @@ if (!settingsText.includes('一次API记录协议') || !settingsText.includes('�
 if (!settingsText.includes('日影移动') || !settingsText.includes('changes为空数组')) throw new Error('主模板缺少时间推进/空变更规则');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
+if (!engineText.includes('reinforcePreviousAssistant(data.messages') || !engineText.includes('memo_n_record_block')) throw new Error('Memo-N没有在下一轮历史副本恢复已执行记录范例');
 if (!engineText.includes('delete data.response_format') || !engineText.includes('delete data.json_schema') || engineText.includes('type: json_object')) throw new Error('Memo-N仍可能强制整篇正文进入JSON模式');
 if (engineText.includes('delete data.stop')) throw new Error('正文恢复为正常生成后仍错误删除酒馆停止词');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');

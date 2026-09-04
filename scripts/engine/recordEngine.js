@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon71';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -42,6 +42,15 @@ function lastAssistant() {
     const chat = USER?.getContext?.()?.chat;
     const last = Array.isArray(chat) ? chat.at(-1) : null;
     return last?.is_user === false ? last : null;
+}
+
+function recentAssistant() {
+    const chat = USER?.getContext?.()?.chat;
+    if (!Array.isArray(chat)) return null;
+    for (let index = chat.length - 1; index >= 0; index--) {
+        if (chat[index]?.is_user === false) return chat[index];
+    }
+    return null;
 }
 
 function arm(type, _options, dryRun) {
@@ -129,11 +138,44 @@ function reinforceLastUser(messages) {
     return false;
 }
 
+function validHistoryRecordBlock(value) {
+    const text = String(value ?? '').trim();
+    return /^<tableEdit\b[^>]*>[\s\S]*<\/tableEdit>$/i.test(text) ? text : '';
+}
+
+function previousRecordBlock(chat) {
+    const swipeId = Number(chat?.swipe_id);
+    const swipeBlock = Number.isInteger(swipeId) && swipeId >= 0
+        ? chat?.swipe_info?.[swipeId]?.extra?.memo_n_record_block
+        : '';
+    return validHistoryRecordBlock(swipeBlock)
+        || validHistoryRecordBlock(chat?.extra?.memo_n_record_block)
+        || validHistoryRecordBlock(chat?.__memoStrictExecution?.tableEdit)
+        || '<tableEdit><!-- NO_CHANGE --></tableEdit>';
+}
+
+function reinforcePreviousAssistant(messages, block) {
+    if (!Array.isArray(messages)) return false;
+    let lastUserIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (messages[index]?.role === 'user') { lastUserIndex = index; break; }
+    }
+    if (lastUserIndex < 0) return false;
+    for (let index = lastUserIndex - 1; index >= 0; index--) {
+        const message = messages[index];
+        if (message?.role !== 'assistant' || typeof message.content !== 'string') continue;
+        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n\n${message.content}`;
+        return true;
+    }
+    return false;
+}
+
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
 
     const context = USER.getContext?.();
     const base = lastAssistant();
+    const historyAssistant = recentAssistant();
     pending = {
         at: Date.now(),
         type: armed.type,
@@ -148,6 +190,7 @@ function inject(data) {
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
+        reinforcePreviousAssistant(data.messages, previousRecordBlock(historyAssistant));
         reinforceLastUser(data.messages);
         data.messages.push({ role: 'system', content: recordContract() });
     }
@@ -193,6 +236,19 @@ function setStatus(chat, envelope, execution) {
             engine: 'Memo-N',
         },
     });
+}
+
+function storeRecordBlock(chat, envelope) {
+    const block = validHistoryRecordBlock(envelope?.tableEdit);
+    if (!block || !chat) return;
+    if (!chat.extra || typeof chat.extra !== 'object') chat.extra = {};
+    chat.extra.memo_n_record_block = block;
+    const swipeId = Number(chat.swipe_id);
+    if (!Number.isInteger(swipeId) || swipeId < 0) return;
+    if (!Array.isArray(chat.swipe_info)) chat.swipe_info = [];
+    if (!chat.swipe_info[swipeId] || typeof chat.swipe_info[swipeId] !== 'object') chat.swipe_info[swipeId] = {};
+    if (!chat.swipe_info[swipeId].extra || typeof chat.swipe_info[swipeId].extra !== 'object') chat.swipe_info[swipeId].extra = {};
+    chat.swipe_info[swipeId].extra.memo_n_record_block = block;
 }
 
 async function preserveFailureBaseline(chatId, chat, appendMode) {
@@ -347,6 +403,7 @@ async function unpack(chatId) {
         ? executeMemoTableEdit(executionInput, chat)
         : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
 
+    if (execution.ok) storeRecordBlock(chat, envelope);
     setStatus(chat, envelope, execution);
 
     try {

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon71';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -110,11 +110,11 @@ const complete = async chatId => {
     const persistence = currentChat[chatId]?.__memoStrictPersistence;
     if (persistence) await persistence;
 };
-const armRequest = async (type = 'normal', sourceName = 'deepseek') => {
+const armRequest = async (type = 'normal', sourceName = 'deepseek', messages = [{ role: 'user', content: '行动' }]) => {
     await run(events.GENERATION_STARTED, type, {}, false);
     const request = {
         chat_completion_source: sourceName,
-        messages: [{ role: 'user', content: '行动' }],
+        messages: structuredClone(messages),
         response_format: { type: 'json_object' },
         json_schema: { stale: true },
         custom_include_body: 'seed: 1\nresponse_format:\n  type: json_object',
@@ -145,12 +145,18 @@ currentChat.push(first);
 await complete(1);
 if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离记录块');
 if (executeCalls.length !== 1 || !String(executeCalls[0]).includes('updateRow(0,0,')) throw new Error('首轮tableEdit未进入严格事务');
+if (!first.extra?.memo_n_record_block?.includes('updateRow(0,0,')) throw new Error('首轮已执行记录块没有保存为下一轮历史范例');
 
 currentChat.push({ is_user: true, mes: '继续行动' });
-const secondRequest = await armRequest();
+const secondRequest = await armRequest('normal', 'deepseek', [
+    { role: 'assistant', content: first.mes },
+    { role: 'user', content: '继续行动' },
+]);
 if (secondRequest.response_format || secondRequest.json_schema || !secondRequest.messages.at(-1)?.content.includes('<tableEdit>')) {
     throw new Error('第二轮请求协议发生漂移');
 }
+if (!secondRequest.messages[0]?.content.startsWith('<tableEdit><!-- updateRow(0,0,')) throw new Error('第二轮历史副本没有恢复上一轮已执行记录块');
+if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
 const second = {
     is_user: false,
     mes: tableEdit('第二轮正常正文', 'insertRow(4,{0:"赶驴老汉"})'),
