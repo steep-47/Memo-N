@@ -111,6 +111,7 @@ const indexText = await fs.readFile(new URL('../index.js', import.meta.url), 'ut
 const settingsText = await fs.readFile(new URL('../data/pluginSetting.js', import.meta.url), 'utf8');
 const bootstrapText = await fs.readFile(new URL('../scripts/runtime/settingsBootstrap.js', import.meta.url), 'utf8');
 const engineText = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
+const providerText = await fs.readFile(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
 const envelopeText = await fs.readFile(new URL('../scripts/engine/recordEnvelope.js', import.meta.url), 'utf8');
 const yiyiText = await fs.readFile(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的结构化/提示改写层');
@@ -122,6 +123,9 @@ if (!settingsText.includes('日影移动') || !settingsText.includes('changes为
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
 if (!engineText.includes('reinforcePreviousAssistant(data.messages') || !engineText.includes('memo_n_record_block')) throw new Error('Memo-N没有在下一轮历史副本恢复已执行记录范例');
+if (!engineText.includes("DEEPSEEK_REPLY_PREFIX = '<tableEdit><!--\\n'") || !engineText.includes('canUseDeepSeekReplyPrefix(data)') || !engineText.includes("role: 'assistant', content: DEEPSEEK_REPLY_PREFIX")) throw new Error('Memo-N缺少内置DeepSeek单次API助手硬前缀');
+if (!engineText.includes('restoreExpectedPrefix(rawContent, job)') || !engineText.includes('responsePrefix:')) throw new Error('Memo-N缺少DeepSeek只返回续文时的本地前缀恢复');
+if (!engineText.includes('isNativeDeepSeek(data)') || !engineText.includes('hasActiveTools(data)') || !providerText.includes('export function isNativeDeepSeek(data)') || !providerText.includes('!reverseProxyOf(data)')) throw new Error('DeepSeek硬前缀缺少原生端点与工具请求安全门控');
 if (!engineText.includes('delete data.response_format') || !engineText.includes('delete data.json_schema') || engineText.includes('type: json_object')) throw new Error('Memo-N仍可能强制整篇正文进入JSON模式');
 if (engineText.includes('delete data.stop')) throw new Error('正文恢复为正常生成后仍错误删除酒馆停止词');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
@@ -142,4 +146,4 @@ if (!engineText.includes('await BASE.refreshContextView?.()')) throw new Error('
 const detachedGate = independentText.indexOf("return'detached'");
 const independentExecute = independentText.indexOf('const result=executeMemoTableEdit');
 if (detachedGate < 0 || independentExecute < 0 || detachedGate > independentExecute) throw new Error('独立记录缺少执行前聊天会话身份门控');
-console.log('memo-n engine audit PASS: native-tableedit-one-call=1, last-user-anchor=1, whole-json-disabled=1, stop-preserved=1, reasoning-parser=1, yiyi-order=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');
+console.log('memo-n engine audit PASS: native-tableedit-one-call=1, deepseek-hard-prefix=1, prefix-reconstruction=1, prefix-safety-gates=2, last-user-anchor=1, whole-json-disabled=1, stop-preserved=1, reasoning-parser=1, yiyi-order=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');

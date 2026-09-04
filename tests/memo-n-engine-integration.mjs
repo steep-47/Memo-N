@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon73';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -15,6 +15,7 @@ source = source
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } = globalThis.__memoNMocks;`);
+source = source.replace("import { isNativeDeepSeek } from '../runtime/providerRoute.js?v=memon73';", 'const { isNativeDeepSeek } = globalThis.__memoNMocks;');
 
 const envelopeModule = await import('../scripts/engine/recordEnvelope.js');
 const tableEdit = (reply, calls = 'NO_CHANGE') => `<tableEdit><!-- ${calls} --></tableEdit>\n\n${reply}`;
@@ -84,6 +85,8 @@ globalThis.__memoNMocks = {
         saveChat: async () => { if (saveFails) throw new Error('injected save failure'); return true; },
     },
     ...envelopeModule,
+    isNativeDeepSeek: data => String(data?.chat_completion_source ?? '').trim().toLowerCase() === 'deepseek'
+        && !String(data?.reverse_proxy ?? '').trim(),
     restoreMemoSnapshot: snapshot => { restoreCalls.push(structuredClone(snapshot)); return { ok: true, error: '' }; },
     saveMemoSnapshot: piece => { piece.memo_n_hash_sheets = { state: 'saved' }; return true; },
     executeMemoTableEdit: raw => {
@@ -110,7 +113,7 @@ const complete = async chatId => {
     const persistence = currentChat[chatId]?.__memoStrictPersistence;
     if (persistence) await persistence;
 };
-const armRequest = async (type = 'normal', sourceName = 'deepseek', messages = [{ role: 'user', content: '行动' }]) => {
+const armRequest = async (type = 'normal', sourceName = 'deepseek', messages = [{ role: 'user', content: '行动' }], extras = {}) => {
     await run(events.GENERATION_STARTED, type, {}, false);
     const request = {
         chat_completion_source: sourceName,
@@ -119,6 +122,7 @@ const armRequest = async (type = 'normal', sourceName = 'deepseek', messages = [
         json_schema: { stale: true },
         custom_include_body: 'seed: 1\nresponse_format:\n  type: json_object',
         stop: ['User:', '用户：'],
+        ...extras,
     };
     await run(events.CHAT_COMPLETION_SETTINGS_READY, request);
     return request;
@@ -129,14 +133,18 @@ if (request.response_format || request.json_schema) throw new Error('一次API�
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
 if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
-const contract = request.messages.at(-1)?.content || '';
+if (request.messages.at(-1)?.role !== 'assistant' || request.messages.at(-1)?.content !== '<tableEdit><!--\n') {
+    throw new Error('内置直连DeepSeek没有获得原生助手硬前缀');
+}
+const contract = request.messages.at(-2)?.content || '';
 if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
     throw new Error('前置记录协议未正确注入');
 }
 
 const first = {
     is_user: false,
-    mes: tableEdit('第一轮正常正文', 'updateRow(0,0,{1:"08:02"})'),
+    // DeepSeek前缀续写接口可以只返回已提供前缀之后的内容。
+    mes: 'updateRow(0,0,{1:"08:02"})\n--></tableEdit>\n\n第一轮正常正文',
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -152,10 +160,12 @@ const secondRequest = await armRequest('normal', 'deepseek', [
     { role: 'assistant', content: first.mes },
     { role: 'user', content: '继续行动' },
 ]);
-if (secondRequest.response_format || secondRequest.json_schema || !secondRequest.messages.at(-1)?.content.includes('<tableEdit>')) {
+if (secondRequest.response_format || secondRequest.json_schema
+    || secondRequest.messages.at(-1)?.role !== 'assistant'
+    || secondRequest.messages.at(-1)?.content !== '<tableEdit><!--\n') {
     throw new Error('第二轮请求协议发生漂移');
 }
-if (!secondRequest.messages[0]?.content.startsWith('<tableEdit><!-- updateRow(0,0,')) throw new Error('第二轮历史副本没有恢复上一轮已执行记录块');
+if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复上一轮已执行记录块');
 if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
 const second = {
     is_user: false,
@@ -199,7 +209,7 @@ await complete(1);
 if (delayed.mes !== '延迟完成正文' || executeCalls.length !== 4) throw new Error('提前结束事件没有等待记录块闭合');
 
 currentChat = [previous];
-await armRequest();
+await armRequest('normal', 'openai');
 const plain = { is_user: false, mes: '模型漏写记录块但正文正常', swipe_id: 0, swipes: [''], swipe_info: [{}] };
 currentChat.push(plain);
 await complete(1);
@@ -257,4 +267,9 @@ independentMode = false;
 const otherProviderRequest = await armRequest('normal', 'openai');
 if (!otherProviderRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('非DeepSeek正文API没有使用同一单次记录链路');
 
-console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, provider-neutral=1');
+const proxiedDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { reverse_proxy: 'https://relay.invalid/v1' });
+if (proxiedDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Error('代理DeepSeek被错误注入仅原生端点支持的硬前缀');
+const toolDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { tools: [{ type: 'function', function: { name: 'x' } }] });
+if (toolDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Error('带工具请求被错误注入DeepSeek不支持的硬前缀');
+
+console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, deepseek-hard-prefix=2, prefix-reconstruction=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, provider-neutral=1, prefix-safety-fallback=2');

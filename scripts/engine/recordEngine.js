@@ -1,13 +1,15 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon73';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
+import { isNativeDeepSeek } from '../runtime/providerRoute.js?v=memon73';
 
 const MARKER = '[Memo-N native tableEdit one-call v1]';
+const DEEPSEEK_REPLY_PREFIX = '<tableEdit><!--\n';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -126,6 +128,15 @@ function clearCustomResponseFormat(data) {
     else delete data.custom_include_body;
 }
 
+function hasActiveTools(data) {
+    if (Array.isArray(data?.tools)) return data.tools.length > 0;
+    return !!data?.tools && typeof data.tools === 'object' && Object.keys(data.tools).length > 0;
+}
+
+function canUseDeepSeekReplyPrefix(data) {
+    return isNativeDeepSeek(data) && !hasActiveTools(data);
+}
+
 function reinforceLastUser(messages) {
     if (!Array.isArray(messages)) return false;
     const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
@@ -185,6 +196,7 @@ function inject(data) {
         baseMes: String(base?.mes ?? ''),
         baseSwipeId: Number(base?.swipe_id ?? -1),
         baseReasoning: base ? reasoningText(base) : '',
+        responsePrefix: '',
     };
     armed = null;
 
@@ -193,12 +205,22 @@ function inject(data) {
         reinforcePreviousAssistant(data.messages, previousRecordBlock(historyAssistant));
         reinforceLastUser(data.messages);
         data.messages.push({ role: 'system', content: recordContract() });
+        if (canUseDeepSeekReplyPrefix(data)) {
+            // SillyTavern's native DeepSeek backend marks a final assistant message
+            // as `prefix: true` and routes it through DeepSeek's beta prefix endpoint.
+            // The API may return only the continuation, so unpack() restores this
+            // known prefix locally before parsing and keeps it out of chat history.
+            pending.responsePrefix = DEEPSEEK_REPLY_PREFIX;
+            data.messages.push({ role: 'assistant', content: DEEPSEEK_REPLY_PREFIX });
+        }
     }
 
     delete data.response_format;
     delete data.json_schema;
     clearCustomResponseFormat(data);
-    console.log('[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
+    console.log(pending.responsePrefix
+        ? '[Memo-N] 已启用DeepSeek单次API硬前缀：tableEdit记录块 + 正常正文'
+        : '[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
 }
 
 function syncSwipe(chat) {
@@ -279,9 +301,18 @@ function legacyEnvelopeCandidate(raw) {
     return text.startsWith('{') && text.includes('"reply"') && text.includes('"changes"');
 }
 
+function restoreExpectedPrefix(raw, job) {
+    const text = String(raw ?? '');
+    const prefix = String(job?.responsePrefix ?? '');
+    if (!prefix || !text.trim() || /<tableEdit\b/i.test(text)) return text;
+    return `${prefix}${text.trimStart()}`;
+}
+
 function selectEnvelope(chat, job, appendMode) {
     const current = String(chat?.mes ?? '');
-    const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
+    const rawContent = appendMode ? current.slice(job.baseMes.length) : current;
+    const rawReply = rawContent.trim();
+    const content = restoreExpectedPrefix(rawContent, job).trim();
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
@@ -289,13 +320,13 @@ function selectEnvelope(chat, job, appendMode) {
     if (contentTableEdit.ok) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
     // 部分兼容接口把机器块放入当前Swipe的思考区，但正文仍在content。
-    const reasoningTableEdit = content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
+    const reasoningTableEdit = rawReply && reasoning ? parseRelayTableEditEnvelope(reasoning, rawReply) : null;
     if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning', fingerprint };
 
     // 兼容更新前已经开始生成的MEMO_N_CHANGES块。
     const contentRelay = parseRelayTaggedEnvelope(content);
     if (contentRelay.ok) return { current, envelope: contentRelay, source: 'legacy-tagged-content', fingerprint };
-    const reasoningRelay = content && reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
+    const reasoningRelay = rawReply && reasoning ? parseRelayTaggedEnvelope(reasoning, rawReply) : null;
     if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'legacy-tagged-reasoning', fingerprint };
 
     // Keep compatibility with a response that was already in flight under the old
@@ -318,7 +349,7 @@ function selectEnvelope(chat, job, appendMode) {
         return { current, envelope: reasoningRelay, source: 'relay-reasoning-incomplete', fingerprint };
     }
 
-    if (content) {
+    if (rawReply) {
         return { current, envelope: contentTableEdit, source: 'plain-content', fingerprint };
     }
 

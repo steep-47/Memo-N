@@ -34,3 +34,7 @@ export function isDirectDeepSeek(data) {
     if (source === 'deepseek') return true;
     return source === 'custom' && isOfficialDeepSeekHost(customUrlOf(data));
 }
+
+export function isNativeDeepSeek(data) {
+    return sourceOf(data) === 'deepseek' && !reverseProxyOf(data);
+}

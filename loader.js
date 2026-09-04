@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon72-history-pattern-continuity';
+const RUNTIME_VERSION = 'memon73-deepseek-hard-prefix';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon72 one-call history continuity runtime loaded');
+console.log('[Memo-N][loader] memon73 DeepSeek one-call hard-prefix runtime loaded');
