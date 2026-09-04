@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon64-deepseek-audit3';
+const RUNTIME_VERSION = 'memon64-deepseek-json-fix1';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon64 DeepSeek audit3 runtime loaded');
+console.log('[Memo-N][loader] memon64 DeepSeek JSON fix1 runtime loaded');
