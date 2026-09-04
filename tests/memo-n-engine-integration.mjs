@@ -46,6 +46,7 @@ const previous = {
 };
 let currentChat = [previous];
 let saveFails = false;
+let independentMode = false;
 const executeCalls = [];
 const restoreCalls = [];
 let viewRefreshCalls = 0;
@@ -82,7 +83,7 @@ globalThis.__memoNMocks = {
             injection_mode: 'deep_system',
             step_by_step: false,
         },
-        getSettings: () => ({ memo_n_settings: { independent_record_api_enabled: false } }),
+        getSettings: () => ({ memo_n_settings: { independent_record_api_enabled: independentMode } }),
         getContext: () => context,
         saveChat: async () => { if (saveFails) throw new Error('injected save failure'); return true; },
     },
@@ -238,4 +239,9 @@ if (failing.mes !== '保存失败正文') throw new Error('保存失败时正文
 if (failing.__memoStrictExecution?.ok !== false || !failing.__memoStrictExecution?.error.includes('表格已回滚')) throw new Error('保存失败未执行事务回滚');
 if (!errors.some(message => message.includes('Memo-N保存失败')) || restoreCalls.length < 2) throw new Error('保存失败缺少错误提示或基线恢复');
 
-console.log('memo-n-engine-integration PASS: normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, save-rollback=1');
+independentMode = true;
+const untouchedRequest = await armRequest();
+if (untouchedRequest.messages.length !== 1 || untouchedRequest.messages[0]?.content !== '行动') throw new Error('独立记录模式仍改写了正文请求消息');
+if (untouchedRequest.response_format?.type !== 'json_object' || !untouchedRequest.json_schema?.stale || !untouchedRequest.custom_include_body.includes('response_format')) throw new Error('独立记录模式仍改写了正文请求参数');
+
+console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, save-rollback=1');

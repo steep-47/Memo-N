@@ -19,6 +19,7 @@ const root = {
 const before = structuredClone(root);
 const defaultSettings = {
     message_template: '# Memo-N\n# 输出\nMemo-N会在最终请求阶段提供唯一的一次API记录协议',
+    independent_record_api_enabled: true,
     step_by_step_user_prompt: "[{role:'system',content:'$0 $2 $3 $4 [Memo七表独立记录v3]'}]",
     rebuild_default_system_message_template: '',
     rebuild_default_message_template: '',
@@ -38,6 +39,25 @@ for (const key of ['muyoo_dataTable', 'table_database_templates', 'table_selecte
 }
 if (!root.memo_n_settings || root.memo_n_settings.message_template !== defaultSettings.message_template) throw new Error('Memo-N未建立独立默认设置');
 if (root.memo_n_settings.message_template === root.muyoo_dataTable.message_template) throw new Error('Memo-N错误复用了原Memo提示词');
+if (root.memo_n_settings.independent_record_api_enabled !== true || root.memo_n_settings.record_mode_independent_v70 !== true) throw new Error('Memo-N新安装未默认启用独立记录');
 if (saves !== 1) throw new Error('Memo-N首次启动设置保存次数异常');
 
-console.log('memo-n-fresh-install PASS: old-settings-preserved=1, old-templates-preserved=1, old-secrets-preserved=1, independent-defaults=1');
+const existingRoot = { memo_n_settings: { message_template: '用户现有设置', independent_record_api_enabled: false } };
+globalThis.__memoNBootstrapMocks = {
+    defaultSettings,
+    applicationFunctionManager: { power_user: existingRoot, saveSettingsDebounced() {} },
+};
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-v70-migration`);
+if (existingRoot.memo_n_settings.independent_record_api_enabled !== true || existingRoot.memo_n_settings.record_mode_independent_v70 !== true) {
+    throw new Error('Memo-N未把旧的一次API设置迁移为稳定独立记录');
+}
+
+const optedOutRoot = { memo_n_settings: { message_template: '用户现有设置', independent_record_api_enabled: false, record_mode_independent_v70: true } };
+globalThis.__memoNBootstrapMocks = {
+    defaultSettings,
+    applicationFunctionManager: { power_user: optedOutRoot, saveSettingsDebounced() {} },
+};
+await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-v70-opt-out`);
+if (optedOutRoot.memo_n_settings.independent_record_api_enabled !== false) throw new Error('Memo-N重复迁移覆盖了用户后续手动选择');
+
+console.log('memo-n-fresh-install PASS: old-settings-preserved=1, old-templates-preserved=1, old-secrets-preserved=1, independent-default=1, existing-migration=1, opt-out-preserved=1');

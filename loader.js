@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon69-multiturn-record-anchor';
+const RUNTIME_VERSION = 'memon70-independent-record-default';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon69 multiturn record anchor runtime loaded');
+console.log('[Memo-N][loader] memon70 independent record default runtime loaded');

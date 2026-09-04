@@ -128,6 +128,7 @@ if (!engineText.includes('swipe_info?.[swipeId]?.extra?.reasoning') || !engineTe
 if (!envelopeText.includes('escapeControlCharsInsideJsonStrings') || !envelopeText.includes('JSON.parse(normalized)')) throw new Error('Memo-N缺少JSON字符串内原始控制字符的确定性规范化');
 if (!envelopeText.includes('parseRelayTaggedEnvelope') || !envelopeText.includes('Memo-N记录块尚未闭合') || !envelopeText.includes("RELAY_TAG_START = 'MEMO_N_CHANGES_V1'")) throw new Error('手机安全记录块缺少严格解析或半截等待能力');
 if (!bootstrapText.includes('TRANSPORT_NEUTRAL_OUTPUT') || !bootstrapText.includes('最终传输格式只服从本轮请求末尾')) throw new Error('手机已保存模板没有保持传输格式中立');
+if (!settingsText.includes('independent_record_api_enabled: true') || !bootstrapText.includes("RECORD_MODE_MIGRATION_KEY = 'record_mode_independent_v70'") || !bootstrapText.includes('store.independent_record_api_enabled = true')) throw new Error('Memo-N没有把稳定独立记录设为默认并迁移旧设置');
 if (!yiyiText.includes('MEMO_N_CHANGES_V1') || !yiyiText.includes('先完整输出并闭合该块')) throw new Error('伊依记忆块与Memo-N前置记录块顺序未对齐');
 if (!independentText.includes('if(!prepareAutoBaseline')) throw new Error('自动独立记录缺少基线成功门控');
 if (!independentText.includes('if(!baselineReady)throw new Error')) throw new Error('手动独立记录缺少基线成功门控');
