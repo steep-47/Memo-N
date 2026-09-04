@@ -9,7 +9,7 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
 
-const MARKER = '[Memo-N one-call relay v2]';
+const MARKER = '[Memo-N one-call relay v3]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -64,16 +64,19 @@ function liveColumnMap() {
 
 function recordContract() {
     return `${MARKER}
-本轮先按原有预设正常输出完整正文，正文保持原本的状态栏、行动选项、伊依留言等结构，不要把正文包进JSON。正文完成后，再追加一个用于Memo-N记录的隐藏块。
+本轮不要把正文包进JSON。思考完成后，实际输出的第一段先给出一个Memo-N机器记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
 
-最终输出顺序固定为：完整正常正文 → 其他已有的隐藏数据块（如yiyiMemory） → Memo-N隐藏记录块。Memo-N隐藏记录块必须是最后一项，闭合后不再添加内容。
-
-隐藏记录块格式：
+机器记录块格式：
 ${RELAY_TAG_START}
 [{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]
 ${RELAY_TAG_END}
 
-隐藏块中只放本轮changes的合法JSON数组；正文不进入JSON。changes是同一轮回复的记忆维护结果，必须以最终正文中已经明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
+记录块中只放本轮changes的合法JSON数组；正文不进入JSON。即使七表都没有变化，也先输出空数组记录块，再输出正常正文：
+${RELAY_TAG_START}
+[]
+${RELAY_TAG_END}
+
+changes是同一轮回复的记忆维护结果，必须以本轮规划并即将输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
@@ -103,7 +106,7 @@ ${liveColumnMap()}
 - insert/update的cells只能使用上方当前真实列号映射中存在的column，不得创造列，不得越界。
 - 没有任何事实变化时changes必须为[]。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
-- 隐藏块只使用上述固定标记和JSON数组；不输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
+- 记录块必须是实际输出第一段，${RELAY_TAG_END}之后立刻输出完整正常正文；不输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
 }
 
 function clearCustomResponseFormat(data) {
@@ -144,7 +147,7 @@ function inject(data) {
     delete data.response_format;
     delete data.json_schema;
     clearCustomResponseFormat(data);
-    console.log('[Memo-N] 已接管本轮一次API：正常正文 + 尾部隐藏记录块 + 七表逐表审计');
+    console.log('[Memo-N] 已接管本轮一次API：前置记录块 + 正常正文 + 七表逐表审计');
 }
 
 function syncSwipe(chat) {
@@ -263,7 +266,7 @@ function selectEnvelope(chat, job, appendMode) {
 
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
-    return envelope?.ok === false && /Memo-N隐藏记录块尚未闭合|响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
+    return envelope?.ok === false && /Memo-N记录块尚未闭合|响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
 }
 
 async function waitForCompleteEnvelope(chat, job, appendMode) {
@@ -311,7 +314,7 @@ async function unpack(chatId) {
 
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
-    if (waited.source === 'relay-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取隐藏记录块，正文保持content');
+    if (waited.source === 'relay-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取记录块，正文保持content');
     if (waited.source.startsWith('legacy-')) console.log('[Memo-N] 已兼容拆包更新前仍在生成的旧JSON信封');
     handled.set(chat, chat.mes);
 

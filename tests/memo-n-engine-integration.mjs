@@ -21,7 +21,7 @@ source = source
 
 const envelopeModule = await import('../scripts/engine/recordEnvelope.js');
 const { RELAY_TAG_END, RELAY_TAG_START } = envelopeModule;
-const relay = (reply, changes = []) => `${reply}\n\n${RELAY_TAG_START}\n${JSON.stringify(changes)}\n${RELAY_TAG_END}`;
+const relay = (reply, changes = []) => `${RELAY_TAG_START}\n${JSON.stringify(changes)}\n${RELAY_TAG_END}\n\n${reply}`;
 
 const handlers = new Map();
 const on = (event, handler) => {
@@ -131,8 +131,8 @@ if (request.response_format || request.json_schema) throw new Error('一次API�
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
 const contract = request.messages.at(-1)?.content || '';
-if (!contract.includes('[Memo-N one-call relay v2]') || !contract.includes(RELAY_TAG_START) || !contract.includes('先按原有预设正常输出完整正文')) {
-    throw new Error('尾部隐藏记录协议未正确注入');
+if (!contract.includes('[Memo-N one-call relay v3]') || !contract.includes(RELAY_TAG_START) || !contract.includes('实际输出的第一段先给出一个Memo-N机器记录块')) {
+    throw new Error('前置记录协议未正确注入');
 }
 
 const first = {
@@ -144,7 +144,7 @@ const first = {
 };
 currentChat.push(first);
 await complete(1);
-if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离隐藏记录块');
+if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离记录块');
 if (executeCalls.length !== 1 || !executeCalls[0][0].startsWith('updateRow(0,0,')) throw new Error('首轮变更未进入严格事务');
 
 currentChat.push({ is_user: true, mes: '继续行动' });
@@ -181,7 +181,7 @@ currentChat = [previous];
 await armRequest();
 const delayed = {
     is_user: false,
-    mes: `延迟完成正文\n\n${RELAY_TAG_START}\n[`,
+    mes: `${RELAY_TAG_START}\n[`,
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -191,7 +191,7 @@ setTimeout(() => {
     delayed.mes = relay('延迟完成正文', [{ op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '钥匙' }] }]);
 }, 180);
 await complete(1);
-if (delayed.mes !== '延迟完成正文' || executeCalls.length !== 4) throw new Error('提前结束事件没有等待隐藏记录块闭合');
+if (delayed.mes !== '延迟完成正文' || executeCalls.length !== 4) throw new Error('提前结束事件没有等待记录块闭合');
 
 currentChat = [previous];
 await armRequest();
@@ -199,7 +199,7 @@ const plain = { is_user: false, mes: '模型漏写记录块但正文正常', swi
 currentChat.push(plain);
 await complete(1);
 if (plain.mes !== '模型漏写记录块但正文正常' || executeCalls.length !== 4) throw new Error('漏写记录块时未保留正常正文或错误执行表格');
-if (!warnings.some(message => message.includes('未找到Memo-N隐藏记录块'))) throw new Error('漏写记录块缺少明确提示');
+if (!warnings.some(message => message.includes('未找到Memo-N记录块'))) throw new Error('漏写记录块缺少明确提示');
 
 currentChat = [{ ...previous, memo_n_hash_sheets: { state: 'continue' } }];
 const continuing = currentChat[0];

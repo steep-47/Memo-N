@@ -1,6 +1,8 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
-const RELAY_TAG_START = '<!--MEMO_N_CHANGES_V1';
-const RELAY_TAG_END = 'MEMO_N_CHANGES_END-->';
+// Root-level HTML comments can be removed by the mobile render pipeline before
+// GENERATION_ENDED. Plain sentinels survive in chat.mes and are stripped here.
+const RELAY_TAG_START = 'MEMO_N_CHANGES_V1';
+const RELAY_TAG_END = 'MEMO_N_CHANGES_END';
 
 function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
@@ -264,18 +266,26 @@ export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
     const fallback = String(fallbackReply ?? '').trim();
     const start = text.indexOf(RELAY_TAG_START);
     if (start < 0) {
-        return { ok: false, error: '未找到Memo-N隐藏记录块', reply: fallback || text.trim() };
+        return { ok: false, error: '未找到Memo-N记录块', reply: fallback || text.trim() };
     }
 
-    const reply = fallback || text.slice(0, start).trim();
+    const wrappedStart = text.slice(Math.max(0, start - 4), start) === '<!--' ? start - 4 : start;
     const secondStart = text.indexOf(RELAY_TAG_START, start + RELAY_TAG_START.length);
-    if (secondStart >= 0) return { ok: false, error: 'Memo-N隐藏记录块重复', reply };
+    if (secondStart >= 0) {
+        const reply = fallback || text.slice(0, wrappedStart).trim();
+        return { ok: false, error: 'Memo-N记录块重复', reply };
+    }
 
     const end = text.indexOf(RELAY_TAG_END, start + RELAY_TAG_START.length);
-    if (end < 0) return { ok: false, error: 'Memo-N隐藏记录块尚未闭合', reply };
+    if (end < 0) {
+        const reply = fallback || text.slice(0, wrappedStart).trim();
+        return { ok: false, error: 'Memo-N记录块尚未闭合', reply };
+    }
 
-    const after = text.slice(end + RELAY_TAG_END.length).trim();
-    if (after) return { ok: false, error: 'Memo-N隐藏记录块后存在额外内容', reply };
+    const markerEnd = end + RELAY_TAG_END.length;
+    const wrappedEnd = text.slice(markerEnd, markerEnd + 3) === '-->' ? markerEnd + 3 : markerEnd;
+    const visible = [text.slice(0, wrappedStart).trim(), text.slice(wrappedEnd).trim()].filter(Boolean).join('\n\n').trim();
+    const reply = fallback || visible;
 
     const payload = text.slice(start + RELAY_TAG_START.length, end).trim()
         .replace(/^```(?:json)?\s*/i, '')
@@ -284,7 +294,7 @@ export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
     try {
         changes = JSON.parse(escapeControlCharsInsideJsonStrings(payload));
     } catch (error) {
-        return { ok: false, error: `Memo-N隐藏记录块不是合法JSON数组：${error.message}`, reply };
+        return { ok: false, error: `Memo-N记录块不是合法JSON数组：${error.message}`, reply };
     }
     return parseRecordEnvelope({ reply, changes });
 }

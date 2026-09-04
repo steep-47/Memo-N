@@ -18,7 +18,7 @@ const root = {
 };
 const before = structuredClone(root);
 const defaultSettings = {
-    message_template: '# Memo-N\n# 输出\nMemo-N会在最终请求阶段提供唯一的尾部隐藏记录协议',
+    message_template: '# Memo-N\n# 输出\nMemo-N会在最终请求阶段提供唯一的一次API记录协议',
     step_by_step_user_prompt: "[{role:'system',content:'$0 $2 $3 $4 [Memo七表独立记录v3]'}]",
     rebuild_default_system_message_template: '',
     rebuild_default_message_template: '',

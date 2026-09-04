@@ -52,6 +52,16 @@ if (!relay.ok || relay.reply.includes('MEMO_N_CHANGES') || relay.changes.length 
     throw new Error(`中转站隐藏记录块解析失败：${relay.error}`);
 }
 
+const leadingRelay = parseRelayTaggedEnvelope(`${RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${RELAY_TAG_END}\n\n前置块后的正常正文`);
+if (!leadingRelay.ok || leadingRelay.reply !== '前置块后的正常正文' || leadingRelay.changes.length !== 2) {
+    throw new Error(`前置记录块解析失败：${leadingRelay.error}`);
+}
+
+const legacyCommentRelay = parseRelayTaggedEnvelope(`旧正文\n<!--${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}-->`);
+if (!legacyCommentRelay.ok || legacyCommentRelay.reply !== '旧正文' || !legacyCommentRelay.noChange) {
+    throw new Error(`旧HTML注释记录块兼容失败：${legacyCommentRelay.error}`);
+}
+
 const relayNoChange = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}`);
 if (!relayNoChange.ok || !relayNoChange.noChange || relayNoChange.reply !== '正文') throw new Error('中转站NO_CHANGE未正确解析');
 
@@ -67,4 +77,4 @@ if (incompleteRelay.ok || !/尚未闭合/.test(incompleteRelay.error) || incompl
 const badRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[{"op":"INSERT INTO"}]\n${RELAY_TAG_END}`);
 if (badRelay.ok || badRelay.reply !== '正文') throw new Error('非法中转站变更被接受或正文未保留');
 
-console.log('memo-n-envelope PASS: strict-json + relay-tagged parsing, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
+console.log('memo-n-envelope PASS: strict-json + leading mobile-safe relay parsing, legacy comment compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
