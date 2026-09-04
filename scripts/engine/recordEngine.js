@@ -10,6 +10,44 @@ let armed = null;
 let pending = null;
 let lastRenderedChatId = null;
 
+const schema = {
+    name: 'memo_n_record_envelope',
+    strict: true,
+    value: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+            reply: { type: 'string' },
+            changes: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        op: { type: 'string', enum: ['insert', 'update', 'delete'] },
+                        table: { type: 'integer', minimum: 0 },
+                        row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
+                        cells: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                properties: {
+                                    column: { type: 'integer', minimum: 0 },
+                                    value: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+                                },
+                                required: ['column', 'value'],
+                            },
+                        },
+                    },
+                    required: ['op', 'table', 'row', 'cells'],
+                },
+            },
+        },
+        required: ['reply', 'changes'],
+    },
+};
+
 globalThis.__memoNRecordEngineActive = true;
 
 function independentEnabled() {
@@ -94,6 +132,20 @@ ${liveColumnMap()}
 - 最终只输出JSON对象本身；不得输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
 }
 
+function forceCustomJsonObject(data) {
+    const current = String(data?.custom_include_body ?? '').trim();
+    const stripped = current
+        .replace(/(?:^|\n)\s*response_format\s*:\s*\n\s*type\s*:\s*\S+\s*/gi, '\n')
+        .trim();
+    data.custom_include_body = `${stripped}${stripped ? '\n' : ''}response_format:\n  type: json_object`;
+}
+
+function directDeepSeekTransport(data) {
+    return String(data?.chat_completion_source ?? '').trim().toLowerCase() === 'custom'
+        ? 'custom'
+        : 'native';
+}
+
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
 
@@ -102,6 +154,8 @@ function inject(data) {
         pending = null;
         return;
     }
+
+    const transport = directDeepSeekTransport(data);
 
     const context = USER.getContext?.();
     const base = lastAssistant();
@@ -119,8 +173,16 @@ function inject(data) {
         data.messages.push({ role: 'system', content: recordContract() });
     }
 
-    delete data.json_schema;
-    data.response_format = { type: 'json_object' };
+    delete data.response_format;
+    if (transport === 'native') {
+        // SillyTavern 的原生 DeepSeek 后端只通过 json_schema 分支生成
+        // response_format: { type: 'json_object' }。
+        data.json_schema = structuredClone(schema);
+    } else {
+        // CUSTOM 后端只会把 custom_include_body 合并进最终请求。
+        delete data.json_schema;
+        forceCustomJsonObject(data);
+    }
     console.log('[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封 + 七表逐表审计');
 }
 
@@ -184,6 +246,11 @@ function reasoningText(chat) {
     return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
 }
 
+function looksLikeEnvelope(raw) {
+    const text = String(raw ?? '').trim().replace(/^```(?:json)?\s*/i, '');
+    return text.startsWith('{') && text.includes('"reply"') && text.includes('"changes"');
+}
+
 function selectEnvelope(chat, job, appendMode) {
     const current = String(chat?.mes ?? '');
     const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
@@ -193,8 +260,17 @@ function selectEnvelope(chat, job, appendMode) {
     const contentEnvelope = content ? parseRecordEnvelope(content) : null;
     if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
 
-    const reasoningEnvelope = reasoning ? parseRecordEnvelope(reasoning) : null;
+    const reasoningEnvelope = looksLikeEnvelope(reasoning) ? parseRecordEnvelope(reasoning) : null;
     if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint };
+
+    if (!content && reasoning && !reasoningEnvelope) {
+        return {
+            current,
+            envelope: { ok: false, error: '生成在思考阶段结束，未收到最终JSON正文' },
+            source: 'reasoning-incomplete',
+            fingerprint,
+        };
+    }
 
     return {
         current,
@@ -206,7 +282,7 @@ function selectEnvelope(chat, job, appendMode) {
 
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
-    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input/i.test(error);
+    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
 }
 
 async function waitForCompleteEnvelope(chat, job, appendMode) {
