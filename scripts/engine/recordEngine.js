@@ -119,6 +119,18 @@ function clearCustomResponseFormat(data) {
     else delete data.custom_include_body;
 }
 
+function reinforceLastUser(messages) {
+    if (!Array.isArray(messages)) return false;
+    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出 ${RELAY_TAG_START}、changes JSON数组、${RELAY_TAG_END}；随后输出完整正常正文、状态栏、行动选项和其他数据块。无表格变化时changes使用空数组。]`;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        const message = messages[index];
+        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
+        if (!message.content.includes(RELAY_TAG_START)) message.content = `${message.content.trimEnd()}${reminder}`;
+        return true;
+    }
+    return false;
+}
+
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
 
@@ -141,6 +153,7 @@ function inject(data) {
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
+        reinforceLastUser(data.messages);
         data.messages.push({ role: 'system', content: recordContract() });
     }
 

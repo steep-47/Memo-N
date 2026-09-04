@@ -120,6 +120,7 @@ if (!loaderText.includes('DeepSeek一次API记录引擎') || !indexText.includes
 if (!settingsText.includes('一次API记录协议') || !settingsText.includes('结构化insert/update/delete对象')) throw new Error('主模板未切换到正文与记录分离协议');
 if (!settingsText.includes('日影移动') || !settingsText.includes('changes为空数组')) throw new Error('主模板缺少时间推进/空变更规则');
 if (!engineText.includes('RELAY_TAG_START') || !engineText.includes("changesToStrictCalls(envelope.changes)")) throw new Error('Memo-N缺少前置记录协议或严格事务编译');
+if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
 if (!engineText.includes('delete data.response_format') || !engineText.includes('delete data.json_schema') || engineText.includes('type: json_object')) throw new Error('Memo-N仍可能强制整篇正文进入JSON模式');
 if (engineText.includes('delete data.stop')) throw new Error('正文恢复为正常生成后仍错误删除酒馆停止词');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
@@ -139,4 +140,4 @@ if (!engineText.includes('await BASE.refreshContextView?.()')) throw new Error('
 const detachedGate = independentText.indexOf("return'detached'");
 const independentExecute = independentText.indexOf('const result=executeMemoTableEdit');
 if (detachedGate < 0 || independentExecute < 0 || detachedGate > independentExecute) throw new Error('独立记录缺少执行前聊天会话身份门控');
-console.log('memo-n engine audit PASS: leading-mobile-safe-relay=1, whole-json-disabled=1, stop-preserved=1, relay-parser=1, yiyi-order=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');
+console.log('memo-n engine audit PASS: leading-mobile-safe-relay=1, last-user-anchor=1, whole-json-disabled=1, stop-preserved=1, relay-parser=1, yiyi-order=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');

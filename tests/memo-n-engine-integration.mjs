@@ -130,6 +130,7 @@ const request = await armRequest();
 if (request.response_format || request.json_schema) throw new Error('一次API仍强制整篇JSON');
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
+if (!request.messages[0]?.content.includes(RELAY_TAG_START) || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮记录协议锚点');
 const contract = request.messages.at(-1)?.content || '';
 if (!contract.includes('[Memo-N one-call relay v3]') || !contract.includes(RELAY_TAG_START) || !contract.includes('实际输出的第一段先给出一个Memo-N机器记录块')) {
     throw new Error('前置记录协议未正确注入');
@@ -237,4 +238,4 @@ if (failing.mes !== '保存失败正文') throw new Error('保存失败时正文
 if (failing.__memoStrictExecution?.ok !== false || !failing.__memoStrictExecution?.error.includes('表格已回滚')) throw new Error('保存失败未执行事务回滚');
 if (!errors.some(message => message.includes('Memo-N保存失败')) || restoreCalls.length < 2) throw new Error('保存失败缺少错误提示或基线恢复');
 
-console.log('memo-n-engine-integration PASS: normal-content=1, json-mode-removed=1, stop-preserved=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, save-rollback=1');
+console.log('memo-n-engine-integration PASS: normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, save-rollback=1');
