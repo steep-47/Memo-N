@@ -58,6 +58,9 @@ if (!relayNoChange.ok || !relayNoChange.noChange || relayNoChange.reply !== '正
 const reasoningOnly = parseRelayTaggedEnvelope(`${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}`, '正文来自content');
 if (!reasoningOnly.ok || reasoningOnly.reply !== '正文来自content') throw new Error('思考区机器块未能与正文安全合并');
 
+const reasoningWithPrefix = parseRelayTaggedEnvelope(`内部思考文本\n${RELAY_TAG_START}\n[]\n${RELAY_TAG_END}`, '仍以content正文为准');
+if (!reasoningWithPrefix.ok || reasoningWithPrefix.reply !== '仍以content正文为准') throw new Error('思考区前缀错误覆盖了content正文');
+
 const incompleteRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[]`);
 if (incompleteRelay.ok || !/尚未闭合/.test(incompleteRelay.error) || incompleteRelay.reply !== '正文') throw new Error('未闭合中转站记录块未安全等待/保留正文');
 

@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon66-deepseek-stop-fix3';
+const RUNTIME_VERSION = 'memon67-normal-content-relay';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon66 DeepSeek stop fix3 runtime loaded');
+console.log('[Memo-N][loader] memon67 normal-content relay runtime loaded');

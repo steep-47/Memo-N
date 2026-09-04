@@ -1,4 +1,6 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
+const RELAY_TAG_START = '<!--MEMO_N_CHANGES_V1';
+const RELAY_TAG_END = 'MEMO_N_CHANGES_END-->';
 
 function isIndex(value) {
     return Number.isSafeInteger(value) && value >= 0;
@@ -252,6 +254,41 @@ export function parseRecordEnvelope(raw) {
     }
 }
 
+/**
+ * Parse the one-call relay format used by thinking models:
+ * visible reply first, then one hidden JSON array containing only table changes.
+ * A fallback reply is supplied when the machine block was routed to reasoning.
+ */
+export function parseRelayTaggedEnvelope(raw, fallbackReply = '') {
+    const text = String(raw ?? '');
+    const fallback = String(fallbackReply ?? '').trim();
+    const start = text.indexOf(RELAY_TAG_START);
+    if (start < 0) {
+        return { ok: false, error: '未找到Memo-N隐藏记录块', reply: fallback || text.trim() };
+    }
+
+    const reply = fallback || text.slice(0, start).trim();
+    const secondStart = text.indexOf(RELAY_TAG_START, start + RELAY_TAG_START.length);
+    if (secondStart >= 0) return { ok: false, error: 'Memo-N隐藏记录块重复', reply };
+
+    const end = text.indexOf(RELAY_TAG_END, start + RELAY_TAG_START.length);
+    if (end < 0) return { ok: false, error: 'Memo-N隐藏记录块尚未闭合', reply };
+
+    const after = text.slice(end + RELAY_TAG_END.length).trim();
+    if (after) return { ok: false, error: 'Memo-N隐藏记录块后存在额外内容', reply };
+
+    const payload = text.slice(start + RELAY_TAG_START.length, end).trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '');
+    let changes;
+    try {
+        changes = JSON.parse(escapeControlCharsInsideJsonStrings(payload));
+    } catch (error) {
+        return { ok: false, error: `Memo-N隐藏记录块不是合法JSON数组：${error.message}`, reply };
+    }
+    return parseRecordEnvelope({ reply, changes });
+}
+
 export function changesToStrictCalls(changes) {
     if (!Array.isArray(changes) || !changes.length) return ['NO_CHANGE'];
     return changes.map(change => {
@@ -261,4 +298,4 @@ export function changesToStrictCalls(changes) {
     });
 }
 
-export { OP_TYPES, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields, extractWrappedEnvelope };
+export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields, extractWrappedEnvelope };

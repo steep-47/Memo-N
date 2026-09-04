@@ -1,52 +1,20 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon9';
 import { isDirectDeepSeek } from '../runtime/providerRoute.js';
-import { changesToStrictCalls, parseRecordEnvelope } from './recordEnvelope.js';
+import {
+    RELAY_TAG_END,
+    RELAY_TAG_START,
+    changesToStrictCalls,
+    parseRecordEnvelope,
+    parseRelayTaggedEnvelope,
+} from './recordEnvelope.js';
 
-const MARKER = '[Memo-N record envelope v1]';
+const MARKER = '[Memo-N one-call relay v2]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
 let pending = null;
 let lastRenderedChatId = null;
-
-const schema = {
-    name: 'memo_n_record_envelope',
-    strict: true,
-    value: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-            reply: { type: 'string' },
-            changes: {
-                type: 'array',
-                items: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                        op: { type: 'string', enum: ['insert', 'update', 'delete'] },
-                        table: { type: 'integer', minimum: 0 },
-                        row: { anyOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
-                        cells: {
-                            type: 'array',
-                            items: {
-                                type: 'object',
-                                additionalProperties: false,
-                                properties: {
-                                    column: { type: 'integer', minimum: 0 },
-                                    value: { anyOf: [{ type: 'string' }, { type: 'number' }] },
-                                },
-                                required: ['column', 'value'],
-                            },
-                        },
-                    },
-                    required: ['op', 'table', 'row', 'cells'],
-                },
-            },
-        },
-        required: ['reply', 'changes'],
-    },
-};
 
 globalThis.__memoNRecordEngineActive = true;
 
@@ -96,13 +64,16 @@ function liveColumnMap() {
 
 function recordContract() {
     return `${MARKER}
-本轮最终响应必须是一个JSON对象，JSON外不得出现任何字符：
-{"reply":"给用户看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
+本轮先按原有预设正常输出完整正文，正文保持原本的状态栏、行动选项、伊依留言等结构，不要把正文包进JSON。正文完成后，再追加一个用于Memo-N记录的隐藏块。
 
-[多轮格式说明]
-历史中的assistant消息已经由Memo-N解包成普通正文，只用于延续剧情，不是本轮输出格式示例。本轮仍须在思考完成后继续生成最终content，并让最终content完整包含上述JSON对象；不得停在reasoning_content，也不得照抄历史正文的普通文本格式。
+最终输出顺序固定为：完整正常正文 → 其他已有的隐藏数据块（如yiyiMemory） → Memo-N隐藏记录块。Memo-N隐藏记录块必须是最后一项，闭合后不再添加内容。
 
-reply负责完整正文，必须保留原本要求的状态栏、行动选项、伊依留言等正常内容。changes是同一轮回复的记忆维护结果，不是附带随便记几项：必须以最终reply中已经明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
+隐藏记录块格式：
+${RELAY_TAG_START}
+[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]
+${RELAY_TAG_END}
+
+隐藏块中只放本轮changes的合法JSON数组；正文不进入JSON。changes是同一轮回复的记忆维护结果，必须以最终正文中已经明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
@@ -132,21 +103,17 @@ ${liveColumnMap()}
 - insert/update的cells只能使用上方当前真实列号映射中存在的column，不得创造列，不得越界。
 - 没有任何事实变化时changes必须为[]。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
-- 最终只输出JSON对象本身；不得输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
+- 隐藏块只使用上述固定标记和JSON数组；不输出tableEdit、SQL、Markdown代码围栏、解释或额外字段。`;
 }
 
-function forceCustomJsonObject(data) {
+function clearCustomResponseFormat(data) {
     const current = String(data?.custom_include_body ?? '').trim();
-    const stripped = current
-        .replace(/(?:^|\n)\s*response_format\s*:\s*\n\s*type\s*:\s*\S+\s*/gi, '\n')
+    if (!current) return;
+    const cleaned = current
+        .replace(/(?:^|\n)\s*response_format\s*:\s*(?:\n\s*type\s*:\s*\S+|[^\n]*)\s*/gi, '\n')
         .trim();
-    data.custom_include_body = `${stripped}${stripped ? '\n' : ''}response_format:\n  type: json_object`;
-}
-
-function directDeepSeekTransport(data) {
-    return String(data?.chat_completion_source ?? '').trim().toLowerCase() === 'custom'
-        ? 'custom'
-        : 'native';
+    if (cleaned) data.custom_include_body = cleaned;
+    else delete data.custom_include_body;
 }
 
 function inject(data) {
@@ -157,8 +124,6 @@ function inject(data) {
         pending = null;
         return;
     }
-
-    const transport = directDeepSeekTransport(data);
 
     const context = USER.getContext?.();
     const base = lastAssistant();
@@ -177,19 +142,9 @@ function inject(data) {
     }
 
     delete data.response_format;
-    // 酒馆预设的stop会同时截断DeepSeek思考流；思考中命中停止词时，
-    // API会在最终JSON正文开始前结束。记录信封必须完整闭合，因此本轮不携带stop。
-    delete data.stop;
-    if (transport === 'native') {
-        // SillyTavern 的原生 DeepSeek 后端只通过 json_schema 分支生成
-        // response_format: { type: 'json_object' }。
-        data.json_schema = structuredClone(schema);
-    } else {
-        // CUSTOM 后端只会把 custom_include_body 合并进最终请求。
-        delete data.json_schema;
-        forceCustomJsonObject(data);
-    }
-    console.log('[Memo-N] 已接管本轮一次API：DeepSeek JSON记录信封 + 七表逐表审计');
+    delete data.json_schema;
+    clearCustomResponseFormat(data);
+    console.log('[Memo-N] 已接管本轮一次API：正常正文 + 尾部隐藏记录块 + 七表逐表审计');
 }
 
 function syncSwipe(chat) {
@@ -252,16 +207,9 @@ function reasoningText(chat) {
     return String(swipeReasoning || chat?.extra?.reasoning || '').trim();
 }
 
-function envelopeCandidate(raw) {
+function legacyEnvelopeCandidate(raw) {
     const text = String(raw ?? '').trim().replace(/^```(?:json)?\s*/i, '');
-    return text.startsWith('{')
-        || (text.includes('{') && text.includes('"reply"') && text.includes('"changes"'));
-}
-
-function sameGeneratedText(left, right) {
-    const a = String(left ?? '').trim();
-    const b = String(right ?? '').trim();
-    return !!a && !!b && (a === b || a.includes(b) || b.includes(a));
+    return text.startsWith('{') && text.includes('"reply"') && text.includes('"changes"');
 }
 
 function selectEnvelope(chat, job, appendMode) {
@@ -270,34 +218,36 @@ function selectEnvelope(chat, job, appendMode) {
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
-    const contentIsCandidate = envelopeCandidate(content);
-    const contentEnvelope = contentIsCandidate ? parseRecordEnvelope(content) : null;
-    if (contentEnvelope?.ok) return { current, envelope: contentEnvelope, source: 'content', fingerprint };
+    const contentRelay = parseRelayTaggedEnvelope(content);
+    if (contentRelay.ok) return { current, envelope: contentRelay, source: 'relay-content', fingerprint };
 
-    const reasoningIsCandidate = envelopeCandidate(reasoning);
-    const reasoningEnvelope = reasoningIsCandidate ? parseRecordEnvelope(reasoning) : null;
-    if (reasoningEnvelope?.ok) return { current, envelope: reasoningEnvelope, source: 'reasoning', fingerprint };
+    // Some OpenAI-compatible relays place the trailing machine block in reasoning
+    // while keeping the visible reply in content. Content always remains the reply.
+    const reasoningRelay = content && reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
+    if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'relay-reasoning', fingerprint };
 
-    if (content && !contentIsCandidate) {
-        const routedReasoning = sameGeneratedText(content, reasoning);
-        return {
-            current,
-            envelope: {
-                ok: false,
-                error: routedReasoning
-                    ? '生成在思考阶段结束，未收到最终JSON正文'
-                    : '最终正文未按Memo-N的JSON记录格式返回',
-                ...(routedReasoning ? {} : { reply: content }),
-            },
-            source: routedReasoning ? 'reasoning-incomplete' : 'plain-content',
-            fingerprint,
-        };
+    // Keep compatibility with a response that was already in flight under the old
+    // whole-response JSON contract when the extension was updated.
+    const legacyContent = legacyEnvelopeCandidate(content) ? parseRecordEnvelope(content) : null;
+    if (legacyContent?.ok) return { current, envelope: legacyContent, source: 'legacy-content', fingerprint };
+    const legacyReasoning = legacyEnvelopeCandidate(reasoning) ? parseRecordEnvelope(reasoning) : null;
+    if (legacyReasoning?.ok) return { current, envelope: legacyReasoning, source: 'legacy-reasoning', fingerprint };
+
+    if (/尚未闭合/.test(contentRelay.error)) {
+        return { current, envelope: contentRelay, source: 'relay-content-incomplete', fingerprint };
+    }
+    if (reasoningRelay && /尚未闭合/.test(reasoningRelay.error)) {
+        return { current, envelope: reasoningRelay, source: 'relay-reasoning-incomplete', fingerprint };
     }
 
-    if (!content && reasoning && !reasoningIsCandidate) {
+    if (content) {
+        return { current, envelope: contentRelay, source: 'plain-content', fingerprint };
+    }
+
+    if (reasoning) {
         return {
             current,
-            envelope: { ok: false, error: '生成在思考阶段结束，未收到最终JSON正文' },
+            envelope: { ok: false, error: '生成在思考阶段结束，未收到正常正文' },
             source: 'reasoning-incomplete',
             fingerprint,
         };
@@ -305,15 +255,15 @@ function selectEnvelope(chat, job, appendMode) {
 
     return {
         current,
-        envelope: contentEnvelope || reasoningEnvelope || parseRecordEnvelope(''),
-        source: contentEnvelope ? 'content' : reasoningEnvelope ? 'reasoning' : 'none',
+        envelope: contentRelay,
+        source: 'none',
         fingerprint,
     };
 }
 
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
-    return envelope?.ok === false && /响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束|最终正文未按Memo-N的JSON记录格式返回/i.test(error);
+    return envelope?.ok === false && /Memo-N隐藏记录块尚未闭合|响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
 }
 
 async function waitForCompleteEnvelope(chat, job, appendMode) {
@@ -361,7 +311,8 @@ async function unpack(chatId) {
 
     chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
     syncSwipe(chat);
-    if (waited.source === 'reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取完整JSON信封');
+    if (waited.source === 'relay-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取隐藏记录块，正文保持content');
+    if (waited.source.startsWith('legacy-')) console.log('[Memo-N] 已兼容拆包更新前仍在生成的旧JSON信封');
     handled.set(chat, chat.mes);
 
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));

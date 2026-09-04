@@ -59,8 +59,8 @@ deleteRow(tableIndex:number,rowIndex:number)
 - 一次性物品使用、消耗、出售、交付、丢失或被夺走后按实际剩余数量update；数量归零或明确完全不再持有时delete。
 - 可重复使用的武器、装备、工具、容器使用后仍归玩家所有，不因“使用”删除；装备/卸下/损坏/装满/清空等只更新状态。
 # 输出
-- Memo-N会在最终请求阶段提供唯一JSON变更信封。按该信封同时返回完整正常正文reply与本轮事实变化changes。
-- changes只能使用结构化insert/update/delete对象，禁止函数文本、SQL、tableEdit和解释。
+- Memo-N会在最终请求阶段提供唯一的尾部隐藏记录协议。先正常完成正文，再按该协议附加本轮事实变化changes。
+- changes只使用结构化insert/update/delete对象；机器记录与正常正文分离。
 - 日期、时间、地点、当前场景人物任一发生变化（包括“日影移动”“日头升高”“片刻后”“随后”等明确时间推进）时必须维护表0；七表均无变化时changes为空数组。`,
     isTableToChat: false,
     show_settings_in_extension_menu: true,
