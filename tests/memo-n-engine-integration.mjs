@@ -140,6 +140,12 @@ const contract = request.messages.at(-2)?.content || '';
 if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
     throw new Error('前置记录协议未正确注入');
 }
+if (!contract.includes('玩家下次输入前的最终落点') || !contract.includes('数字0是有效值') || !contract.includes('当前上下文已有明确现值时也补齐')) {
+    throw new Error('最终落点或角色状态漏记修复规则未注入');
+}
+if (!request.messages[0]?.content.includes('最终落点') || !request.messages[0]?.content.includes('表中空缺')) {
+    throw new Error('最后一条用户消息缺少最终状态审计提醒');
+}
 
 const first = {
     is_user: false,
@@ -258,6 +264,28 @@ if (failing.mes !== '保存失败正文') throw new Error('保存失败时正文
 if (failing.__memoStrictExecution?.ok !== false || !failing.__memoStrictExecution?.error.includes('表格已回滚')) throw new Error('保存失败未执行事务回滚');
 if (!errors.some(message => message.includes('Memo-N保存失败')) || restoreCalls.length < 2) throw new Error('保存失败缺少错误提示或基线恢复');
 
+saveFails = false;
+currentChat = [previous];
+await armRequest();
+const statusContinuity = {
+    is_user: false,
+    mes: tableEdit(
+        '【12500-01-03 09:40｜云陆·陈家村后山】\n【钱财：13文｜神识：初生】\n\n状态连续性模拟正文',
+        'updateRow(0,0,{0:"12500-01-03",1:"09:40",2:"云陆·陈家村后山",3:"陈尘"})\nupdateRow(1,0,{7:"初生",10:"13文"})',
+    ),
+    swipe_id: 0,
+    swipes: [''],
+    swipe_info: [{}],
+};
+currentChat.push(statusContinuity);
+const callsBeforeStatusContinuity = executeCalls.length;
+await complete(1);
+const statusCall = String(executeCalls.at(-1) || '');
+if (statusContinuity.mes.includes('<tableEdit>') || !statusContinuity.mes.includes('钱财：13文｜神识：初生')) throw new Error('钱财/神识状态模拟污染正文或丢失状态栏');
+if (executeCalls.length !== callsBeforeStatusContinuity + 1 || !statusCall.includes('updateRow(0,0,') || !statusCall.includes('updateRow(1,0,') || !statusCall.includes('10:"13文"') || !statusCall.includes('7:"初生"')) {
+    throw new Error('钱财/神识与最终落点没有通过同一事务');
+}
+
 independentMode = true;
 const untouchedRequest = await armRequest();
 if (untouchedRequest.messages.length !== 1 || untouchedRequest.messages[0]?.content !== '行动') throw new Error('独立记录模式仍改写了正文请求消息');
@@ -272,4 +300,4 @@ if (proxiedDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Erro
 const toolDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { tools: [{ type: 'function', function: { name: 'x' } }] });
 if (toolDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Error('带工具请求被错误注入DeepSeek不支持的硬前缀');
 
-console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, deepseek-hard-prefix=2, prefix-reconstruction=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, provider-neutral=1, prefix-safety-fallback=2');
+console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, deepseek-hard-prefix=2, prefix-reconstruction=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, status-continuity=1, provider-neutral=1, prefix-safety-fallback=2');
