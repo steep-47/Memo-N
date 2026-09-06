@@ -143,6 +143,12 @@ if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.inc
 if (!contract.includes('玩家下次输入前的最终落点') || !contract.includes('数字0是有效值') || !contract.includes('当前上下文已有明确现值时也补齐')) {
     throw new Error('最终落点或角色状态漏记修复规则未注入');
 }
+if (!contract.includes('[钱财戳、状态戳与背包边界]')
+    || !contract.includes('仅有售价、可兑换或看起来贵重的普通物品不是钱财')
+    || !contract.includes('灵力、神识写入表1同名字段')
+    || !contract.includes('普通物品只写背包表')) {
+    throw new Error('钱财戳、状态戳与背包分类规则未注入');
+}
 if (!request.messages[0]?.content.includes('最终落点') || !request.messages[0]?.content.includes('表中空缺')) {
     throw new Error('最后一条用户消息缺少最终状态审计提醒');
 }
@@ -270,7 +276,7 @@ await armRequest();
 const statusContinuity = {
     is_user: false,
     mes: tableEdit(
-        '【12500-01-03 09:40｜云陆·陈家村后山】\n【钱财：13文｜神识：初生】\n\n状态连续性模拟正文',
+        '【12500-01-03 09:40｜云陆·陈家村后山】\n【钱财：13文】\n【状态：神识·初生】\n\n状态连续性模拟正文',
         'updateRow(0,0,{0:"12500-01-03",1:"09:40",2:"云陆·陈家村后山",3:"陈尘"})\nupdateRow(1,0,{7:"初生",10:"13文"})',
     ),
     swipe_id: 0,
@@ -281,7 +287,7 @@ currentChat.push(statusContinuity);
 const callsBeforeStatusContinuity = executeCalls.length;
 await complete(1);
 const statusCall = String(executeCalls.at(-1) || '');
-if (statusContinuity.mes.includes('<tableEdit>') || !statusContinuity.mes.includes('钱财：13文｜神识：初生')) throw new Error('钱财/神识状态模拟污染正文或丢失状态栏');
+if (statusContinuity.mes.includes('<tableEdit>') || !statusContinuity.mes.includes('【钱财：13文】\n【状态：神识·初生】')) throw new Error('钱财戳/状态戳模拟污染正文或丢失');
 if (executeCalls.length !== callsBeforeStatusContinuity + 1 || !statusCall.includes('updateRow(0,0,') || !statusCall.includes('updateRow(1,0,') || !statusCall.includes('10:"13文"') || !statusCall.includes('7:"初生"')) {
     throw new Error('钱财/神识与最终落点没有通过同一事务');
 }
