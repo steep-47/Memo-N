@@ -140,6 +140,12 @@ const contract = request.messages.at(-2)?.content || '';
 if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
     throw new Error('前置记录协议未正确注入');
 }
+if (!contract.includes('玩家下次输入前的最终落点') || !contract.includes('数字0是有效值') || !contract.includes('当前上下文已有明确现值时也补齐')) {
+    throw new Error('最终落点或角色状态漏记修复规则未注入');
+}
+if (!request.messages[0]?.content.includes('最终落点') || !request.messages[0]?.content.includes('表中空缺')) {
+    throw new Error('最后一条用户消息缺少最终状态审计提醒');
+}
 
 const first = {
     is_user: false,
