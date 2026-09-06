@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon75-money-status-boundary';
+const RUNTIME_VERSION = 'memon76-imported-chat-row-guard';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon75 money/status boundary runtime loaded');
+console.log('[Memo-N][loader] memon76 imported-chat row guard runtime loaded');

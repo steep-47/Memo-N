@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon73';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon76';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -71,6 +71,18 @@ function liveColumnMap() {
     }).join('\n');
 }
 
+function liveRowMap() {
+    const sheets = BASE.getChatSheets?.() ?? [];
+    return WORLD_TABLE_NAMES.map((name, tableIndex) => {
+        const sheet = sheets.find(item => item?.name === name);
+        if (!sheet) return `#${tableIndex} ${name}：当前表不存在，本轮不得写入`;
+        const rowCount = Math.max(0, (Number(sheet.getRowCount?.()) || 1) - 1);
+        return rowCount === 0
+            ? `#${tableIndex} ${name}：当前数据行数=0（空表，只能insertRow）`
+            : `#${tableIndex} ${name}：当前数据行数=${rowCount}，合法rowIndex=0-${rowCount - 1}；具体对象必须再核对当前表格第一列`;
+    }).join('\n');
+}
+
 function recordContract() {
     return `${MARKER}
 本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
@@ -89,6 +101,10 @@ tableEdit虽然按协议位于实际输出第一段，但必须先在内部确�
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
+
+[当前真实行号边界｜本轮唯一依据，优先于全部历史聊天与旧tableEdit]
+${liveRowMap()}
+旧聊天、导入记录和历史tableEdit只能帮助确认剧情事实，不能证明某行现在存在，也不能用来推算rowIndex。当前表显示为空时，即使历史中曾出现insertRow，也只能按当前缺失事实重新insert，不得update或delete；当前表存在行时，rowIndex必须抄当前表第一列并核对该行对象。
 
 [逐表记忆审计｜完成reply后按0→1→2→3→4→5→6全部检查]
 #0 当前状态表：维护玩家下次输入前的最终日期、时间、地点、当前场景人物。正文含多段时间或地点推进时记录最后落点，不照抄开头状态栏；该表只保留当前有效状态，不保存流水账。
@@ -117,8 +133,8 @@ ${liveColumnMap()}
 
 [操作规则]
 - insertRow仅用于当前表中没有该对象/事实且本轮首次明确确认。
-- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
-- deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
+- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，并核对该行第一列对象确实是本次要更新的对象，只写本轮变化或新确认的字段。
+- deleteRow只用于当前表中真实存在且已明确失效/消失的记录；当前行号边界显示0行时不输出deleteRow，旧聊天中曾经存在不等于当前仍存在。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
 - 只有最终落点与表0一致、玩家全部明确现值与表1一致、当前持有库存及其他应记录事实也没有新增/变化/漏项时，才使用NO_CHANGE。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
@@ -146,7 +162,7 @@ function canUseDeepSeekReplyPrefix(data) {
 
 function reinforceLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N本轮输出顺序：先在内部确定完整正常正文与玩家下次输入前的最终落点；实际输出第一段为完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>，随后输出已确定的正文、状态栏、行动选项和其他数据块。表中空缺但当前上下文已明确的现值也要补齐。]`;
+    const reminder = `\n\n[Memo-N本轮输出顺序：先在内部确定完整正常正文与玩家下次输入前的最终落点；实际输出第一段为完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>，随后输出已确定的正文、状态栏、行动选项和其他数据块。表中空缺但当前上下文已明确的现值也要补齐。旧聊天与历史tableEdit不代表当前行存在，rowIndex只服从以下本轮实时边界：\n${liveRowMap()}]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
@@ -182,7 +198,7 @@ function reinforcePreviousAssistant(messages, block) {
     for (let index = lastUserIndex - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'assistant' || typeof message.content !== 'string') continue;
-        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n\n${message.content}`;
+        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n[以上仅为上一轮记录格式范例，不代表本轮表格仍有相同行或rowIndex；本轮只服从当前实时表格边界。]\n\n${message.content}`;
         return true;
     }
     return false;

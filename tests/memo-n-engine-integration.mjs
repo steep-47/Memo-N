@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon73';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon76';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -56,13 +56,13 @@ globalThis.__memoNMocks = {
     BASE: {
         copyHashSheets: structuredClone,
         getChatSheets: () => [
-            { name: '当前状态表', getHeader: () => ['日期', '时间', '地点', '当前场景人物'] },
-            { name: '角色状态表', getHeader: () => ['姓名'] },
-            { name: '背包表', getHeader: () => ['物品名'] },
-            { name: '当前任务与约定表', getHeader: () => ['事项'] },
-            { name: '人物主表', getHeader: () => ['姓名'] },
-            { name: '人物发展表', getHeader: () => ['姓名'] },
-            { name: '历史事件表', getHeader: () => ['时间'] },
+            { name: '当前状态表', getHeader: () => ['日期', '时间', '地点', '当前场景人物'], getRowCount: () => 2 },
+            { name: '角色状态表', getHeader: () => ['姓名'], getRowCount: () => 2 },
+            { name: '背包表', getHeader: () => ['物品名'], getRowCount: () => 1 },
+            { name: '当前任务与约定表', getHeader: () => ['事项'], getRowCount: () => 1 },
+            { name: '人物主表', getHeader: () => ['姓名'], getRowCount: () => 3 },
+            { name: '人物发展表', getHeader: () => ['姓名'], getRowCount: () => 2 },
+            { name: '历史事件表', getHeader: () => ['时间'], getRowCount: () => 1 },
         ],
         getLastSheetsPiece: () => ({ piece: previous }),
         initHashSheet: () => ({ memo_n_hash_sheets: { state: 'initial' } }),
@@ -149,6 +149,12 @@ if (!contract.includes('[钱财戳、状态戳与背包边界]')
     || !contract.includes('普通物品只写背包表')) {
     throw new Error('钱财戳、状态戳与背包分类规则未注入');
 }
+if (!contract.includes('[当前真实行号边界｜本轮唯一依据，优先于全部历史聊天与旧tableEdit]')
+    || !contract.includes('#3 当前任务与约定表：当前数据行数=0（空表，只能insertRow）')
+    || !contract.includes('#4 人物主表：当前数据行数=2，合法rowIndex=0-1')
+    || !contract.includes('历史中曾出现insertRow，也只能按当前缺失事实重新insert')) {
+    throw new Error('导入旧聊天后的实时行号边界未注入');
+}
 if (!request.messages[0]?.content.includes('最终落点') || !request.messages[0]?.content.includes('表中空缺')) {
     throw new Error('最后一条用户消息缺少最终状态审计提醒');
 }
@@ -177,7 +183,8 @@ if (secondRequest.response_format || secondRequest.json_schema
     || secondRequest.messages.at(-1)?.content !== '<tableEdit><!--\n') {
     throw new Error('第二轮请求协议发生漂移');
 }
-if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复上一轮已执行记录块');
+if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')
+    || !secondRequest.messages[0]?.content.includes('不代表本轮表格仍有相同行或rowIndex')) throw new Error('第二轮历史副本没有标明仅作格式范例');
 if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
 const second = {
     is_user: false,
