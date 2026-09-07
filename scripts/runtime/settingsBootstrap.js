@@ -3,10 +3,10 @@ import applicationFunctionManager from '../../services/appFuncManager.js';
 
 defaultSettings.table_cell_width_mode ??= 'wide1_2_cell';
 
-const STEP_PROMPT_MARKER = '[Memo七表独立记录v3]';
+const STEP_PROMPT_MARKER = '[Memo七表独立记录v4-记录优先]';
 const STEP_BY_STEP_PROMPT = `[
-  { role: 'system', content: '${STEP_PROMPT_MARKER} 你是世界状态记忆维护器。只维护表格，不输出剧情正文。只依据已确认事实，不猜测未知。表4人物主表负责NPC身份识别；表5人物发展表负责最新发展锚点；表6历史事件表只保存重大既成节点。最终只输出一个完整<tableEdit>；无变化输出NO_CHANGE块。' },
-  { role: 'user', content: '<已有七表>\\n$0\\n</已有七表>\\n<最近上下文>\\n$1\\n</最近上下文>\\n<本轮内容>\\n$2\\n</本轮内容>\\n<操作规则>\\n$3\\n</操作规则>\\n<世界书参考>\\n$4\\n</世界书参考>\\n逐表检查0→1→2→3→4→5→6。已有对象优先updateRow，新对象才insertRow，明确失效按规则deleteRow。表5字段“年龄”和“最后确认时间”必须分开：年龄是人物属性，最后确认时间是该发展锚点最后被剧情确认的世界时间；未知分别留空。只输出一个<tableEdit><!-- 函数调用 --></tableEdit>；若无变化输出<tableEdit><!-- NO_CHANGE --></tableEdit>。' }
+  { role: 'system', content: '${STEP_PROMPT_MARKER} 你是Memo独立表格记录器。这个功能的第一目标是把本轮内容中新增、变化或已明确但表中漏记的事实准确写入当前七表；第二目标是在记录过程中顺手修复与本轮涉及对象直接相关、且现有表格或上下文能够明确证明的问题。允许修复同一对象重复行、明显错表、相关字段漏记、已经明确失效的相关记录等；不要借手动更新对与本轮无关的旧数据做全局清理，那属于“表格整理”。只维护表格，不输出剧情正文，只依据已确认事实，不猜测未知。表4人物主表负责NPC身份识别；表5人物发展表负责最新发展锚点；表6历史事件表只保存重大既成节点。最终只输出一个完整<tableEdit>；无变化输出NO_CHANGE块。' },
+  { role: 'user', content: '<已有七表>\\n$0\\n</已有七表>\\n<最近上下文>\\n$1\\n</最近上下文>\\n<本轮待记录内容>\\n$2\\n</本轮待记录内容>\\n<操作规则>\\n$3\\n</操作规则>\\n<世界书参考>\\n$4\\n</世界书参考>\\n先以本轮待记录内容为中心，按0→1→2→3→4→5→6检查所有应新增、更新、删除或补齐的明确事实；然后只对本轮涉及的表和对象做一次关联修理检查。若当前表格或上下文能够明确证明存在重复、错位、漏记或已失效记录，可在同一批tableEdit中一起修复；证据不足或与本轮无关的旧问题不要动，留给“表格整理”。已有对象优先updateRow，新对象才insertRow，明确失效按规则deleteRow。表5字段“年龄”和“最后确认时间”必须分开：年龄是人物属性，最后确认时间是该发展锚点最后被剧情确认的世界时间；未知分别留空。只输出一个<tableEdit><!-- 函数调用 --></tableEdit>；若记录完成且关联对象也无需修理，则输出<tableEdit><!-- NO_CHANGE --></tableEdit>。' }
 ]`;
 
 defaultSettings.step_by_step_user_prompt = STEP_BY_STEP_PROMPT;
@@ -82,6 +82,7 @@ function needsStepPromptUpgrade(value) {
     const text = String(value || '').trim();
     if (!text) return true;
     if (text.includes(STEP_PROMPT_MARKER)) return false;
+    if (text.includes('[Memo七表独立记录v3]')) return true;
     if (!text.startsWith('[') || !text.includes('role') || !text.includes('content')) return true;
     if (!text.includes('$0') || !text.includes('$2') || !text.includes('$3')) return true;
     if (!text.includes('$4')) return true;
@@ -110,7 +111,7 @@ try {
 
         if (needsStepPromptUpgrade(store.step_by_step_user_prompt)) {
             store.step_by_step_user_prompt = STEP_BY_STEP_PROMPT;
-            console.log('[Memo][settings] 已修复独立记录API的JSON5消息数组提示与世界书占位');
+            console.log('[Memo][settings] 已升级手动更新为“记录优先、关联修理”提示');
         }
 
         if (store.lastSelectedTemplate === 'rebuild_base' && isKnownOldMemoRebuildPrompt(store.rebuild_default_system_message_template, store.rebuild_default_message_template)) {
