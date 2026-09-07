@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = '0.15-manual-record-presave-hide';
-const DISPLAY_VERSION = '0.15';
+const RUNTIME_VERSION = '0.16-manual-record-source-hide';
+const DISPLAY_VERSION = '0.16';
 
 async function loadRuntime(label, path) {
     try {
@@ -51,4 +51,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.15 manual record pre-save hide runtime loaded');
+console.log('[Memo-N][loader] v0.16 source-level manual record hide runtime loaded');
