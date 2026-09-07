@@ -1,6 +1,7 @@
 import './index.js';
 
 const RUNTIME_VERSION = 'memon83-record-vs-cleanup-semantics';
+const DISPLAY_VERSION = '0.1.0-memon.83';
 
 async function loadRuntime(label, path) {
     try {
@@ -40,4 +41,10 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
+
+jQuery(() => {
+    if (window.memoN && typeof window.memoN === 'object') window.memoN.VERSION = DISPLAY_VERSION;
+    $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
+});
+
 console.log('[Memo-N][loader] memon83 record-vs-cleanup semantics runtime loaded');
