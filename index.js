@@ -3,7 +3,7 @@ import { openTableRendererPopup, updateSystemMessageTableStatus } from "./script
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
 import { ext_getAllTables, ext_exportAllTablesAsJson } from './scripts/settings/standaloneAPI.js';
 import { openTableDebugLogPopup } from "./scripts/settings/devConsole.js";
-import { TableTwoStepSummary } from "./scripts/runtime/separateTableUpdate.js?v=memon79";
+import { TableTwoStepSummary } from "./scripts/runtime/separateTableUpdate.js?v=memon80";
 import { initTest } from "./components/_fotTest.js";
 import { initAppHeaderTableDrawer, openAppHeaderTableDrawer } from "./scripts/renderer/appHeaderTableBaseDrawer.js";
 import { initRefreshTypeSelector } from './scripts/runtime/absoluteRefresh.js?v=memon6';
@@ -14,7 +14,7 @@ import {executeTranslation} from "./services/translate.js";
 import applicationFunctionManager from "./services/appFuncManager.js"
 import {SheetBase} from "./core/table/base.js";
 import { Cell } from "./core/table/cell.js";
-import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon79';
+import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon80';
 import { getMemoTableEditChannel } from './scripts/runtime/memoResponseChannels.js?v=memon6';
 import { initExternalDataAdapter } from './external-data-adapter.js';
 

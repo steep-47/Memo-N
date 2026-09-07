@@ -3,14 +3,14 @@ import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import {  convertOldTablesToNewSheets, executeTableEditActions, getTableEditTag, getTablePromptByPiece } from "../../index.js";
 import JSON5 from '../../utils/json5.min.mjs'
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
-import { TableTwoStepSummary } from "./separateTableUpdate.js?v=memon79";
+import { TableTwoStepSummary } from "./separateTableUpdate.js?v=memon80";
 import { estimateTokenCount, handleCustomAPIRequest, handleMainAPIRequest } from "../settings/standaloneAPI.js";
 import { profile_prompts } from "../../data/profile_prompts.js";
 import { Form } from '../../components/formManager.js';
 import { refreshRebuildTemplate } from "../settings/userExtensionSetting.js"
 import { safeParse } from '../../utils/stringUtil.js';
-import { repairMissingColumnsBeforeCleanup } from "./tableStructureRepair.js?v=memon79";
-import { restoreMemoSnapshot } from "./safeTableExecutor.js?v=memon79";
+import { repairMissingColumnsBeforeCleanup } from "./tableStructureRepair.js?v=memon80";
+import { restoreMemoSnapshot } from "./safeTableExecutor.js?v=memon80";
 
 // 在解析响应后添加验证
 function validateActions(actions) {

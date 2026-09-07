@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon79-player-schema-snapshot-repair';
+const RUNTIME_VERSION = 'memon80-single-row-update-compat';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon79 player schema snapshot repair runtime loaded');
+console.log('[Memo-N][loader] memon80 single-row update compatibility runtime loaded');

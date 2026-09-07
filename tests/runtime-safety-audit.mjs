@@ -60,6 +60,7 @@ const parserCases = [
     ['NO_CHANGE', true, true],
     ['updateRow(0,0,{0:0})', true, false],
     ['updateRow(0,0,{"h0":"按表头更新"})', true, false],
+    ['updateRow(0,{"h1":"单行省略rowIndex"})', true, false],
     ['updateRow(0,0,{"不存在":"x"})', false, false],
     ['updateRow(0,0,{0:"x","h0":"y"})', false, false],
     ['updateRow(0,9,{0:"x"})', false, false],
@@ -75,11 +76,17 @@ for (const [input, ok, noChange] of parserCases) {
     const result = parseMemoTableEdit(input);
     if (result.ok !== ok || result.noChange !== noChange) throw new Error(`解析断言失败：${input} ${JSON.stringify(result)}`);
 }
+const extraRow = ['', 'second', 'row'];
+sheets[0].rows.push(extraRow);
+if (parseMemoTableEdit('updateRow(0,{"h1":"多行不得猜测"})').ok) throw new Error('多行表错误接受了省略rowIndex的updateRow');
+sheets[0].rows.pop();
 
 let result = executeMemoTableEdit('updateRow(0,0,{0:0})', piece);
 if (!result.ok || sheets[0].rows[1][1] !== 0) throw new Error('数字0在严格执行链中丢失');
 result = executeMemoTableEdit('updateRow(0,0,{"h0":"按表头更新"})', piece);
 if (!result.ok || sheets[0].rows[1][1] !== '按表头更新') throw new Error('真实表头名未安全映射到数字列索引');
+result = executeMemoTableEdit('updateRow(0,{"h1":"单行省略rowIndex"})', piece);
+if (!result.ok || sheets[0].rows[1][2] !== '单行省略rowIndex') throw new Error('单行表两参数updateRow未安全对应第0行');
 const beforeRows = structuredClone(sheets.map(sheet => sheet.rows));
 const beforePiece = structuredClone(piece);
 sheets[6].failSave = true;
@@ -93,7 +100,7 @@ const restoreResult = restoreMemoSnapshot({ injected: true });
 if (restoreResult.ok) throw new Error('中途失败的快照恢复被误报成功');
 if (JSON.stringify(sheets.map(sheet => sheet.rows)) !== JSON.stringify(beforeRestoreRows)) throw new Error('中途失败的快照恢复未完整回滚');
 
-console.log('runtime-safety-audit PASS: parser=13, numeric-zero=1, exact-header-key=1, save-failure-full-rollback=1, restore-failure-full-rollback=1');
+console.log('runtime-safety-audit PASS: parser=14, numeric-zero=1, exact-header-key=1, single-row-shorthand=2, save-failure-full-rollback=1, restore-failure-full-rollback=1');
 
 const channels = await import('../scripts/runtime/memoResponseChannels.js');
 const reasoningOnly = { mes: '正常正文', extra: { reasoning: '<tableEdit><!-- updateRow(0,0,{1:"08:40"}) --></tableEdit>' } };
