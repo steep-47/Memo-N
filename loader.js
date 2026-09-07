@@ -22,6 +22,7 @@ const runtimes = [
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
+    ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
