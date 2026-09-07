@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = '0.11-xml-data-attribute-compat';
-const DISPLAY_VERSION = '0.11';
+const RUNTIME_VERSION = '0.12-role-status-click-bridge';
+const DISPLAY_VERSION = '0.12';
 
 async function loadRuntime(label, path) {
     try {
@@ -40,6 +40,7 @@ const runtimes = [
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
+    ['角色状态表点击桥', './scripts/ui/roleStatusClickBridge.js'],
     ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
 ];
 
@@ -50,4 +51,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.11 XML data attribute compatibility runtime loaded');
+console.log('[Memo-N][loader] v0.12 role status click bridge runtime loaded');
