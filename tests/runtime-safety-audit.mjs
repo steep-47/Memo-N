@@ -129,6 +129,12 @@ const engineText = await fs.readFile(new URL('../scripts/engine/recordEngine.js'
 const providerText = await fs.readFile(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
 const envelopeText = await fs.readFile(new URL('../scripts/engine/recordEnvelope.js', import.meta.url), 'utf8');
 const yiyiText = await fs.readFile(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
+const editorText = await fs.readFile(new URL('../scripts/editor/chatSheetsDataView.js', import.meta.url), 'utf8');
+const swipeRestoreText = await fs.readFile(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
+const modeControlText = await fs.readFile(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
+const userSettingsText = await fs.readFile(new URL('../scripts/settings/userExtensionSetting.js', import.meta.url), 'utf8');
+const absoluteRefreshText = await fs.readFile(new URL('../scripts/runtime/absoluteRefresh.js', import.meta.url), 'utf8');
+const cleanupBridgeText = await fs.readFile(new URL('../scripts/runtime/cleanupButtonBridge.js', import.meta.url), 'utf8');
 if (loaderText.includes('singleApiStructured') || loaderText.includes('singleApiPromptRestore')) throw new Error('loader仍加载冲突的结构化/提示改写层');
 if (!indexText.includes('CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady') || !indexText.includes('CHARACTER_MESSAGE_RENDERED, onMessageReceived')) throw new Error('原作者直接注入/直接解析事件链缺失');
 if (!indexText.includes('executeMemoTableEdit(matches, piece)')) throw new Error('直接解析入口未接严格事务执行器');
@@ -138,8 +144,15 @@ if (!(settingsText + bootstrapText).includes('日影移动') || !(settingsText +
 if (!settingsText.includes("'其他状态','外貌特征'") || !contentRulesText.includes("'其他状态','外貌特征'") || !structureRepairText.includes("'其他状态','外貌特征'")) throw new Error('角色状态表外貌特征列未贯通默认结构、运行时列定义与旧表修复');
 if (!contentRulesText.includes('repairMissingColumnsBeforeCleanup({notify:false})') || !contentRulesText.includes('稳定外观和持久变化')) throw new Error('角色外貌特征缺少启动迁移或记录语义');
 if (!structureRepairText.includes('syncCurrentSwipeSnapshot(piece)') || !structureRepairText.includes('piece.swipe_info[id].extra.memo_n_swipe_hash_sheets') || !structureRepairText.includes('cleanRoleRows(headers,rows)') || !structureRepairText.includes('BASE.refreshTempView?.(true)')) throw new Error('角色表结构修复未同步当前Swipe、清理重复行或刷新数据页');
+if (!swipeRestoreText.includes('repairMissingColumnsBeforeCleanup({notify:false,piece:chat})')) throw new Error('旧Swipe快照恢复后没有立即重新校验角色表外貌列');
+if (!modeControlText.includes('repairMissingColumnsBeforeCleanup({notify:false,piece:chat})')) throw new Error('独立记录模式的Swipe恢复入口仍会绕过角色表外貌列修复');
+if (!editorText.includes('await BASE.applyJsonToChatSheets(tables, type)') || !editorText.includes('repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true })')) throw new Error('导入/粘贴表格仍可能绕过表头修复或当前Swipe同步');
+if (!editorText.includes('purgeMemoTableState(piece)') || !userSettingsText.includes('purgeMemoTableState(msg)')) throw new Error('清空表格或替换模板仍会遗留可复活旧结构的Swipe快照');
+const cacheChainText = [indexText, editorText, userSettingsText, absoluteRefreshText, cleanupBridgeText, swipeRestoreText, modeControlText].join('\n');
+if (/\?v=memon(?:5|6|80)\b/.test(cacheChainText) || !loaderText.includes('memon81-schema-lifecycle-fix')) throw new Error('memon81关键入口仍可能命中旧版浏览器模块缓存');
 if (!pinchZoomText.includes("h === '外貌特征'") || !pinchZoomText.includes('agePosition + 1') || !pinchZoomText.includes('index !== appearance')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
+if (!engineText.includes('其他状态、外貌特征等明确现值') || !engineText.includes('已确认的稳定外观与持久变化')) throw new Error('一次API逐表审计仍遗漏玩家外貌特征');
 if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
 if (!engineText.includes('reinforcePreviousAssistant(data.messages') || !engineText.includes('memo_n_record_block')) throw new Error('Memo-N没有在下一轮历史副本恢复已执行记录范例');
 if (!engineText.includes("DEEPSEEK_REPLY_PREFIX = '<tableEdit><!--\\n'") || !engineText.includes('canUseDeepSeekReplyPrefix(data)') || !engineText.includes("role: 'assistant', content: DEEPSEEK_REPLY_PREFIX")) throw new Error('Memo-N缺少内置DeepSeek单次API助手硬前缀');

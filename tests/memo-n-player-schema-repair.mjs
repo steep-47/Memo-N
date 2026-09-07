@@ -4,7 +4,7 @@ let source = await fs.readFile(new URL('../scripts/runtime/tableStructureRepair.
 source = source
     .replace("import { BASE, EDITOR, USER } from '../../core/manager.js';", 'const { BASE, EDITOR, USER } = globalThis.__memoSchemaMocks;')
     .replace("import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';", 'const { updateSystemMessageTableStatus } = globalThis.__memoSchemaMocks;')
-    .replace("import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon80';", 'const { ensureSevenTableWorld } = globalThis.__memoSchemaMocks;');
+    .replace("import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon81';", 'const { ensureSevenTableWorld } = globalThis.__memoSchemaMocks;');
 
 const oldHeaders = ['姓名','性别','种族','年龄','修为','灵根/体质','灵力','神识','身体状态','灵石','钱财','技能/术法','擅长','其他状态'];
 const rows = [
@@ -54,7 +54,7 @@ globalThis.__memoSchemaMocks = {
     },
     USER: {
         tableBaseSetting: { tableStructure: [{ tableIndex: 1, tableName: '角色状态表', columns: oldHeaders }] },
-        getChatPiece: () => ({ piece }),
+        getChatPiece: () => { throw new Error('显式piece修复不应回退读取其他消息'); },
         saveChat: () => { saves++; },
     },
     EDITOR: { success() {} },
@@ -64,7 +64,7 @@ globalThis.__memoSchemaMocks = {
 
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-player-schema-repair`;
 const { repairMissingColumnsBeforeCleanup } = await import(moduleUrl);
-const repaired = repairMissingColumnsBeforeCleanup({ notify: false });
+const repaired = repairMissingColumnsBeforeCleanup({ notify: false, piece });
 
 if (repaired.length !== 1 || repaired[0].tableName !== '角色状态表') throw new Error('角色状态表未进入确定性结构修复');
 if (repaired[0].removedHeaderRows !== 1 || repaired[0].mergedDuplicateRows !== 1) throw new Error(`重复表头/同名玩家行未按预期清理：${JSON.stringify(repaired[0])}`);
@@ -77,4 +77,11 @@ if (JSON.stringify(piece.swipe_info[0].extra.memo_n_swipe_hash_sheets) !== JSON.
 if (piece.swipe_info[0].keep !== true || piece.extra.keep !== true) throw new Error('同步Swipe快照时破坏了无关extra数据');
 if (contextRefreshes !== 1 || tableRefreshes !== 1 || statusRefreshes !== 1 || saves !== 1) throw new Error('结构修复后未完整保存并刷新活动表格视图');
 
-console.log('memo-n player schema repair PASS: appearance-column=1, header-echo-removed=1, duplicate-player-merged=1, swipe-snapshots-synced=2, active-view-refreshed=1');
+piece.memo_n_hash_sheets.imported = [['imported-current-data']];
+const syncOnly = repairMissingColumnsBeforeCleanup({ notify: false, piece, syncSnapshot: true });
+if (syncOnly.length !== 0) throw new Error('表头已经正确时不应产生虚假修复记录');
+if (piece.extra.memo_n_swipe_hash_sheets.imported?.[0]?.[0] !== 'imported-current-data') throw new Error('导入后未在无表头变化时同步消息Swipe快照');
+if (piece.swipe_info[0].extra.memo_n_swipe_hash_sheets.imported?.[0]?.[0] !== 'imported-current-data') throw new Error('导入后未在无表头变化时同步当前swipe_info');
+if (saves !== 2 || contextRefreshes !== 1 || tableRefreshes !== 1 || statusRefreshes !== 1) throw new Error('仅同步导入快照时保存或刷新次数异常');
+
+console.log('memo-n player schema repair PASS: appearance-column=1, header-echo-removed=1, duplicate-player-merged=1, swipe-snapshots-synced=2, import-snapshot-sync=1, active-view-refreshed=1');

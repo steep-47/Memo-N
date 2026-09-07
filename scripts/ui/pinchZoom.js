@@ -133,7 +133,7 @@ function splitRoleStatusTable() {
     }
 
     source.classList.add('memory-role-status-source');
-    const signature = `memon80-basic-appearance:${roleTableSignature(source)}`;
+    const signature = `memon81-basic-appearance:${roleTableSignature(source)}`;
     let view = container.querySelector('.memory-role-status-two-tables');
     if (view?.dataset?.sourceSignature === signature) return;
 

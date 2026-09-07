@@ -1,7 +1,7 @@
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
 import { findNextChatWhitTableData, undoSheets } from "../../index.js";
-import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon6";
+import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon81";
 import { PopupMenu } from "../../components/popupMenu.js";
 import { openTableStatisticsPopup } from "./tableStatistics.js";
 import { openCellHistoryPopup } from "./cellHistory.js";
@@ -9,6 +9,7 @@ import { openSheetStyleRendererPopup } from "./sheetStyleEditor.js";
 import { initTableDirectoryControls, refreshTableDirectory } from "./tableDirectory.js";
 import { Cell } from "../../core/table/cell.js";
 import { pinRank, toggleCharacterPin } from '../engine/characterPins.js';
+import { purgeMemoTableState } from '../runtime/memoSnapshotLifecycle.js?v=memon81';
 
 let tablePopup = null
 let copyTableData = null
@@ -22,6 +23,12 @@ const userTableEditInfo = {
     tableIndex: null,
     rowIndex: null,
     colIndex: null,
+}
+
+async function applyImportedTables(tables, type = 'both') {
+    await BASE.applyJsonToChatSheets(tables, type);
+    const { repairMissingColumnsBeforeCleanup } = await import('../runtime/tableStructureRepair.js?v=memon81');
+    repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true });
 }
 
 /**
@@ -57,10 +64,14 @@ async function pasteTable() {
     if (confirmation) {
         if (copyTableData) {
             const tables = JSON.parse(copyTableData)
-            if (!tables.mate === 'chatSheets') return EDITOR.error("导入失败：文件格式不正确")
-            BASE.applyJsonToChatSheets(tables)
-            await renderSheetsDOM()
-            EDITOR.success('粘贴成功')
+            if (tables.mate?.type !== 'chatSheets') return EDITOR.error("导入失败：文件格式不正确")
+            try {
+                await applyImportedTables(tables)
+                await renderSheetsDOM()
+                EDITOR.success('粘贴成功')
+            } catch (error) {
+                EDITOR.error('粘贴失败：表格结构校验未完成', error?.message || String(error), error)
+            }
         } else {
             EDITOR.error("粘贴失败：剪切板没有表格数据")
         }
@@ -106,12 +117,16 @@ async function importTable(mesId, viewSheetsContainer) {
                     const tables = JSON.parse(loadEvent.target.result)
                     console.log("导入内容", tables, tables.mate, !(tables.mate === 'chatSheets'))
                     if (!(tables.mate?.type === 'chatSheets')) return EDITOR.error("导入失败：文件格式不正确", "请检查你导入的是否是表格数据")
-                    if (result === 3)
-                        BASE.applyJsonToChatSheets(tables, "data")
-                    else
-                        BASE.applyJsonToChatSheets(tables)
-                    await renderSheetsDOM()
-                    EDITOR.success('导入成功')
+                    try {
+                        if (result === 3)
+                            await applyImportedTables(tables, "data")
+                        else
+                            await applyImportedTables(tables)
+                        await renderSheetsDOM()
+                        EDITOR.success('导入成功')
+                    } catch (error) {
+                        EDITOR.error('导入失败：未完成表格结构校验', error?.message || String(error), error)
+                    }
                 }
             };
             reader.readAsText(file, 'UTF-8'); // 建议指定 UTF-8 编码，确保中文等字符正常读取
@@ -171,12 +186,8 @@ async function clearTable(mesId, viewSheetsContainer) {
     if (mesId === -1) return
     const confirmation = await EDITOR.callGenericPopup('清空当前对话的所有表格数据，并重置历史记录，该操作无法回退，是否继续？', EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: "继续", cancelButton: "取消" });
     if (confirmation) {
-        await USER.getContext().chat.forEach((piece => {
-            if (piece.memo_n_hash_sheets) {
-                delete piece.memo_n_hash_sheets
-            }
-            if (piece.dataTable) delete piece.dataTable
-        }))
+        USER.getContext().chat.forEach(piece => purgeMemoTableState(piece))
+        DERIVED.any.renderingSheets = []
         setTimeout(() => {
             USER.saveSettings()
             USER.saveChat();

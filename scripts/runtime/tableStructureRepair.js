@@ -1,7 +1,7 @@
 // tableStructureRepair.js
 import { BASE, EDITOR, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
-import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon80';
+import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon81';
 
 const WORLD_MEMORY_HEADERS = {
     '当前状态表': ['日期','时间','地点','当前场景人物'],
@@ -41,9 +41,9 @@ function isLegacyCombinedHeader(sheetName,header){return sheetName==='人物发�
 function conformValueSheetToSchema(sheet,valueSheet,enabledIndex=-1){const standardHeaders=getStandardHeaders(sheet,enabledIndex);if(!standardHeaders.length)return valueSheet;const oldSnapshot=currentSheetSnapshot(sheet);const extraHeaders=(oldSnapshot.rawHeaders||oldSnapshot.headers).filter(header=>header&&!standardHeaders.includes(canonicalHeader(sheet.name,header))&&!isLegacyCombinedHeader(sheet.name,header));const targetHeaders=[...standardHeaders,...extraHeaders];const incoming=splitValueSheet(valueSheet,sheet.name);if(!incoming.headers.length)return valueSheet;const projectedRows=incoming.rows.map(row=>{const incomingValues=rowMap(incoming.headers,row);const oldRow=findOldRow(sheet.name,oldSnapshot,incoming.headers,row);const oldValues=oldRow?rowMap(oldSnapshot.headers,oldRow):new Map();return targetHeaders.map(header=>targetValue(sheet.name,canonicalHeader(sheet.name,header),incomingValues,oldValues));});return[['',...targetHeaders],...projectedRows.map(row=>['',...row])];}
 function installWorldMemorySchemaGuard(sheet,enabledIndex=-1){if(!sheet||!WORLD_MEMORY_HEADERS[sheet.name]||guardedSheets.has(sheet))return false;const original=sheet.rebuildHashSheetByValueSheet;if(typeof original!=='function')return false;sheet.rebuildHashSheetByValueSheet=function guardedRebuild(valueSheet,...args){return original.call(this,conformValueSheetToSchema(this,valueSheet,enabledIndex),...args);};guardedSheets.add(sheet);return true;}
 function installCurrentWorldMemoryGuards(){const sheets=BASE.getChatSheets?.().filter(sheet=>sheet?.enable)||[];sheets.forEach((sheet,index)=>installWorldMemorySchemaGuard(sheet,index));}
-function repairMissingColumnsBeforeCleanup({notify=true}={}){
+function repairMissingColumnsBeforeCleanup({notify=true,piece:targetPiece=null,syncSnapshot=false}={}){
     ensureSevenTableWorld();
-    const{piece}=USER.getChatPiece()||{};if(!piece)return[];
+    const piece=targetPiece||(USER.getChatPiece()||{}).piece;if(!piece)return[];
     const sheets=BASE.getChatSheets().filter(sheet=>sheet.enable);
     const sheetBackups=new Map();
     for(const sheet of sheets){const data=sheet.filterSavingData?.();if(!data||typeof data!=='object')throw new Error(`无法备份表格 ${sheet?.name||'未知表'}`);sheetBackups.set(sheet,structuredClone(data));}
@@ -51,14 +51,15 @@ function repairMissingColumnsBeforeCleanup({notify=true}={}){
     const repaired=[];
     try{
         sheets.forEach((sheet,enabledIndex)=>{const structure=getStructureForSheet(sheet,enabledIndex);const standardHeaders=getStandardHeaders(sheet,enabledIndex);if(!standardHeaders.length)return;const rawHeaders=sheet.getHeader().map(normalize);const canonicalHeaders=canonicalizeHeaders(sheet.name,rawHeaders);const extraHeaders=rawHeaders.filter(header=>header&&!standardHeaders.includes(canonicalHeader(sheet.name,header))&&!isLegacyCombinedHeader(sheet.name,header));const targetHeaders=[...standardHeaders,...extraHeaders];const missingHeaders=standardHeaders.filter(header=>!canonicalHeaders.includes(header));const projectedRows=[];for(let rowIndex=1;rowIndex<sheet.getRowCount();rowIndex++){const cells=sheet.getCellsByRowIndex(rowIndex)||[];const sourceValues=cells.slice(1).map(cell=>cell?.data?.value??'');const oldValuesByHeader=rowMap(canonicalHeaders,sourceValues);projectedRows.push(targetHeaders.map(header=>targetValue(sheet.name,canonicalHeader(sheet.name,header),oldValuesByHeader,new Map())));}const cleaned=cleanRows(sheet.name,targetHeaders,projectedRows);const schemaChanged=rawHeaders.length!==targetHeaders.length||rawHeaders.some((header,index)=>header!==targetHeaders[index]);const rowsChanged=!rowsEqual(projectedRows,cleaned.rows);if(schemaChanged||rowsChanged){sheet.rebuildHashSheetByValueSheet([['',...targetHeaders],...cleaned.rows.map(row=>['',...row])]);if(sheet.save(piece,true)===false)throw new Error(`保存表格 ${sheet.name} 失败`);repaired.push({tableIndex:structure?.tableIndex??enabledIndex,tableName:sheet.name,missingHeaders,reordered:schemaChanged&&missingHeaders.length===0,removedHeaderRows:cleaned.removedHeaderRows,mergedDuplicateRows:cleaned.mergedDuplicateRows});}installWorldMemorySchemaGuard(sheet,enabledIndex);});
-        if(repaired.length>0)syncCurrentSwipeSnapshot(piece);
+        if(repaired.length>0||syncSnapshot)syncCurrentSwipeSnapshot(piece);
     }catch(error){
         const rollbackFailures=[];for(const[sheet,data]of sheetBackups){try{sheet.loadJson(structuredClone(data));}catch(rollbackError){rollbackFailures.push(`${sheet?.name||'未知表'}: ${rollbackError?.message||rollbackError}`);}}
         if(pieceBackup.hadHash)piece.memo_n_hash_sheets=structuredClone(pieceBackup.hash);else delete piece.memo_n_hash_sheets;piece.extra=structuredClone(pieceBackup.extra);if(pieceBackup.hadSwipeInfo)piece.swipe_info=structuredClone(pieceBackup.swipeInfo);else delete piece.swipe_info;
         if(rollbackFailures.length)console.error('[Memo] 表头修复整批回滚存在异常',rollbackFailures);
         throw new Error(`${error?.message||error}${rollbackFailures.length?`；回滚异常：${rollbackFailures.join('；')}`:''}`);
     }
-    if(repaired.length>0){USER.saveChat();try{BASE.refreshContextView();BASE.refreshTempView?.(true);updateSystemMessageTableStatus();}catch(error){console.warn('[Memo] 表头修复已提交，但视图刷新失败',error);}console.log('[Memo] 已统一七表标准表头/数据行:',repaired);if(notify){const summary=repaired.map(item=>{const changes=[];if(item.missingHeaders.length)changes.push(`补齐/归一 ${item.missingHeaders.join('、')}`);else if(item.reordered)changes.push('恢复标准顺序');if(item.removedHeaderRows)changes.push(`移除${item.removedHeaderRows}条误写表头`);if(item.mergedDuplicateRows)changes.push(`合并${item.mergedDuplicateRows}条重复角色`);return`${item.tableName}: ${changes.join('、')||'完成结构校验'}`;}).join('；');EDITOR.success(`已修复表格：${summary}`);}}
+    if(repaired.length>0||syncSnapshot){const saving=USER.saveChat();if(saving?.catch)void saving.catch(error=>console.error('[Memo] 表头/Swipe快照持久化失败',error));}
+    if(repaired.length>0){try{BASE.refreshContextView();BASE.refreshTempView?.(true);updateSystemMessageTableStatus();}catch(error){console.warn('[Memo] 表头修复已提交，但视图刷新失败',error);}console.log('[Memo] 已统一七表标准表头/数据行:',repaired);if(notify){const summary=repaired.map(item=>{const changes=[];if(item.missingHeaders.length)changes.push(`补齐/归一 ${item.missingHeaders.join('、')}`);else if(item.reordered)changes.push('恢复标准顺序');if(item.removedHeaderRows)changes.push(`移除${item.removedHeaderRows}条误写表头`);if(item.mergedDuplicateRows)changes.push(`合并${item.mergedDuplicateRows}条重复角色`);return`${item.tableName}: ${changes.join('、')||'完成结构校验'}`;}).join('；');EDITOR.success(`已修复表格：${summary}`);}}
     return repaired;
 }
 export{WORLD_MEMORY_HEADERS,conformValueSheetToSchema,installCurrentWorldMemoryGuards,installWorldMemorySchemaGuard,repairMissingColumnsBeforeCleanup};

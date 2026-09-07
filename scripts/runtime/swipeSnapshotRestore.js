@@ -1,5 +1,6 @@
 import { APP, BASE, USER } from '../../core/manager.js';
-import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon80';
+import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon81';
+import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon81';
 
 function copyHashSheets(value){try{return BASE.copyHashSheets(value);}catch(_){return JSON.parse(JSON.stringify(value));}}
 function tableEditMatches(text){const regex=/<tableEdit>(.*?)<\/tableEdit>/gs;const matches=[];let match;while((match=regex.exec(String(text??'')))!==null)matches.push(match[1]);return matches;}
@@ -20,6 +21,8 @@ function restoreMemoSwipeSnapshot(chatId){
     chat.memo_n_hash_sheets=chatSnapshot;
     if(!chat.extra||typeof chat.extra!=='object')chat.extra={};
     chat.extra.memo_n_swipe_hash_sheets=extraSnapshot;
+    try{repairMissingColumnsBeforeCleanup({notify:false,piece:chat});}
+    catch(error){console.error('[Memo-N] Swipe快照表头修复失败，已保留恢复后的原快照',error);}
     chat.tableEditMatches=tableEditMatches(chat.mes);
     console.log(`[Memo-N] 已从严格Swipe快照恢复表格：message=${chatId} swipe=${swipeId}`);
 }

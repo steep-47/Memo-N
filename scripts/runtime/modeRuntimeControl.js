@@ -1,6 +1,7 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon80';
-import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon80';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon81';
+import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon81';
+import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon81';
 
 const PREF_KEY='independent_record_api_enabled';
 const attempted=new WeakMap();
@@ -15,7 +16,7 @@ function forceNormalMode(){if(USER?.tableBaseSetting)USER.tableBaseSetting.step_
 function preparePromptMode(){if(USER?.tableBaseSetting)USER.tableBaseSetting.step_by_step=readEnabled();}
 function tableEditMatches(text){const regex=/<tableEdit>(.*?)<\/tableEdit>/gs;const matches=[];let match;while((match=regex.exec(String(text??'')))!==null)matches.push(match[1]);return matches;}
 function snapshotFor(chat,id){return chat?.swipe_info?.[id]?.extra?.memo_n_swipe_hash_sheets||chat?.swipe_info?.[id]?.memo_n_swipe_hash_sheets||null;}
-function restoreCurrentStrictSnapshot(chatId){if(!readEnabled())return;const chat=USER?.getContext?.()?.chat?.[chatId];if(!chat||chat.is_user===true)return;const id=Number(chat?.swipe_id);const snapshot=Number.isInteger(id)&&id>=0?snapshotFor(chat,id):null;if(!snapshot)return;const chatSnapshot=copyHashSheets(snapshot);const extraSnapshot=copyHashSheets(snapshot);if(!chatSnapshot||!extraSnapshot)return;const result=restoreMemoSnapshot(chatSnapshot);if(!result.ok){console.warn('[Memo] 独立模式恢复严格Swipe快照失败，已回滚恢复动作',result.error);return;}chat.memo_n_hash_sheets=chatSnapshot;if(!chat.extra||typeof chat.extra!=='object')chat.extra={};chat.extra.memo_n_swipe_hash_sheets=extraSnapshot;chat.tableEditMatches=tableEditMatches(chat.mes);console.log(`[Memo] 独立模式渲染前恢复严格Swipe快照：message=${chatId} swipe=${id}`);}
+function restoreCurrentStrictSnapshot(chatId){if(!readEnabled())return;const chat=USER?.getContext?.()?.chat?.[chatId];if(!chat||chat.is_user===true)return;const id=Number(chat?.swipe_id);const snapshot=Number.isInteger(id)&&id>=0?snapshotFor(chat,id):null;if(!snapshot)return;const chatSnapshot=copyHashSheets(snapshot);const extraSnapshot=copyHashSheets(snapshot);if(!chatSnapshot||!extraSnapshot)return;const result=restoreMemoSnapshot(chatSnapshot);if(!result.ok){console.warn('[Memo] 独立模式恢复严格Swipe快照失败，已回滚恢复动作',result.error);return;}chat.memo_n_hash_sheets=chatSnapshot;if(!chat.extra||typeof chat.extra!=='object')chat.extra={};chat.extra.memo_n_swipe_hash_sheets=extraSnapshot;try{repairMissingColumnsBeforeCleanup({notify:false,piece:chat});}catch(error){console.error('[Memo] 独立模式Swipe快照表头修复失败，已保留恢复后的原快照',error);}chat.tableEditMatches=tableEditMatches(chat.mes);console.log(`[Memo] 独立模式渲染前恢复严格Swipe快照：message=${chatId} swipe=${id}`);}
 function beforeRendered(chatId){forceNormalMode();restoreCurrentStrictSnapshot(chatId);}
 function isAppendGeneration(type){const value=String(type??'').toLowerCase();return value==='continue'||value==='append'||value==='appendfinal';}
 function captureGeneration(type,_params,dryRun){if(dryRun)return;const value=String(type??'normal').toLowerCase();if(value==='quiet'||value==='impersonate')return;const chat=USER?.getContext?.()?.chat;const last=Array.isArray(chat)&&chat.length?chat[chat.length-1]:null;pendingRoleGeneration={generationType:value,baseMes:isAppendGeneration(value)&&last?.is_user!==true?String(last?.mes??''):''};}
