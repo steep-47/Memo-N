@@ -5,22 +5,32 @@ import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon85';
 const INSTALL_FLAG = '__memoNManualRoundContextBridgeV2';
 const TABLE_EDIT_BLOCK_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi;
 
-function stripTableEditBlocks(text) {
-    return String(text ?? '')
-        .replace(TABLE_EDIT_BLOCK_RE, '')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+function trailingTableEdit(text) {
+    const source = String(text ?? '');
+    const matches = [...source.matchAll(TABLE_EDIT_BLOCK_RE)];
+    const last = matches.at(-1);
+    if (!last || last.index === undefined) return null;
+    const end = last.index + last[0].length;
+    if (source.slice(end).trim()) return null;
+    return { block: last[0], start: last.index, end };
+}
+
+function stripTrailingTableEdit(text) {
+    const source = String(text ?? '');
+    const trailing = trailingTableEdit(source);
+    if (!trailing) return source;
+    return source.slice(0, trailing.start).replace(/\s+$/, '').trim();
 }
 
 async function hideManualRecordBlock(piece) {
     if (!piece) return false;
     const current = String(piece.mes ?? '');
-    const blocks = current.match(TABLE_EDIT_BLOCK_RE);
-    if (!Array.isArray(blocks) || blocks.length === 0) return false;
+    const trailing = trailingTableEdit(current);
+    if (!trailing) return false;
 
-    // 手动更新的执行记录仍绑定到当前消息/Swipe，但不再混入玩家可见正文。
-    const machineBlock = blocks[blocks.length - 1];
-    const visible = stripTableEditBlocks(current);
+    // 手动更新把机器块追加在消息末尾。只迁移这个末尾块，避免碰正常记录位于正文开头的记录块。
+    const machineBlock = trailing.block;
+    const visible = stripTrailingTableEdit(current);
 
     if (!piece.extra || typeof piece.extra !== 'object') piece.extra = {};
     piece.extra.memo_n_manual_table_edit = machineBlock;
@@ -74,6 +84,12 @@ function install() {
         label.text('上下文轮数');
         label.attr('title', '1轮 = 当前待记录AI回复之前的用户消息 + 当前待记录AI回复；AI回复本身作为本轮待记录内容单独发送');
         input.attr('title', '按对话轮读取。1轮会带上触发当前AI回复的用户消息，当前AI回复本身不重复放入上下文。');
+
+        // 兼容升级前已经成功执行、但机器块仍残留在当前消息末尾的手动记录。
+        const activePiece = USER.getChatPiece?.()?.piece;
+        if (activePiece && trailingTableEdit(activePiece.mes)) {
+            hideManualRecordBlock(activePiece).catch(error => console.warn('[Memo-N] 清理旧手动记录显示失败', error));
+        }
     });
 
     console.log('[Memo-N] 手动更新已切换为按完整对话轮读取上下文，并隐藏机器记录块');
@@ -81,4 +97,4 @@ function install() {
 
 install();
 
-export { hideManualRecordBlock, stripTableEditBlocks };
+export { hideManualRecordBlock, stripTrailingTableEdit, trailingTableEdit };
