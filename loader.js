@@ -1,7 +1,8 @@
-import './index.js';
+const RUNTIME_VERSION = '0.17-manual-visible-channel-isolation';
+const DISPLAY_VERSION = '0.17';
 
-const RUNTIME_VERSION = '0.16-manual-record-source-hide';
-const DISPLAY_VERSION = '0.16';
+// index.js 也使用版本化URL加载，避免插件更新后主入口仍命中旧浏览器缓存。
+await import(`./index.js?v=${RUNTIME_VERSION}`);
 
 async function loadRuntime(label, path) {
     try {
@@ -51,4 +52,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.16 source-level manual record hide runtime loaded');
+console.log('[Memo-N][loader] v0.17 manual visible-channel isolation runtime loaded');
