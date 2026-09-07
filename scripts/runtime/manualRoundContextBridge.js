@@ -58,7 +58,9 @@ function install() {
         const targetPiece = USER.getChatPiece?.()?.piece;
         Promise.resolve(TableTwoStepSummary('manual'))
             .then(async result => {
-                if (result === true && targetPiece) await hideManualRecordBlock(targetPiece);
+                // 失败/取消/过期任务不碰正文；成功路径即使旧函数未显式return true，也执行隐藏整理。
+                if (result === false || result === 'stale' || result === 'detached' || !targetPiece) return;
+                await hideManualRecordBlock(targetPiece);
             })
             .catch(error => {
                 console.error('[Memo-N][manual-round-context] 手动更新启动失败', error);
