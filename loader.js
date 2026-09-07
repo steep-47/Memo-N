@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon82-strict-xml-tableedit';
+const RUNTIME_VERSION = 'memon82-independent-tableedit-transport-guard';
 
 async function loadRuntime(label, path) {
     try {
@@ -17,6 +17,7 @@ async function loadRuntime(label, path) {
 
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
@@ -39,4 +40,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon82 strict XML tableEdit compatibility runtime loaded');
+console.log('[Memo-N][loader] memon82 independent tableEdit transport guard runtime loaded');
