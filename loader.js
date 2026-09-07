@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon84-manual-record-success-color';
-const DISPLAY_VERSION = '0.1.0-memon.84';
+const RUNTIME_VERSION = 'memon85-manual-context-rounds';
+const DISPLAY_VERSION = '0.1.0-memon.85';
 
 async function loadRuntime(label, path) {
     try {
@@ -19,6 +19,7 @@ async function loadRuntime(label, path) {
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
+    ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
@@ -48,4 +49,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] memon84 manual record success color runtime loaded');
+console.log('[Memo-N][loader] memon85 manual context rounds runtime loaded');
