@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon82';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.17';
 import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon82';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 
