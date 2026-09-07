@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon81-schema-lifecycle-fix';
+const RUNTIME_VERSION = 'memon82-strict-xml-tableedit';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon81 schema lifecycle runtime loaded');
+console.log('[Memo-N][loader] memon82 strict XML tableEdit compatibility runtime loaded');

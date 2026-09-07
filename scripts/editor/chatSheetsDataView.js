@@ -1,7 +1,7 @@
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
 import { findNextChatWhitTableData, undoSheets } from "../../index.js";
-import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon81";
+import { rebuildSheets } from "../runtime/absoluteRefresh.js?v=memon82";
 import { PopupMenu } from "../../components/popupMenu.js";
 import { openTableStatisticsPopup } from "./tableStatistics.js";
 import { openCellHistoryPopup } from "./cellHistory.js";
@@ -9,7 +9,7 @@ import { openSheetStyleRendererPopup } from "./sheetStyleEditor.js";
 import { initTableDirectoryControls, refreshTableDirectory } from "./tableDirectory.js";
 import { Cell } from "../../core/table/cell.js";
 import { pinRank, toggleCharacterPin } from '../engine/characterPins.js';
-import { purgeMemoTableState } from '../runtime/memoSnapshotLifecycle.js?v=memon81';
+import { purgeMemoTableState } from '../runtime/memoSnapshotLifecycle.js?v=memon82';
 
 let tablePopup = null
 let copyTableData = null
@@ -27,7 +27,7 @@ const userTableEditInfo = {
 
 async function applyImportedTables(tables, type = 'both') {
     await BASE.applyJsonToChatSheets(tables, type);
-    const { repairMissingColumnsBeforeCleanup } = await import('../runtime/tableStructureRepair.js?v=memon81');
+    const { repairMissingColumnsBeforeCleanup } = await import('../runtime/tableStructureRepair.js?v=memon82');
     repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true });
 }
 

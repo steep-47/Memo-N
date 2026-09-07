@@ -4,7 +4,7 @@ let source = await fs.readFile(new URL('../scripts/runtime/tableStructureRepair.
 source = source
     .replace("import { BASE, EDITOR, USER } from '../../core/manager.js';", 'const { BASE, EDITOR, USER } = globalThis.__memoSchemaMocks;')
     .replace("import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';", 'const { updateSystemMessageTableStatus } = globalThis.__memoSchemaMocks;')
-    .replace("import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon81';", 'const { ensureSevenTableWorld } = globalThis.__memoSchemaMocks;');
+    .replace("import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon82';", 'const { ensureSevenTableWorld } = globalThis.__memoSchemaMocks;');
 
 const oldHeaders = ['姓名','性别','种族','年龄','修为','灵根/体质','灵力','神识','身体状态','灵石','钱财','技能/术法','擅长','其他状态'];
 const rows = [

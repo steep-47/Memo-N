@@ -1,7 +1,7 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon81';
-import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon81';
-import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon81';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon82';
+import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon82';
+import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 
 const PREF_KEY='independent_record_api_enabled';
 const attempted=new WeakMap();

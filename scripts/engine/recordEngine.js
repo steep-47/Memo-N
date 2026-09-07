@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon81';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon82';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,

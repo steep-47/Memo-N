@@ -61,6 +61,9 @@ const parserCases = [
     ['updateRow(0,0,{0:0})', true, false],
     ['updateRow(0,0,{"h0":"按表头更新"})', true, false],
     ['updateRow(0,{"h1":"单行省略rowIndex"})', true, false],
+    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="1" value="XML更新"/></updateRow>', true, false],
+    ['<insertRow tableIndex="2"><data columnIndex="0" value="黄芪"></data><data columnIndex="1" value="药材"/></insertRow>', true, false],
+    ['<deleteRow tableIndex="3" rowIndex="0"/>', true, false],
     ['updateRow(0,0,{"不存在":"x"})', false, false],
     ['updateRow(0,0,{0:"x","h0":"y"})', false, false],
     ['updateRow(0,9,{0:"x"})', false, false],
@@ -71,6 +74,11 @@ const parserCases = [
     ['INSERTINTO1VALUES({0:"x"})', false, false],
     ['INSERT INTO 1 VALUES ({0:"x"})', false, false],
     ['insertRow(7,{0:"x"})', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" mode="unsafe"><data columnIndex="0" value="x"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="0" value="x"/><data columnIndex="0" value="y"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="9" value="越界"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="0" value="x"/></updateRow>updateRow(0,0,{1:"混合"})', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0"><script value="x"/></updateRow>', false, false],
 ];
 for (const [input, ok, noChange] of parserCases) {
     const result = parseMemoTableEdit(input);
@@ -87,6 +95,10 @@ result = executeMemoTableEdit('updateRow(0,0,{"h0":"按表头更新"})', piece);
 if (!result.ok || sheets[0].rows[1][1] !== '按表头更新') throw new Error('真实表头名未安全映射到数字列索引');
 result = executeMemoTableEdit('updateRow(0,{"h1":"单行省略rowIndex"})', piece);
 if (!result.ok || sheets[0].rows[1][2] !== '单行省略rowIndex') throw new Error('单行表两参数updateRow未安全对应第0行');
+const roleHeaders = ['姓名','性别','种族','年龄','修为','灵根/体质','灵力','神识','身体状态','灵石','钱财','技能/术法','擅长','其他状态','外貌特征'];
+sheets[1].rows = [['', ...roleHeaders], ['', '陈尘', ...new Array(roleHeaders.length - 1).fill('')]];
+result = executeMemoTableEdit('<tableEdit><!-- <updateRow tableIndex="1" rowIndex="0"><data columnIndex="14" value="眉眼清秀，一双眼睛黑亮，笑起来温和；佩戴&quot;旧簪&quot;。"/></updateRow> --></tableEdit>', piece);
+if (!result.ok || sheets[1].rows[1][15] !== '眉眼清秀，一双眼睛黑亮，笑起来温和；佩戴"旧簪"。') throw new Error(`截图中的XML updateRow未安全写入外貌特征：${sheets[1].rows[1][15]}`);
 const beforeRows = structuredClone(sheets.map(sheet => sheet.rows));
 const beforePiece = structuredClone(piece);
 sheets[6].failSave = true;
@@ -100,7 +112,7 @@ const restoreResult = restoreMemoSnapshot({ injected: true });
 if (restoreResult.ok) throw new Error('中途失败的快照恢复被误报成功');
 if (JSON.stringify(sheets.map(sheet => sheet.rows)) !== JSON.stringify(beforeRestoreRows)) throw new Error('中途失败的快照恢复未完整回滚');
 
-console.log('runtime-safety-audit PASS: parser=14, numeric-zero=1, exact-header-key=1, single-row-shorthand=2, save-failure-full-rollback=1, restore-failure-full-rollback=1');
+console.log(`runtime-safety-audit PASS: parser=${parserCases.length}, numeric-zero=1, exact-header-key=1, single-row-shorthand=2, strict-xml-update=1, save-failure-full-rollback=1, restore-failure-full-rollback=1`);
 
 const channels = await import('../scripts/runtime/memoResponseChannels.js');
 const reasoningOnly = { mes: '正常正文', extra: { reasoning: '<tableEdit><!-- updateRow(0,0,{1:"08:40"}) --></tableEdit>' } };
@@ -149,7 +161,7 @@ if (!modeControlText.includes('repairMissingColumnsBeforeCleanup({notify:false,p
 if (!editorText.includes('await BASE.applyJsonToChatSheets(tables, type)') || !editorText.includes('repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true })')) throw new Error('导入/粘贴表格仍可能绕过表头修复或当前Swipe同步');
 if (!editorText.includes('purgeMemoTableState(piece)') || !userSettingsText.includes('purgeMemoTableState(msg)')) throw new Error('清空表格或替换模板仍会遗留可复活旧结构的Swipe快照');
 const cacheChainText = [indexText, editorText, userSettingsText, absoluteRefreshText, cleanupBridgeText, swipeRestoreText, modeControlText].join('\n');
-if (/\?v=memon(?:5|6|80)\b/.test(cacheChainText) || !loaderText.includes('memon81-schema-lifecycle-fix')) throw new Error('memon81关键入口仍可能命中旧版浏览器模块缓存');
+if (/\?v=memon(?:5|6|80|81)\b/.test(cacheChainText) || !loaderText.includes('memon82-strict-xml-tableedit')) throw new Error('memon82关键入口仍可能命中旧版浏览器模块缓存');
 if (!pinchZoomText.includes("h === '外貌特征'") || !pinchZoomText.includes('agePosition + 1') || !pinchZoomText.includes('index !== appearance')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('其他状态、外貌特征等明确现值') || !engineText.includes('已确认的稳定外观与持久变化')) throw new Error('一次API逐表审计仍遗漏玩家外貌特征');

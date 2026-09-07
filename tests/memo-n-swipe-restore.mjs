@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, USER } from '../../core/manager.js';", 'const { APP, BASE, USER } = globalThis.__memoNSwipeMocks;')
-    .replace("import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon81';", 'const { restoreMemoSnapshot } = globalThis.__memoNSwipeMocks;')
-    .replace("import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon81';", 'const { repairMissingColumnsBeforeCleanup } = globalThis.__memoNSwipeMocks;');
+    .replace("import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon82';", 'const { restoreMemoSnapshot } = globalThis.__memoNSwipeMocks;')
+    .replace("import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';", 'const { repairMissingColumnsBeforeCleanup } = globalThis.__memoNSwipeMocks;');
 
 let handler;
 const restored = [];

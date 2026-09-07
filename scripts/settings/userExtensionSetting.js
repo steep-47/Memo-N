@@ -8,14 +8,14 @@ import {
     exportRebuildTemplate,
     importRebuildTemplate,
     triggerStepByStepNow,
-} from '../runtime/absoluteRefresh.js?v=memon81';
+} from '../runtime/absoluteRefresh.js?v=memon82';
 import { generateDeviceId } from '../../utils/utility.js';
 import { updateModelList, handleApiTestRequest, processApiKey } from './standaloneAPI.js';
 import { filterTableDataPopup } from '../../data/pluginSetting.js';
-import { initRefreshTypeSelector } from '../runtime/absoluteRefresh.js?v=memon81';
+import { initRefreshTypeSelector } from '../runtime/absoluteRefresh.js?v=memon82';
 import { customSheetsStylePopup } from '../editor/customSheetsStyle.js';
 import { buildSheetsByTemplates } from '../../index.js';
-import { purgeMemoTableState } from '../runtime/memoSnapshotLifecycle.js?v=memon81';
+import { purgeMemoTableState } from '../runtime/memoSnapshotLifecycle.js?v=memon82';
 
 function formatDeep() {
     USER.tableBaseSetting.deep = Math.abs(USER.tableBaseSetting.deep);
@@ -135,7 +135,7 @@ async function importTableSet() {
                     BASE.sheetsData.context = {};
                     for (const msg of chatArr) purgeMemoTableState(msg);
                     buildSheetsByTemplates(piece);
-                    const { repairMissingColumnsBeforeCleanup } = await import('../runtime/tableStructureRepair.js?v=memon81');
+                    const { repairMissingColumnsBeforeCleanup } = await import('../runtime/tableStructureRepair.js?v=memon82');
                     repairMissingColumnsBeforeCleanup({ notify: false, piece, syncSnapshot: true });
                     BASE.refreshContextView();
                     BASE.refreshTempView(true);
