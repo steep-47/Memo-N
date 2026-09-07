@@ -11,7 +11,7 @@ if (!EDITOR.__memoToastPatched) {
     EDITOR.success = (message, detail = '', timeout) => {
         const text = String(message ?? '').replace(/[！!]+$/g, '').trim();
         if (text === '独立填表完成') {
-            return originalInfo('独立填表完成！', detail, 1500);
+            return originalSuccess('独立填表完成！', detail, 1500);
         }
         if (text === '填表完成') {
             return originalSuccess('填表完成！', detail, 1500);
@@ -24,8 +24,10 @@ if (!EDITOR.__memoToastPatched) {
 
     EDITOR.info = (message, detail = '', timeout) => {
         const text = String(message ?? '').replace(/[！!]+$/g, '').trim();
+        // 兼容旧调用点：只要“独立填表完成”已经被上层判定为成功，
+        // 即使旧代码误走 info，也统一显示为绿色成功提示。
         if (text === '独立填表完成') {
-            return originalInfo('独立填表完成！', detail, 1500);
+            return originalSuccess('独立填表完成！', detail, 1500);
         }
         return originalInfo(message, detail, timeout);
     };
