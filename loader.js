@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon87-ability-field-semantics';
-const DISPLAY_VERSION = '0.10';
+const RUNTIME_VERSION = '0.11-xml-data-attribute-compat';
+const DISPLAY_VERSION = '0.11';
 
 async function loadRuntime(label, path) {
     try {
@@ -50,4 +50,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.10 runtime loaded');
+console.log('[Memo-N][loader] v0.11 XML data attribute compatibility runtime loaded');
