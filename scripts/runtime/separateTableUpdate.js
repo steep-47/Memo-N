@@ -26,7 +26,27 @@ function stripMachine(text){return String(text??'').replace(/<tableEdit>[\s\S]*?
 function stripTableEditOnly(text){return String(text??'').replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').trim();}
 function copyValue(value){if(value===undefined)return undefined;try{return structuredClone(value);}catch(_){return JSON.parse(JSON.stringify(value));}}
 function copyHashSheets(value){if(!value||typeof value!=='object')return null;try{return BASE.copyHashSheets(value);}catch(_){return copyValue(value);}}
-function attachValidatedRecord(piece,rawContent,matches){if(!piece)return;const blocks=String(rawContent??'').match(/<tableEdit>[\s\S]*?<\/tableEdit>/gi);const machineBlock=Array.isArray(blocks)&&blocks.length?blocks[blocks.length-1]:`<tableEdit>${String(matches?.[matches.length-1]??'<!-- NO_CHANGE -->')}</tableEdit>`;const visible=stripTableEditOnly(piece.mes);piece.mes=`${visible}\n\n${machineBlock}`.trim();if(Array.isArray(piece.swipes)){const id=Number(piece.swipe_id);if(Number.isInteger(id)&&id>=0&&id<piece.swipes.length)piece.swipes[id]=piece.mes;}}
+function attachValidatedRecord(piece,rawContent,matches){
+    if(!piece)return;
+    const blocks=String(rawContent??'').match(/<tableEdit>[\s\S]*?<\/tableEdit>/gi);
+    const machineBlock=Array.isArray(blocks)&&blocks.length
+        ?blocks[blocks.length-1]
+        :`<tableEdit>${String(matches?.[matches.length-1]??'<!-- NO_CHANGE -->')}</tableEdit>`;
+    const visible=stripTableEditOnly(piece.mes);
+    piece.mes=visible;
+    if(!piece.extra||typeof piece.extra!=='object')piece.extra={};
+    piece.extra.memo_n_manual_table_edit=machineBlock;
+    const id=Number(piece.swipe_id);
+    if(Array.isArray(piece.swipes)&&Number.isInteger(id)&&id>=0&&id<piece.swipes.length){
+        piece.swipes[id]=visible;
+    }
+    if(Number.isInteger(id)&&id>=0){
+        if(!Array.isArray(piece.swipe_info))piece.swipe_info=[];
+        if(!piece.swipe_info[id]||typeof piece.swipe_info[id]!=='object')piece.swipe_info[id]={};
+        if(!piece.swipe_info[id].extra||typeof piece.swipe_info[id].extra!=='object')piece.swipe_info[id].extra={};
+        piece.swipe_info[id].extra.memo_n_manual_table_edit=machineBlock;
+    }
+}
 function buildRecentContext(targetPiece){
     const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];
     const rounds=Math.max(0,Number(USER.tableBaseSetting.separateReadContextLayers)||1);
