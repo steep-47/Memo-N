@@ -1,8 +1,8 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import { reloadCurrentChat } from '/script.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.15';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.16';
 
-const INSTALL_FLAG = '__memoNManualRoundContextBridgeV4';
+const INSTALL_FLAG = '__memoNManualRoundContextBridgeV5';
 const TABLE_EDIT_BLOCK_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi;
 const OP_LINE_RE = /^\s*(?:insertRow|updateRow|deleteRow)\s*\([\s\S]*\)\s*;?\s*$/;
 
@@ -19,7 +19,7 @@ function trailingTableEdit(text) {
     };
 }
 
-function trailingBareOperations(text, minCount = 1) {
+function trailingBareOperations(text, minCount = 2) {
     const source = String(text ?? '');
     const lines = source.split(/\r?\n/);
     let end = lines.length - 1;
@@ -42,9 +42,8 @@ function trailingBareOperations(text, minCount = 1) {
     };
 }
 
-function trailingMachineRecord(text, { allowBare = false, legacy = false } = {}) {
-    return trailingTableEdit(text)
-        || (allowBare ? trailingBareOperations(text, legacy ? 2 : 1) : null);
+function trailingMachineRecord(text) {
+    return trailingTableEdit(text) || trailingBareOperations(text, 2);
 }
 
 function storeHiddenRecord(piece, machineBlock) {
@@ -60,50 +59,25 @@ function storeHiddenRecord(piece, machineBlock) {
     }
 }
 
-function sanitizePieceInMemory(piece, { allowBare = false, legacy = false } = {}) {
-    if (!piece) return false;
+function sanitizePieceInMemory(piece) {
+    if (!piece || piece.is_user === true) return false;
 
     const swipeId = Number(piece.swipe_id);
     const activeSwipe = Array.isArray(piece.swipes) && Number.isInteger(swipeId) && swipeId >= 0 && swipeId < piece.swipes.length
         ? String(piece.swipes[swipeId] ?? '')
         : '';
 
-    const fromMes = trailingMachineRecord(piece.mes, { allowBare, legacy });
-    const fromSwipe = trailingMachineRecord(activeSwipe, { allowBare, legacy });
+    const fromMes = trailingMachineRecord(piece.mes);
+    const fromSwipe = trailingMachineRecord(activeSwipe);
     const record = fromMes || fromSwipe;
     if (!record) return false;
 
     storeHiddenRecord(piece, record.block);
-
     if (fromMes) piece.mes = fromMes.visible;
     if (Array.isArray(piece.swipes) && Number.isInteger(swipeId) && swipeId >= 0 && swipeId < piece.swipes.length) {
         piece.swipes[swipeId] = fromSwipe ? fromSwipe.visible : String(piece.mes ?? '').trim();
     }
-
     return true;
-}
-
-async function withHiddenManualSave(targetPiece, task) {
-    const originalSaveChat = USER.saveChat;
-    if (typeof originalSaveChat !== 'function') return await task();
-
-    const guardedSaveChat = (...args) => {
-        try {
-            // separateTableUpdate 会先把已验证的机器块追加到 piece.mes，再调用 USER.saveChat。
-            // 在真正持久化之前把它迁入隐藏元数据，避免任何 reload/渲染阶段看到机器操作。
-            sanitizePieceInMemory(targetPiece, { allowBare: true });
-        } catch (error) {
-            console.warn('[Memo-N] 手动记录保存前隐藏失败', error);
-        }
-        return originalSaveChat(...args);
-    };
-
-    USER.saveChat = guardedSaveChat;
-    try {
-        return await task();
-    } finally {
-        if (USER.saveChat === guardedSaveChat) USER.saveChat = originalSaveChat;
-    }
 }
 
 async function cleanupLegacyVisibleRecords() {
@@ -112,8 +86,9 @@ async function cleanupLegacyVisibleRecords() {
 
     let changed = false;
     for (const piece of chat) {
-        if (!piece || piece.is_user !== false || !piece.memo_n_hash_sheets) continue;
-        if (sanitizePieceInMemory(piece, { allowBare: true, legacy: true })) changed = true;
+        // 正常记录的 tableEdit 在正文开头，后面还有剧情，因此不会命中“末尾机器块”。
+        // 旧手动补记则位于助手消息末尾；裸函数串至少要求连续两条，避免误伤普通文本。
+        if (sanitizePieceInMemory(piece)) changed = true;
     }
 
     if (!changed) return false;
@@ -134,11 +109,14 @@ function install() {
         event.stopImmediatePropagation();
 
         const targetPiece = USER.getChatPiece?.()?.piece;
-        Promise.resolve(withHiddenManualSave(targetPiece, () => TableTwoStepSummary('manual')))
-            .then(result => {
+        Promise.resolve(TableTwoStepSummary('manual'))
+            .then(async result => {
                 if (result === false || result === 'stale' || result === 'detached') return;
-                // 正常情况下保存前已经清理；这里仅作为当前内存对象的无保存兜底。
-                sanitizePieceInMemory(targetPiece, { allowBare: true });
+                // 0.16 起源头已不再把机器块写进正文；这里只保留兼容性兜底。
+                if (sanitizePieceInMemory(targetPiece)) {
+                    await Promise.resolve(USER.saveChat?.());
+                    reloadCurrentChat();
+                }
             })
             .catch(error => {
                 console.error('[Memo-N][manual-round-context] 手动更新启动失败', error);
@@ -157,7 +135,7 @@ function install() {
         setTimeout(() => cleanupLegacyVisibleRecords().catch(() => {}), 500);
     });
 
-    console.log('[Memo-N] 手动更新机器记录已改为保存前迁入隐藏元数据');
+    console.log('[Memo-N] 手动更新按对话轮读取；机器记录由源头隐藏，旧残留兼容清理已加载');
 }
 
 install();
@@ -168,5 +146,4 @@ export {
     trailingBareOperations,
     trailingMachineRecord,
     trailingTableEdit,
-    withHiddenManualSave,
 };
