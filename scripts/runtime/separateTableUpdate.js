@@ -27,7 +27,27 @@ function stripTableEditOnly(text){return String(text??'').replace(/<tableEdit>[\
 function copyValue(value){if(value===undefined)return undefined;try{return structuredClone(value);}catch(_){return JSON.parse(JSON.stringify(value));}}
 function copyHashSheets(value){if(!value||typeof value!=='object')return null;try{return BASE.copyHashSheets(value);}catch(_){return copyValue(value);}}
 function attachValidatedRecord(piece,rawContent,matches){if(!piece)return;const blocks=String(rawContent??'').match(/<tableEdit>[\s\S]*?<\/tableEdit>/gi);const machineBlock=Array.isArray(blocks)&&blocks.length?blocks[blocks.length-1]:`<tableEdit>${String(matches?.[matches.length-1]??'<!-- NO_CHANGE -->')}</tableEdit>`;const visible=stripTableEditOnly(piece.mes);piece.mes=`${visible}\n\n${machineBlock}`.trim();if(Array.isArray(piece.swipes)){const id=Number(piece.swipe_id);if(Number.isInteger(id)&&id>=0&&id<piece.swipes.length)piece.swipes[id]=piece.mes;}}
-function buildRecentContext(targetPiece){const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];const layers=Math.max(0,Number(USER.tableBaseSetting.separateReadContextLayers)||1);if(!layers)return'';const targetIndex=targetPiece?chat.indexOf(targetPiece):-1;const source=targetIndex>=0?chat.slice(0,targetIndex):chat;const candidates=source.filter(item=>item?.is_user===false);return candidates.slice(-layers).map(item=>`${item.name||'assistant'}: ${stripMachine(item.mes)}`).join('\n');}
+function buildRecentContext(targetPiece){
+    const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];
+    const rounds=Math.max(0,Number(USER.tableBaseSetting.separateReadContextLayers)||1);
+    if(!rounds)return'';
+    const targetIndex=targetPiece?chat.indexOf(targetPiece):-1;
+    const source=(targetIndex>=0?chat.slice(0,targetIndex):chat).filter(item=>item&&typeof item==='object');
+    const selected=[];
+    let current=[];
+    let counted=0;
+    for(let i=source.length-1;i>=0&&counted<rounds;i--){
+        const item=source[i];
+        current.unshift(item);
+        if(item?.is_user===true){
+            selected.unshift(...current);
+            current=[];
+            counted+=1;
+        }
+    }
+    if(counted===0&&current.length)selected.unshift(...current);
+    return selected.map(item=>`${item.name||(item?.is_user?'user':'assistant')}: ${stripMachine(item.mes)}`).join('\n');
+}
 async function readLorebook(){if(!USER.tableBaseSetting.separateReadLorebook||!window.TavernHelper)return'';try{const books=await window.TavernHelper.getCharLorebooks({type:'all'});const names=[books?.primary,...(Array.isArray(books?.additional)?books.additional:[])].filter(Boolean);const chunks=[];for(const name of names){const entries=await window.TavernHelper.getLorebookEntries(name);if(Array.isArray(entries))chunks.push(...entries.map(entry=>String(entry?.content??'')).filter(Boolean));}return chunks.join('\n');}catch(error){console.warn('[Memo][independent] 世界书读取失败，继续使用现有表格与聊天上下文',error);return'';}}
 function parsePromptTemplate(){const raw=String(USER.tableBaseSetting.step_by_step_user_prompt||'').trim();try{const parsed=JSON5.parse(raw);if(!Array.isArray(parsed)||!parsed.length)throw new Error('提示词不是非空消息数组');return parsed;}catch(error){throw new Error(`独立填表提示词格式错误：${error?.message||error}`);}}
 async function buildIndependentMessages(todoChats,originText,targetPiece){const contextChats=buildRecentContext(targetPiece);const lorebook=await readLorebook();const template=parsePromptTemplate();const replace=value=>String(value??'').replace(/(?<!\\)\$0/g,()=>originText).replace(/(?<!\\)\$1/g,()=>contextChats).replace(/(?<!\\)\$2/g,()=>stripMachine(todoChats)).replace(/(?<!\\)\$3/g,()=>INDEPENDENT_OPERATION_RULES).replace(/(?<!\\)\$4/g,()=>lorebook);return template.map(message=>({...message,content:replace(message?.content)}));}
