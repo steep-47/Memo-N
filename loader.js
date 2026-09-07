@@ -1,7 +1,7 @@
 import './index.js';
 
 const RUNTIME_VERSION = 'memon87-ability-field-semantics';
-const DISPLAY_VERSION = '0.1.0-memon.87';
+const DISPLAY_VERSION = '0.10';
 
 async function loadRuntime(label, path) {
     try {
@@ -50,4 +50,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] memon87 ability field semantics runtime loaded');
+console.log('[Memo-N][loader] v0.10 runtime loaded');
