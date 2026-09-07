@@ -59,6 +59,9 @@ const { parseMemoTableEdit, executeMemoTableEdit, restoreMemoSnapshot } = await 
 const parserCases = [
     ['NO_CHANGE', true, true],
     ['updateRow(0,0,{0:0})', true, false],
+    ['updateRow(0,0,{"h0":"按表头更新"})', true, false],
+    ['updateRow(0,0,{"不存在":"x"})', false, false],
+    ['updateRow(0,0,{0:"x","h0":"y"})', false, false],
     ['updateRow(0,9,{0:"x"})', false, false],
     ['insertRow(0,{9:"x"})', false, false],
     ['NO_CHANGE;deleteRow(0,0)', false, false],
@@ -75,6 +78,8 @@ for (const [input, ok, noChange] of parserCases) {
 
 let result = executeMemoTableEdit('updateRow(0,0,{0:0})', piece);
 if (!result.ok || sheets[0].rows[1][1] !== 0) throw new Error('数字0在严格执行链中丢失');
+result = executeMemoTableEdit('updateRow(0,0,{"h0":"按表头更新"})', piece);
+if (!result.ok || sheets[0].rows[1][1] !== '按表头更新') throw new Error('真实表头名未安全映射到数字列索引');
 const beforeRows = structuredClone(sheets.map(sheet => sheet.rows));
 const beforePiece = structuredClone(piece);
 sheets[6].failSave = true;
@@ -88,7 +93,7 @@ const restoreResult = restoreMemoSnapshot({ injected: true });
 if (restoreResult.ok) throw new Error('中途失败的快照恢复被误报成功');
 if (JSON.stringify(sheets.map(sheet => sheet.rows)) !== JSON.stringify(beforeRestoreRows)) throw new Error('中途失败的快照恢复未完整回滚');
 
-console.log('runtime-safety-audit PASS: parser=10, numeric-zero=1, save-failure-full-rollback=1, restore-failure-full-rollback=1');
+console.log('runtime-safety-audit PASS: parser=13, numeric-zero=1, exact-header-key=1, save-failure-full-rollback=1, restore-failure-full-rollback=1');
 
 const channels = await import('../scripts/runtime/memoResponseChannels.js');
 const reasoningOnly = { mes: '正常正文', extra: { reasoning: '<tableEdit><!-- updateRow(0,0,{1:"08:40"}) --></tableEdit>' } };
@@ -125,6 +130,7 @@ if (!settingsText.includes('一次API记录协议') || !settingsText.includes('�
 if (!(settingsText + bootstrapText).includes('日影移动') || !(settingsText + bootstrapText).includes('七表均无变化')) throw new Error('主模板缺少时间推进/空变更规则');
 if (!settingsText.includes("'其他状态','外貌特征'") || !contentRulesText.includes("'其他状态','外貌特征'") || !structureRepairText.includes("'其他状态','外貌特征'")) throw new Error('角色状态表外貌特征列未贯通默认结构、运行时列定义与旧表修复');
 if (!contentRulesText.includes('repairMissingColumnsBeforeCleanup({notify:false})') || !contentRulesText.includes('稳定外观和持久变化')) throw new Error('角色外貌特征缺少启动迁移或记录语义');
+if (!structureRepairText.includes('syncCurrentSwipeSnapshot(piece)') || !structureRepairText.includes('piece.swipe_info[id].extra.memo_n_swipe_hash_sheets') || !structureRepairText.includes('cleanRoleRows(headers,rows)') || !structureRepairText.includes('BASE.refreshTempView?.(true)')) throw new Error('角色表结构修复未同步当前Swipe、清理重复行或刷新数据页');
 if (!pinchZoomText.includes("h === '外貌特征'") || !pinchZoomText.includes('agePosition + 1') || !pinchZoomText.includes('index !== appearance')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
@@ -144,6 +150,9 @@ if (!yiyiText.includes('Memo-N <tableEdit>记录块') || !yiyiText.includes('先
 if (!independentText.includes('if(!prepareAutoBaseline')) throw new Error('自动独立记录缺少基线成功门控');
 if (!independentText.includes('if(!baselineReady)throw new Error')) throw new Error('手动独立记录缺少基线成功门控');
 if (!independentText.includes('!sessionChat.includes(initialPiece)')) throw new Error('手动独立记录缺少目标消息当前聊天归属校验');
+const preTransactionRepair = independentText.indexOf("if(initialPiece===currentPiece){try{repairMissingColumnsBeforeCleanup({notify:false});}");
+const firstTransactionBackup = independentText.indexOf('const targetBackup=capturePieceState(initialPiece)');
+if (preTransactionRepair < 0 || firstTransactionBackup < 0 || preTransactionRepair > firstTransactionBackup) throw new Error('手动/独立记录没有在事务备份前固化角色表结构，失败回滚仍可能恢复旧表头');
 if (!finishText.includes('status.noChange===true') || !finishText.includes('Memo-N：本轮无需更新表格')) throw new Error('Memo-N缺少NO_CHANGE明确状态提示');
 if (!engineText.includes('聊天保存失败') || !engineText.includes('restoreMemoSnapshot(copySnapshot(baselineSnapshot))')) throw new Error('Memo-N缺少聊天保存失败后的表格回滚');
 if (!engineText.includes('__memoStrictPersistence') || !finishText.includes('await persistence')) throw new Error('Memo-N写入提示未等待真实保存结果');

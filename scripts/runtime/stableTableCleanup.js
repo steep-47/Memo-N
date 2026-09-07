@@ -2,9 +2,9 @@ import { BASE, EDITOR, USER } from '../../core/manager.js';
 import { getTableEditTag, getTablePromptByPiece } from '../../index.js';
 import { handleCustomAPIRequest, handleMainAPIRequest, estimateTokenCount } from '../settings/standaloneAPI.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
-import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon77';
-import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon77';
-import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon5';
+import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon79';
+import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon79';
+import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon79';
 
 const INSTALL_FLAG='__memoStableTableCleanupInstalled'; let running=false;
 const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。只整理现有七张表，不写剧情，不输出完整JSON表格。
@@ -23,6 +23,7 @@ const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。只整理现有七�
 - 写任何操作前先检查现有行；能update/delete解决就不要重复insert。
 - 没有任何需要整理的变化时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。
 - updateRow只能更新当前真实存在的rowIndex；不得把越界update当作新增。真正新增必须明确使用insertRow。
+- data键优先使用数字列索引；也可使用当前表中完全一致的真实表头名。禁止使用不存在、近似或自行编造的列名。
 - 函数调用必须放在同一个HTML注释中，例如<tableEdit><!-- updateRow(...); deleteRow(...); --></tableEdit>。`;
 function escapeHtml(text){return String(text??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function buildRecentChat(){const chat=Array.isArray(USER.getContext()?.chat)?USER.getContext().chat:[];const ignoreUser=USER.tableBaseSetting.ignore_user_sent===true;const filtered=ignoreUser?chat.filter(item=>item?.is_user===false):chat;const maxRows=Math.max(1,Number(USER.tableBaseSetting.clear_up_stairs)||9);const useTokenLimit=USER.tableBaseSetting.use_token_limit===true;const tokenLimit=Math.max(0,Number(USER.tableBaseSetting.rebuild_token_limit_value)||0);const collected=[];let totalTokens=0;for(let i=filtered.length-1;i>=0&&collected.length<maxRows;i--){const item=filtered[i];const line=`${item?.name||(item?.is_user?'user':'assistant')}: ${String(item?.mes??'')}`.replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').trim();if(!line)continue;if(useTokenLimit&&tokenLimit>0){const tokens=await estimateTokenCount(line);if(collected.length>0&&totalTokens+tokens>tokenLimit)break;totalTokens+=tokens;}collected.push(line);}return collected.reverse().join('\n');}
