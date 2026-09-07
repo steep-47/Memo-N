@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon82-independent-tableedit-transport-guard';
+const RUNTIME_VERSION = 'memon83-record-vs-cleanup-semantics';
 
 async function loadRuntime(label, path) {
     try {
@@ -40,4 +40,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon82 independent tableEdit transport guard runtime loaded');
+console.log('[Memo-N][loader] memon83 record-vs-cleanup semantics runtime loaded');
