@@ -1,6 +1,6 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon77-player-appearance';
+const RUNTIME_VERSION = 'memon78-player-appearance-view';
 
 async function loadRuntime(label, path) {
     try {
@@ -39,4 +39,4 @@ const runtimes = [
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
-console.log('[Memo-N][loader] memon77 player appearance runtime loaded');
+console.log('[Memo-N][loader] memon78 player appearance view runtime loaded');

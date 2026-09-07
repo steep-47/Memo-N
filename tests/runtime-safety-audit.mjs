@@ -112,6 +112,7 @@ const settingsText = await fs.readFile(new URL('../data/pluginSetting.js', impor
 const bootstrapText = await fs.readFile(new URL('../scripts/runtime/settingsBootstrap.js', import.meta.url), 'utf8');
 const contentRulesText = await fs.readFile(new URL('../scripts/runtime/memoryContentRules.js', import.meta.url), 'utf8');
 const structureRepairText = await fs.readFile(new URL('../scripts/runtime/tableStructureRepair.js', import.meta.url), 'utf8');
+const pinchZoomText = await fs.readFile(new URL('../scripts/ui/pinchZoom.js', import.meta.url), 'utf8');
 const engineText = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 const providerText = await fs.readFile(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
 const envelopeText = await fs.readFile(new URL('../scripts/engine/recordEnvelope.js', import.meta.url), 'utf8');
@@ -124,6 +125,7 @@ if (!settingsText.includes('一次API记录协议') || !settingsText.includes('�
 if (!(settingsText + bootstrapText).includes('日影移动') || !(settingsText + bootstrapText).includes('七表均无变化')) throw new Error('主模板缺少时间推进/空变更规则');
 if (!settingsText.includes("'其他状态','外貌特征'") || !contentRulesText.includes("'其他状态','外貌特征'") || !structureRepairText.includes("'其他状态','外貌特征'")) throw new Error('角色状态表外貌特征列未贯通默认结构、运行时列定义与旧表修复');
 if (!contentRulesText.includes('repairMissingColumnsBeforeCleanup({notify:false})') || !contentRulesText.includes('稳定外观和持久变化')) throw new Error('角色外貌特征缺少启动迁移或记录语义');
+if (!pinchZoomText.includes("h === '外貌特征'") || !pinchZoomText.includes('agePosition + 1') || !pinchZoomText.includes('index !== appearance')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
 if (!engineText.includes('reinforcePreviousAssistant(data.messages') || !engineText.includes('memo_n_record_block')) throw new Error('Memo-N没有在下一轮历史副本恢复已执行记录范例');

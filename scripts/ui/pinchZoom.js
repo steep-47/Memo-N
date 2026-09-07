@@ -1,5 +1,5 @@
 // 数据页：单指横向滚动使用浏览器原生 overflow-x；仅保留双指缩放。
-// #1 角色状态表仅在展示层拆成两个短表；底层原表保持不变。
+// #1 角色状态表仅在展示层拆成两个短表；外貌紧跟年龄显示，底层原表与列索引保持不变。
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 2.0;
@@ -121,6 +121,8 @@ function splitRoleStatusTable() {
     const indexColumn = headers[0] === '' ? 0 : -1;
     const find = predicate => headers.findIndex(predicate);
     const name = find(h => h === '姓名');
+    const age = find(h => h === '年龄');
+    const appearance = find(h => h === '外貌特征' || h === '外貌' || h === '容貌');
     const spiritSense = find(h => h.includes('神识'));
     const bodyState = find(h => h.includes('身体状态'));
 
@@ -131,12 +133,19 @@ function splitRoleStatusTable() {
     }
 
     source.classList.add('memory-role-status-source');
-    const signature = roleTableSignature(source);
+    const signature = `memon78-basic-appearance:${roleTableSignature(source)}`;
     let view = container.querySelector('.memory-role-status-two-tables');
     if (view?.dataset?.sourceSignature === signature) return;
 
     const first = Array.from({ length: spiritSense - name + 1 }, (_, i) => name + i);
-    const second = [name, ...Array.from({ length: headers.length - bodyState }, (_, i) => bodyState + i)];
+    if (appearance >= 0) {
+        const oldPosition = first.indexOf(appearance);
+        if (oldPosition >= 0) first.splice(oldPosition, 1);
+        const agePosition = first.indexOf(age);
+        first.splice(agePosition >= 0 ? agePosition + 1 : first.length, 0, appearance);
+    }
+    const second = [name, ...Array.from({ length: headers.length - bodyState }, (_, i) => bodyState + i)]
+        .filter((index, position) => position === 0 || index !== appearance);
     const nextView = document.createElement('div');
     nextView.className = 'memory-role-status-two-tables';
     nextView.dataset.sourceSignature = signature;
