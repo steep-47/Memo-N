@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon86-detail-preserving-expression';
-const DISPLAY_VERSION = '0.1.0-memon.86';
+const RUNTIME_VERSION = 'memon87-ability-field-semantics';
+const DISPLAY_VERSION = '0.1.0-memon.87';
 
 async function loadRuntime(label, path) {
     try {
@@ -18,7 +18,7 @@ async function loadRuntime(label, path) {
 
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
-    ['长文本高信息密度表达规则', './scripts/runtime/denseExpressionRule.js'],
+    ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
@@ -50,4 +50,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] memon86 detail-preserving expression runtime loaded');
+console.log('[Memo-N][loader] memon87 ability field semantics runtime loaded');
