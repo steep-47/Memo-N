@@ -34,13 +34,22 @@ function repairWorldTableStructure() {
 
     running = true;
     try {
-        // sevenTableMigration 在已有至少一张表时可以补齐缺表；若整组表都丢失，
-        // 先从当前七表模板重建空结构，再进入统一迁移/表头修复流程。
-        if ((BASE.getChatSheets?.() || []).length === 0) {
+        const liveSheets = BASE.getChatSheets?.() || [];
+        if (liveSheets.length === 0) {
+            const orphanSnapshot = piece?.memo_n_hash_sheets && typeof piece.memo_n_hash_sheets === 'object'
+                ? Object.keys(piece.memo_n_hash_sheets).length
+                : 0;
+            if (orphanSnapshot > 0) {
+                throw new Error('当前表格目录为空，但聊天仍保留旧表格快照；为避免覆盖旧数据，本次不会用空模板强行重建');
+            }
             BASE.initHashSheet?.(true);
         }
 
+        // 缺少整张标准表时由七表迁移器按标准模板补建；已有表的数据保持原样。
         ensureSevenTableWorld();
+
+        // 缺表头、旧别名表头、列顺序错位等由结构修复器按字段名投影修复，
+        // 同时同步当前 Swipe 快照，避免界面重载后又被旧结构覆盖。
         const repaired = repairMissingColumnsBeforeCleanup({
             notify: false,
             piece,
