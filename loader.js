@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = '0.12-role-status-click-bridge';
-const DISPLAY_VERSION = '0.12';
+const RUNTIME_VERSION = '0.13-manual-record-hidden';
+const DISPLAY_VERSION = '0.13';
 
 async function loadRuntime(label, path) {
     try {
@@ -51,4 +51,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.12 role status click bridge runtime loaded');
+console.log('[Memo-N][loader] v0.13 manual record hidden runtime loaded');
