@@ -2,7 +2,7 @@ import { APP, EDITOR, USER } from '../../core/manager.js';
 import { reloadCurrentChat } from '/script.js';
 import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.17';
 
-const INSTALL_FLAG = '__memoNManualRoundContextBridgeV6';
+const INSTALL_FLAG = '__memoNManualRoundContextBridgeV7';
 const TABLE_EDIT_BLOCK_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi;
 const OP_LINE_RE = /^\s*(?:insertRow|updateRow|deleteRow)\s*\([\s\S]*\)\s*;?\s*$/;
 const VISIBLE_EXTRA_KEYS = ['display_text', 'reasoning', 'reasoning_display_text'];
@@ -271,6 +271,15 @@ async function withManualRawIsolation(task) {
     }
 }
 
+function livePieceAt(index, fallback = null) {
+    const chat = USER.getContext?.()?.chat;
+    if (Array.isArray(chat) && Number.isInteger(index) && index >= 0 && index < chat.length) {
+        return chat[index];
+    }
+    if (fallback && Array.isArray(chat) && chat.includes(fallback)) return fallback;
+    return USER.getChatPiece?.()?.piece || fallback;
+}
+
 async function cleanupLegacyVisibleRecords() {
     const chat = USER.getContext?.()?.chat;
     if (!Array.isArray(chat) || !chat.length) return false;
@@ -298,17 +307,36 @@ function detachLegacyManualClickHandlers() {
     }
 }
 
-async function postManualCleanup(targetPiece) {
-    let changed = sanitizePieceInMemory(targetPiece, { legacy: true });
+function configureManualUi() {
+    detachLegacyManualClickHandlers();
+    const input = $('#separateReadContextLayers');
+    const label = $('label[for="separateReadContextLayers"]');
+    if (label.length) {
+        label.text('上下文轮数');
+        label.attr('title', '1轮 = 当前待记录AI回复之前的用户消息 + 当前待记录AI回复；AI回复本身作为本轮待记录内容单独发送');
+    }
+    if (input.length) input.attr('title', '按对话轮读取。1轮会带上触发当前AI回复的用户消息，当前AI回复本身不重复放入上下文。');
+}
+
+async function postManualCleanup(targetIndex, fallbackPiece) {
+    let livePiece = livePieceAt(targetIndex, fallbackPiece);
+    let changed = sanitizePieceInMemory(livePiece, { legacy: true });
     if (changed) await Promise.resolve(USER.saveChat?.());
 
-    // 即使持久化字段已经干净，也强制重新渲染一次，清掉第三方监听raw生成事件留下的临时DOM。
+    // TableTwoStepSummary内部会reload；这里重新取得reload后的实时piece，再强制重绘，不能继续只处理旧对象引用。
     await Promise.resolve(reloadCurrentChat());
+    livePiece = livePieceAt(targetIndex, fallbackPiece);
+    changed = sanitizePieceInMemory(livePiece, { legacy: true });
+    if (changed) {
+        await Promise.resolve(USER.saveChat?.());
+        await Promise.resolve(reloadCurrentChat());
+    }
 
     // 某些扩展会在生成结束事件之后再写display/reasoning显示字段，再做一次延迟复核。
     setTimeout(async () => {
         try {
-            const repaired = sanitizePieceInMemory(targetPiece, { legacy: true });
+            const delayedPiece = livePieceAt(targetIndex, fallbackPiece);
+            const repaired = sanitizePieceInMemory(delayedPiece, { legacy: true });
             if (repaired) {
                 await Promise.resolve(USER.saveChat?.());
                 await Promise.resolve(reloadCurrentChat());
@@ -325,11 +353,13 @@ async function runManualUpdate() {
         return;
     }
     manualBusy = true;
+    const beforeChat = USER.getContext?.()?.chat;
     const targetPiece = USER.getChatPiece?.()?.piece;
+    const targetIndex = Array.isArray(beforeChat) ? beforeChat.indexOf(targetPiece) : -1;
     try {
         const result = await withManualRawIsolation(() => TableTwoStepSummary('manual'));
         if (result === false || result === 'stale' || result === 'detached') return;
-        await postManualCleanup(targetPiece);
+        await postManualCleanup(targetIndex, targetPiece);
         EDITOR.success('独立填表完成');
     } catch (error) {
         console.error('[Memo-N][manual-round-context] 手动更新启动失败', error);
@@ -356,7 +386,9 @@ function install() {
         APP.eventSource.on(renderedEvent, chatId => {
             if (renderRepairBusy) return;
             const piece = USER.getContext?.()?.chat?.[Number(chatId)];
-            if (!piece?.extra?.memo_n_manual_table_edit) return;
+            const activeId = Number(piece?.swipe_id);
+            const marker = piece?.extra?.memo_n_manual_table_edit || getSwipeExtra(piece || {}, activeId, false)?.memo_n_manual_table_edit;
+            if (!marker) return;
             if (!sanitizePieceInMemory(piece, { legacy: false })) return;
             renderRepairBusy = true;
             Promise.resolve(USER.saveChat?.())
@@ -367,19 +399,17 @@ function install() {
     }
 
     jQuery(() => {
-        detachLegacyManualClickHandlers();
-
-        const input = $('#separateReadContextLayers');
-        const label = $('label[for="separateReadContextLayers"]');
-        label.text('上下文轮数');
-        label.attr('title', '1轮 = 当前待记录AI回复之前的用户消息 + 当前待记录AI回复；AI回复本身作为本轮待记录内容单独发送');
-        input.attr('title', '按对话轮读取。1轮会带上触发当前AI回复的用户消息，当前AI回复本身不重复放入上下文。');
+        // index.js 的ready回调内部有异步模板加载，因此这里需要重复解绑/配置，确保旧按钮处理器不会在稍后重新挂回来。
+        configureManualUi();
+        setTimeout(configureManualUi, 500);
+        setTimeout(configureManualUi, 1500);
+        setTimeout(configureManualUi, 3000);
 
         cleanupLegacyVisibleRecords().catch(error => console.warn('[Memo-N] 清理旧手动记录显示失败', error));
-        setTimeout(() => cleanupLegacyVisibleRecords().catch(() => {}), 600);
+        setTimeout(() => cleanupLegacyVisibleRecords().catch(() => {}), 800);
     });
 
-    console.log('[Memo-N] v0.17 手动记录可见通道隔离：单入口 + 非流式raw + 全显示字段清理');
+    console.log('[Memo-N] v0.17 手动记录可见通道隔离：实时piece + 单入口 + 非流式raw + 全显示字段清理');
 }
 
 install();
