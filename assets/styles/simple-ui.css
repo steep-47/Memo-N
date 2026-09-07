@@ -1,5 +1,10 @@
 @import url("./style.css");
 
+/* 扩展管理器会从 Git 远程地址自动显示 @仓库作者；Memo-N 仅隐藏自己的作者标识。 */
+.extension_block[data-name="/Memo-N"] .extension_author {
+    display: none !important;
+}
+
 #table_debug_log_button,
 .checkbox_label:has(> #table_switch_debug_mode),
 h4[data-i18n="Message template"],
