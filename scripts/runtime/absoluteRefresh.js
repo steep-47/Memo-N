@@ -9,7 +9,7 @@ import { profile_prompts } from "../../data/profile_prompts.js";
 import { Form } from '../../components/formManager.js';
 import { refreshRebuildTemplate } from "../settings/userExtensionSetting.js"
 import { safeParse } from '../../utils/stringUtil.js';
-import { repairMissingColumnsBeforeCleanup } from "./tableStructureRepair.js?v=memon6";
+import { repairMissingColumnsBeforeCleanup } from "./tableStructureRepair.js?v=memon77";
 import { restoreMemoSnapshot } from "./safeTableExecutor.js?v=memon6";
 
 // 在解析响应后添加验证

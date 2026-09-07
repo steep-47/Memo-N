@@ -2,8 +2,8 @@ import { BASE, EDITOR, USER } from '../../core/manager.js';
 import { getTableEditTag, getTablePromptByPiece } from '../../index.js';
 import { handleCustomAPIRequest, handleMainAPIRequest, estimateTokenCount } from '../settings/standaloneAPI.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
-import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon54';
-import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon54';
+import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon77';
+import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon77';
 import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon5';
 
 const INSTALL_FLAG='__memoStableTableCleanupInstalled'; let running=false;
@@ -12,7 +12,7 @@ const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。只整理现有七�
 表头结构由代码维护，你只能通过insertRow/updateRow/deleteRow整理数据行，不得创建、删除、改名或重排表头。
 整理原则：
 - 0当前状态表：快照型，只保留最新有效一行；重复旧快照删除。
-- 1角色状态表：只保存玩家本人最新状态，最多一行；NPC不得进入此表；修为保留玩家自身体系的原生境界，不换算成人族境界。
+- 1角色状态表：只保存玩家本人最新状态，最多一行；NPC不得进入此表；修为保留玩家自身体系的原生境界，不换算成人族境界；外貌特征只保存已确认的稳定外观和持久变化。
 - 2背包表：维护当前实际持有库存；同一物品重复行必须先依据聊天判断是否真是两次获得，证据不足不得把重复数量直接相加；已完全失去的物品删除。
 - 3当前任务与约定表：只保留尚未结束事项；已完成/失败/取消/失效的行删除，重大结果可留在历史表。
 - 4人物主表：NPC身份与关系主表，同一NPC只保留一行。保存姓名、性别、种族/血脉、修炼体系/路径、别名/称呼、身份/所属、外貌特征、性格、与玩家关系、长期重要信息。未知字段留空，不根据修为或外貌猜种族/血脉/体系。
