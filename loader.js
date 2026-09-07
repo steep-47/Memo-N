@@ -1,7 +1,7 @@
 import './index.js';
 
-const RUNTIME_VERSION = 'memon83-structure-preflight';
-const DISPLAY_VERSION = '0.1.0-memon.83';
+const RUNTIME_VERSION = 'memon84-manual-record-success-color';
+const DISPLAY_VERSION = '0.1.0-memon.84';
 
 async function loadRuntime(label, path) {
     try {
@@ -48,4 +48,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] memon83 structure preflight runtime loaded');
+console.log('[Memo-N][loader] memon84 manual record success color runtime loaded');
