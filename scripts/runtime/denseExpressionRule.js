@@ -1,7 +1,7 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNDenseExpressionRuleV7';
+const PATCH_MARK = '__memoNDenseExpressionRuleV8';
 const OLD_STEP_MARKERS = [
     '[Memo七表独立记录v4-记录优先]',
     '[Memo七表独立记录v5-完整但不摘抄]',
@@ -14,7 +14,10 @@ const OLD_STEP_MARKERS = [
 const STEP_MARKER = '[Memo七表独立记录v11-字段判断方法]';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const RULE = '长文本字段应在不损失有效细节的前提下提炼表达。保留人物辨识度、位置、程度、状态、条件和关系等有用信息，合并重复与同义内容，去掉冗长叙述和无必要修辞；优先改写为紧凑、自然、信息密度高的描述，不为缩短而过度概括，也不削弱原本的表达力度。';
-const APPEARANCE_RULE = '外貌字段按“可观察性→持续性→辨识度→信息压缩”判断：先从叙述中抽取人物当前能够直接观察到的视觉事实，再判断该特征是否稳定、持久或足以持续识别人物；只保留有辨识价值的事实，并保留理解该特征所必需的位置、程度和显现条件。不能直接构成人物当前视觉状态的信息，不因与外貌出现在同一句话中就写入外貌；若它本身具有其他长期价值，应按事实性质归入对应字段或表。已有外貌更新时，以更晚、更明确、更准确的事实细化、替代或合并同一特征，不把叙事原句逐次堆叠。最终目标是形成紧凑、可用于重新识别人形象的当前视觉档案，而不是保存描写过程。';
+const OLD_APPEARANCE_RULES = [
+    '外貌字段按“可观察性→持续性→辨识度→信息压缩”判断：先从叙述中抽取人物当前能够直接观察到的视觉事实，再判断该特征是否稳定、持久或足以持续识别人物；只保留有辨识价值的事实，并保留理解该特征所必需的位置、程度和显现条件。不能直接构成人物当前视觉状态的信息，不因与外貌出现在同一句话中就写入外貌；若它本身具有其他长期价值，应按事实性质归入对应字段或表。已有外貌更新时，以更晚、更明确、更准确的事实细化、替代或合并同一特征，不把叙事原句逐次堆叠。最终目标是形成紧凑、可用于重新识别人形象的当前视觉档案，而不是保存描写过程。',
+];
+const APPEARANCE_RULE = '外貌特征只维护已确认、稳定且具有辨识度的可观察外形事实；优先记录整体体态、主要面部特征及持久细节，合并重复与普通修辞。外貌形成原因、过往经历、性格评价、临时神态与动作不写入此栏。表达按整体轮廓→主要特征→辨识细节组织，在不损失位置、程度和状态等有效信息的前提下保持紧凑。';
 const OLD_ABILITY_RULES = [
     '角色状态表中，“技能/术法”记录已经掌握、可具体调用或施展的本领、技艺、功法或术法；“擅长”记录长期稳定的能力方向、熟练领域与优势倾向。两者可以同时存在：前者写具体表现，后者写能力方向；只有完全同义且没有层级区别时才避免机械重复。',
 ];
@@ -27,6 +30,9 @@ const UPDATE_RULE = '更新方式按数据性质判断，而不是给每个字�
 
 function replaceOldRules(value) {
     let text = String(value ?? '');
+    for (const oldRule of OLD_APPEARANCE_RULES) {
+        if (text.includes(oldRule)) text = text.replaceAll(oldRule, APPEARANCE_RULE);
+    }
     for (const oldRule of OLD_ABILITY_RULES) {
         if (text.includes(oldRule)) text = text.replaceAll(oldRule, ABILITY_RULE);
     }
@@ -160,7 +166,7 @@ function install() {
     installPromptRules();
     patchEditorGenerateRaw();
     patchCustomApi();
-    console.log('[Memo-N] 七表字段语义规则已加载：按事实性质判断主位置，外貌按可观察性/持续性/辨识度维护');
+    console.log('[Memo-N] 七表字段语义规则已加载：按事实性质判断主位置，外貌按稳定性/辨识度/信息密度维护');
 }
 
 install();
