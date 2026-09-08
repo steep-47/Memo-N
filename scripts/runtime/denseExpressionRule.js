@@ -1,17 +1,19 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNDenseExpressionRuleV5';
+const PATCH_MARK = '__memoNDenseExpressionRuleV6';
 const OLD_STEP_MARKERS = [
     '[Memo七表独立记录v4-记录优先]',
     '[Memo七表独立记录v5-完整但不摘抄]',
     '[Memo七表独立记录v6-能力字段分层]',
     '[Memo七表独立记录v7-技能与擅长语义分层]',
     '[Memo七表独立记录v8-七表字段语义边界]',
+    '[Memo七表独立记录v9-玩家资料字段完善]',
 ];
-const STEP_MARKER = '[Memo七表独立记录v9-玩家资料字段完善]';
+const STEP_MARKER = '[Memo七表独立记录v10-外貌视觉档案]';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const RULE = '长文本字段应在不损失有效细节的前提下提炼表达。保留人物辨识度、位置、程度、状态、条件和关系等有用信息，合并重复与同义内容，去掉冗长叙述和无必要修辞；优先改写为紧凑、自然、信息密度高的描述，不为缩短而过度概括，也不削弱原本的表达力度。';
+const APPEARANCE_RULE = '表1与表4的“外貌特征”应作为当前视觉档案维护：只记录已明确确认、稳定或具有持续辨识度的外观事实，如身量体态、肤色、五官、发色发型，以及疤痕、痣、纹身、残缺等显著特征和持久变化；保留必要的位置、程度与显现条件。描述优先直接写“现在看起来是什么样”，不把形成原因、受伤经过、童年故事、亲缘比较、行为习惯造成的解释、当下表情或气质评价写进外貌；普通临时穿着也不作为稳定外貌，除非已明确是长期标志性装束。低辨识度或近乎中性的修饰应省略，同一特征只保留信息最完整且最紧凑的一种表达。';
 const OLD_ABILITY_RULES = [
     '角色状态表中，“技能/术法”记录已经掌握、可具体调用或施展的本领、技艺、功法或术法；“擅长”记录长期稳定的能力方向、熟练领域与优势倾向。两者可以同时存在：前者写具体表现，后者写能力方向；只有完全同义且没有层级区别时才避免机械重复。',
 ];
@@ -46,7 +48,7 @@ function upgradeDefaultStepPrompt(value) {
 
     const anchor = '表5字段“年龄”和“最后确认时间”必须分开：年龄是人物属性，最后确认时间是该发展锚点最后被剧情确认的世界时间；未知分别留空。';
     const outputAnchor = '只输出一个<tableEdit><!-- 函数调用 --></tableEdit>';
-    const additions = collectMissing(text, [RULE, ABILITY_RULE, TABLE_RULE, UPDATE_RULE]);
+    const additions = collectMissing(text, [RULE, APPEARANCE_RULE, ABILITY_RULE, TABLE_RULE, UPDATE_RULE]);
     if (!additions.length) return text;
     const extra = additions.join('');
 
@@ -58,7 +60,7 @@ function upgradeDefaultStepPrompt(value) {
 function upgradeBaseMessagePrompt(value) {
     let text = replaceOldRules(value);
     if (!text || !text.includes('# dataTable 世界状态记忆')) return text;
-    const additions = collectMissing(text, [ABILITY_RULE, TABLE_RULE, UPDATE_RULE]);
+    const additions = collectMissing(text, [APPEARANCE_RULE, ABILITY_RULE, TABLE_RULE, UPDATE_RULE]);
     if (!additions.length) return text;
     const section = `# 字段归属与更新判断\n${additions.map(rule => `- ${rule}`).join('\n')}\n`;
     if (text.includes('# NPC长期发展锚点')) return text.replace('# NPC长期发展锚点', `${section}# NPC长期发展锚点`);
@@ -74,7 +76,7 @@ function installPromptRules() {
     if (upgradedStep && upgradedStep !== currentStep) {
         USER.tableBaseSetting.step_by_step_user_prompt = upgradedStep;
         changed = true;
-        console.log('[Memo-N][field-semantics] 已升级手动更新默认提示：补齐玩家身份/所属与别名/称号语义');
+        console.log('[Memo-N][field-semantics] 已升级手动更新默认提示：外貌按视觉档案高密度维护');
     }
 
     const defaultStep = USER.tableBaseDefaultSettings?.step_by_step_user_prompt;
@@ -88,7 +90,7 @@ function installPromptRules() {
     if (upgradedBase && upgradedBase !== currentBase) {
         USER.tableBaseSetting.message_template = upgradedBase;
         changed = true;
-        console.log('[Memo-N][field-semantics] 已给正常记录补充玩家身份/所属与别名/称号字段边界');
+        console.log('[Memo-N][field-semantics] 已给正常记录补充外貌视觉档案规则');
     }
 
     const defaultBase = USER.tableBaseDefaultSettings?.message_template;
@@ -105,6 +107,7 @@ function appendCleanupRules(text) {
     if (!source) return source;
     const sections = [
         ['长文本字段表达', RULE],
+        ['外貌视觉档案', APPEARANCE_RULE],
         ['角色能力字段', ABILITY_RULE],
         ['七表字段归属', TABLE_RULE],
         ['更新方式判断', UPDATE_RULE],
@@ -156,9 +159,9 @@ function install() {
     installPromptRules();
     patchEditorGenerateRaw();
     patchCustomApi();
-    console.log('[Memo-N] 七表字段语义规则已加载：玩家身份/所属、别名/称号与能力字段按主位置维护');
+    console.log('[Memo-N] 七表字段语义规则已加载：外貌按视觉档案高密度维护，能力与字段按主位置归类');
 }
 
 install();
 
-export { RULE, ABILITY_RULE, TABLE_RULE, UPDATE_RULE, STEP_MARKER, upgradeDefaultStepPrompt, upgradeBaseMessagePrompt };
+export { RULE, APPEARANCE_RULE, ABILITY_RULE, TABLE_RULE, UPDATE_RULE, STEP_MARKER, upgradeDefaultStepPrompt, upgradeBaseMessagePrompt };
