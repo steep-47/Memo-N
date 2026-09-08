@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.30-cleanup-heartbeat-main-stream-events';
-const DISPLAY_VERSION = '0.30';
+const RUNTIME_VERSION = '0.31-cleanup-one-round-evidence';
+const DISPLAY_VERSION = '0.31';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -55,6 +55,8 @@ const runtimes = [
     // 不再调用需要 iframe 上下文的 eventOn / _bind._eventOn。
     ['整理流式心跳事件桥', './scripts/runtime/tavernHelperHeartbeatCompat.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
+    // 整理以七表为主体；最近聊天固定缩为1轮，只作表内冲突/失效的辅助证据。
+    ['整理最近证据窗口', './scripts/runtime/cleanupEvidenceWindow.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
@@ -69,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.30 cleanup heartbeat main stream events runtime loaded');
+console.log('[Memo-N][loader] v0.31 cleanup one-round evidence runtime loaded');
