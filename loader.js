@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.37-custom-deepseek-json';
-const DISPLAY_VERSION = '0.37';
+const RUNTIME_VERSION = '0.38-disable-custom-deepseek-json';
+const DISPLAY_VERSION = '0.38';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -43,9 +43,8 @@ const runtimes = [
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
-    // 官方DeepSeek通过CUSTOM直连时，只使用Chat Completions的JSON Output；
-    // 不再使用/beta前缀续写，也不要求模型自行闭合tableEdit。
-    ['CUSTOM DeepSeek单API JSON输出', './scripts/runtime/customDeepSeekJsonBridge.js'],
+    // 0.37 的 CUSTOM DeepSeek JSON Output 会命中 DeepSeek 官方已知的空content问题，
+    // 因而暂不加载 customDeepSeekJsonBridge，避免思考结束后没有正常正文。
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -74,4 +73,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.37 official custom DeepSeek JSON one-call runtime loaded');
+console.log('[Memo-N][loader] v0.38 loaded: CUSTOM DeepSeek JSON Output bridge disabled');
