@@ -65,9 +65,9 @@ function stopGeneration(helper, generationId) {
 
 /**
  * 只用于“表格整理”的主API请求。
- * 不按总耗时截断；只有在确认收到过本次生成的流式内容后，
- * 连续 CLEANUP_STALL_MS 都没有任何新增内容，才判为疑似断流。
- * 在首个流式内容出现前不自动超时，避免误杀长时间的隐藏思考。
+ * 不按总耗时截断；只有在确认收到过本次生成的流式事件后，
+ * 连续 CLEANUP_STALL_MS 都没有任何新事件，才判为疑似断流。
+ * 流式事件即使暂时没有可见正文，也代表连接仍在活动，可覆盖模型推理阶段。
  */
 async function requestMainApiWithHeartbeat(systemPrompt, userPrompt) {
     const helper = globalThis.TavernHelper;
@@ -84,7 +84,6 @@ async function requestMainApiWithHeartbeat(systemPrompt, userPrompt) {
     const generationId = `memo_cleanup_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const startedAt = Date.now();
     let lastProgressAt = startedAt;
-    let lastFullLength = 0;
     let hasStreamProgress = false;
     let finished = false;
     let abortResolved = false;
@@ -102,21 +101,15 @@ async function requestMainApiWithHeartbeat(systemPrompt, userPrompt) {
         resolveAbort({ kind: 'abort', reason });
     };
 
-    const markProgress = (text, id, isFull = false) => {
+    const markProgress = (_text, id) => {
         if (id !== generationId) return;
-        const value = String(text ?? '');
-        if (!value) return;
-        if (isFull) {
-            if (value.length <= lastFullLength) return;
-            lastFullLength = value.length;
-        }
         hasStreamProgress = true;
         lastProgressAt = Date.now();
     };
 
     const listeners = [
-        helper._eventOn('js_stream_token_received_incrementally', (text, id) => markProgress(text, id, false)),
-        helper._eventOn('js_stream_token_received_fully', (text, id) => markProgress(text, id, true)),
+        helper._eventOn('js_stream_token_received_incrementally', markProgress),
+        helper._eventOn('js_stream_token_received_fully', markProgress),
     ];
 
     const popupPromise = popup
@@ -136,7 +129,7 @@ async function requestMainApiWithHeartbeat(systemPrompt, userPrompt) {
             const idleSec = Math.floor(idleMs / 1000);
             popup.text = `正在使用【主API】整理表格：已等待 ${elapsedSec} 秒 · 最近有进展 ${idleSec} 秒前`;
             if (idleMs >= CLEANUP_STALL_MS) {
-                console.warn(`[Memo][table-cleanup] 检测到本次流式生成连续 ${idleSec} 秒无新增，停止本次整理`);
+                console.warn(`[Memo][table-cleanup] 检测到本次流式生成连续 ${idleSec} 秒无新增事件，停止本次整理`);
                 abort('stalled');
             }
         } else {
