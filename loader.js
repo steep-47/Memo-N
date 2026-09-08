@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.40-rollback-strict-tool';
-const DISPLAY_VERSION = '0.40';
+const RUNTIME_VERSION = '0.41-deepseek-thinking-strict-tool';
+const DISPLAY_VERSION = '0.41';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -43,7 +43,9 @@ const runtimes = [
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
-    // strict function tool 与当前 DeepSeek thinking mode 的 tool_choice 不兼容，保持禁用。
+    // DeepSeek V4 thinking支持tools与strict，但官方明确要求不发送tool_choice；
+    // 本桥只保留一个memo_n_finish strict工具，stealth执行后不触发第二次API。
+    ['CUSTOM DeepSeek严格工具单API', './scripts/runtime/customDeepSeekStrictToolBridge.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -72,4 +74,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.40 loaded: DeepSeek strict-tool bridge disabled for thinking mode compatibility');
+console.log('[Memo-N][loader] v0.41 loaded: DeepSeek V4 thinking strict-tool without tool_choice');
