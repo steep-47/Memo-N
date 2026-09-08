@@ -1,6 +1,6 @@
 import { BASE } from '../../core/manager.js';
 
-const PATCH_MARK = '__memoNTableViewStabilityGuardV1';
+const PATCH_MARK = '__memoNTableViewStabilityGuardV2';
 const DRAWER_SELECTOR = '[id="table_database_settings_drawer"]';
 const TITLE_SELECTOR = '.table-directory-sheet-title[data-table-directory-sheet-title]';
 
@@ -147,8 +147,8 @@ function patchContextRefresh() {
             const container = getTableContainer();
             const expected = enabledSheetCount();
             const rendered = uniqueRenderedCount(container);
-            // 若上一轮正在逐表追加，先等它完成，避免第二轮插入同一容器。
-            if (container && expected > 0 && rendered > 0 && rendered < expected) {
+            // 包括“还没追加第一张表”的启动窗口：只要上一轮视图尚未完整，就先等它完成。
+            if (container && expected > 0 && rendered < expected) {
                 await waitForStableView();
             }
             const result = await original.apply(this, args);
@@ -175,9 +175,22 @@ function queueCleanup() {
     }, 70);
 }
 
+function mutationTouchesMemoView(mutation) {
+    const target = mutation?.target;
+    if (target?.nodeType === 1 && (target.matches?.(DRAWER_SELECTOR) || target.closest?.(DRAWER_SELECTOR))) return true;
+    for (const node of [...(mutation?.addedNodes || []), ...(mutation?.removedNodes || [])]) {
+        if (node?.nodeType !== 1) continue;
+        if (node.matches?.(DRAWER_SELECTOR) || node.matches?.(TITLE_SELECTOR)) return true;
+        if (node.querySelector?.(DRAWER_SELECTOR) || node.querySelector?.(TITLE_SELECTOR)) return true;
+    }
+    return false;
+}
+
 function installObserver() {
     if (observer) return;
-    observer = new MutationObserver(queueCleanup);
+    observer = new MutationObserver(mutations => {
+        if (mutations.some(mutationTouchesMemoView)) queueCleanup();
+    });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 }
 
