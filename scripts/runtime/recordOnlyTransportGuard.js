@@ -2,12 +2,13 @@ import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
-const PATCH_MARK = '__memoNRecordOnlyTransportGuardV1';
+const PATCH_MARK = '__memoNRecordOnlyTransportGuardV2';
 const TABLE_EDIT_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/ig;
 const OPEN_TABLE_EDIT_RE = /<tableEdit\b/i;
 const THINK_RE = /<(think|thinking)>[\s\S]*?<\/\1>/gi;
 const XML_DATA_SELF_CLOSING_RE = /<(insertRow|updateRow)\b((?:"[^"]*"|'[^']*'|[^'">])*)\/\s*>/gi;
 const XML_DATA_EMPTY_PAIR_RE = /<(insertRow|updateRow)\b((?:"[^"]*"|'[^']*'|[^'">])*)>\s*<\/\1\s*>/gi;
+const STRUCTURED_TABLE_BLOCK_RE = /<tableIndex>\s*((?:0|[1-9]\d*))\s*<\/tableIndex>\s*((?:<operation>[\s\S]*?<\/operation>\s*)+)/gi;
 
 function requestText(value) {
     if (Array.isArray(value)) return value.map(item => requestText(item)).join('\n');
@@ -50,6 +51,13 @@ function decodeXmlAttribute(value) {
     });
 }
 
+function strictDecimal(value) {
+    const text = String(value ?? '').trim();
+    if (!/^(?:0|[1-9]\d*)$/.test(text)) return null;
+    const parsed = Number(text);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 function parseXmlAttributes(source) {
     const attrs = {};
     let cursor = 0;
@@ -84,8 +92,9 @@ function canonicalizeXmlDataAttribute(name, attrsSource) {
     const allowed = isInsert ? ['tableIndex', 'data'] : ['tableIndex', 'rowIndex', 'data'];
     const keys = Object.keys(attrs);
     if (keys.length !== allowed.length || keys.some(key => !allowed.includes(key)) || allowed.some(key => !Object.prototype.hasOwnProperty.call(attrs, key))) return null;
-    if (!/^(?:0|[1-9]\d*)$/.test(attrs.tableIndex)) return null;
-    if (!isInsert && !/^(?:0|[1-9]\d*)$/.test(attrs.rowIndex)) return null;
+    const tableIndex = strictDecimal(attrs.tableIndex);
+    const rowIndex = isInsert ? null : strictDecimal(attrs.rowIndex);
+    if (tableIndex === null || (!isInsert && rowIndex === null)) return null;
 
     let data;
     try { data = JSON5.parse(attrs.data); }
@@ -101,8 +110,8 @@ function canonicalizeXmlDataAttribute(name, attrsSource) {
 
     const safeData = JSON.stringify(data);
     return isInsert
-        ? `insertRow(${Number(attrs.tableIndex)},${safeData})`
-        : `updateRow(${Number(attrs.tableIndex)},${Number(attrs.rowIndex)},${safeData})`;
+        ? `insertRow(${tableIndex},${safeData})`
+        : `updateRow(${tableIndex},${rowIndex},${safeData})`;
 }
 
 function normalizeXmlDataAttributes(value) {
@@ -118,6 +127,102 @@ function normalizeXmlDataAttributes(value) {
     return { text, changed };
 }
 
+function parseStructuredData(dataSource) {
+    const match = /^\s*<data>\s*([\s\S]*?)\s*<\/data>\s*$/i.exec(String(dataSource ?? ''));
+    if (!match) return null;
+    const body = match[1];
+    const childRe = /<col((?:0|[1-9]\d*))>([\s\S]*?)<\/col\1>/gi;
+    const data = {};
+    let cursor = 0;
+    let child;
+    while ((child = childRe.exec(body)) !== null) {
+        if (body.slice(cursor, child.index).trim()) return null;
+        const column = strictDecimal(child[1]);
+        if (column === null || Object.prototype.hasOwnProperty.call(data, String(column))) return null;
+        const rawValue = child[2];
+        // 该兼容方言只接受纯文本列值；出现嵌套XML时保持原样，让严格执行器拒绝。
+        if (/[<>]/.test(rawValue)) return null;
+        try { data[String(column)] = decodeXmlAttribute(rawValue); }
+        catch (_) { return null; }
+        cursor = childRe.lastIndex;
+    }
+    if (body.slice(cursor).trim() || Object.keys(data).length === 0) return null;
+    return data;
+}
+
+function canonicalizeStructuredOperation(tableIndex, body) {
+    const source = String(body ?? '').trim();
+    const actionMatch = /^<action>\s*(insertRow|updateRow|deleteRow|insert|update|delete)\s*<\/action>/i.exec(source);
+    if (!actionMatch) return null;
+    const actionToken = actionMatch[1].toLowerCase();
+    const action = actionToken.startsWith('insert') ? 'insert'
+        : actionToken.startsWith('update') ? 'update'
+            : 'delete';
+    let rest = source.slice(actionMatch[0].length).trim();
+
+    if (action === 'insert') {
+        const data = parseStructuredData(rest);
+        if (!data) return null;
+        return `insertRow(${tableIndex},${JSON.stringify(data)})`;
+    }
+
+    const rowMatch = /^<rowIndex>\s*((?:0|[1-9]\d*))\s*<\/rowIndex>/i.exec(rest);
+    if (!rowMatch) return null;
+    const rowIndex = strictDecimal(rowMatch[1]);
+    if (rowIndex === null) return null;
+    rest = rest.slice(rowMatch[0].length).trim();
+
+    if (action === 'delete') {
+        if (rest) return null;
+        return `deleteRow(${tableIndex},${rowIndex})`;
+    }
+
+    const data = parseStructuredData(rest);
+    if (!data) return null;
+    return `updateRow(${tableIndex},${rowIndex},${JSON.stringify(data)})`;
+}
+
+function canonicalizeStructuredTableBlock(tableIndexText, operationsSource) {
+    const tableIndex = strictDecimal(tableIndexText);
+    if (tableIndex === null) return null;
+    const source = String(operationsSource ?? '');
+    const operationRe = /<operation>\s*([\s\S]*?)\s*<\/operation>/gi;
+    const calls = [];
+    let cursor = 0;
+    let match;
+    while ((match = operationRe.exec(source)) !== null) {
+        if (source.slice(cursor, match.index).trim()) return null;
+        const call = canonicalizeStructuredOperation(tableIndex, match[1]);
+        if (!call) return null;
+        calls.push(call);
+        cursor = operationRe.lastIndex;
+    }
+    if (source.slice(cursor).trim() || calls.length === 0) return null;
+    return calls.join('\n');
+}
+
+function normalizeStructuredOperationXml(value) {
+    let changed = false;
+    const text = String(value ?? '').replace(STRUCTURED_TABLE_BLOCK_RE, (match, tableIndex, operationsSource) => {
+        const normalized = canonicalizeStructuredTableBlock(tableIndex, operationsSource);
+        if (!normalized) return match;
+        changed = true;
+        return normalized;
+    });
+    return { text, changed };
+}
+
+function normalizeKnownXmlVariants(value) {
+    const dataAttribute = normalizeXmlDataAttributes(value);
+    const structured = normalizeStructuredOperationXml(dataAttribute.text);
+    return {
+        text: structured.text,
+        changed: dataAttribute.changed || structured.changed,
+        dataAttributeChanged: dataAttribute.changed,
+        structuredChanged: structured.changed,
+    };
+}
+
 function normalizeRecordOnlyResponse(raw, channel = 'unknown') {
     if (typeof raw !== 'string') return raw;
     const original = raw.trim();
@@ -127,8 +232,9 @@ function normalizeRecordOnlyResponse(raw, channel = 'unknown') {
     const completeBlocks = [...withoutThinking.matchAll(TABLE_EDIT_RE)];
     if (completeBlocks.length === 1) {
         const block = completeBlocks[0][0].trim();
-        const normalized = normalizeXmlDataAttributes(block);
-        if (normalized.changed) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化XML data属性并交给严格执行器复核`);
+        const normalized = normalizeKnownXmlVariants(block);
+        if (normalized.structuredChanged) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化结构化XML operation并交给严格执行器复核`);
+        else if (normalized.dataAttributeChanged) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化XML data属性并交给严格执行器复核`);
         else if (block !== original) console.log(`[Memo-N][record-only-transport] ${channel} 已提取唯一tableEdit记录块`);
         return normalized.text;
     }
@@ -143,14 +249,15 @@ function normalizeRecordOnlyResponse(raw, channel = 'unknown') {
     if (comment) payload = comment[1].trim();
     if (!payload) return raw;
 
-    const normalized = normalizeXmlDataAttributes(payload);
+    const normalized = normalizeKnownXmlVariants(payload);
     payload = normalized.text;
-    if (normalized.changed) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化XML data属性并交给严格执行器复核`);
+    if (normalized.structuredChanged) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化结构化XML operation并交给严格执行器复核`);
+    else if (normalized.dataAttributeChanged) console.log(`[Memo-N][record-only-transport] ${channel} 已规范化XML data属性并交给严格执行器复核`);
 
-    // This adapter only restores the transport envelope and one known, structurally
-    // safe XML transport variant. It never executes the body itself. Parsed data is
-    // re-serialized before the existing strict tableEdit parser/executor validates
-    // real table/row/column bounds, value types, conflicts and transactional safety.
+    // This adapter only restores the transport envelope and known, structurally
+    // safe XML transport variants. It never executes the body itself. Converted
+    // data is re-serialized before the existing strict tableEdit parser/executor
+    // validates real table/row/column bounds, value types, conflicts and safety.
     console.log(`[Memo-N][record-only-transport] ${channel} 返回缺少tableEdit外壳，已交给严格执行器校验`);
     return `<tableEdit><!--\n${payload}\n--></tableEdit>`;
 }
@@ -227,4 +334,9 @@ function install() {
 
 install();
 
-export { isMemoRecordOnlyRequest, normalizeRecordOnlyResponse, normalizeXmlDataAttributes };
+export {
+    isMemoRecordOnlyRequest,
+    normalizeRecordOnlyResponse,
+    normalizeStructuredOperationXml,
+    normalizeXmlDataAttributes,
+};
