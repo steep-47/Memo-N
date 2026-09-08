@@ -3,11 +3,11 @@ import { saveReply } from '/script.js';
 import { oai_settings } from '/scripts/openai.js';
 import { ToolManager } from '/scripts/tool-calling.js';
 import { parseRecordEnvelope } from '../engine/recordEnvelope.js';
-import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-strict-tool39';
+import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-strict-tool41';
 
 const TOOL_NAME = 'memo_n_finish';
 const OLD_MARKER = '[Memo-N native tableEdit one-call v1]';
-const TOOL_MARKER = '[Memo-N DeepSeek strict-tool one-call v1]';
+const TOOL_MARKER = '[Memo-N DeepSeek strict-tool one-call v2]';
 const DETAIL_ANCHOR = '[当前真实列号映射｜column严格从0开始]';
 const USER_MARKER = '[Memo-N本轮输出顺序：';
 
@@ -148,14 +148,14 @@ function detailRules(oldContract) {
 
 function toolContract(oldContract) {
     const details = detailRules(oldContract);
-    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\n完成思考后必须且只调用一次 ${TOOL_NAME}，不要在工具调用之外另输出正文或机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项、伊依留言等全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目固定包含op、table、row、cells。insert时row=null；update/delete时row使用当前表真实存在的整数rowIndex；delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏或第二套机器格式。\n\n${details}`.trim();
+    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\nDeepSeek V4思考模式下不发送tool_choice，因此由模型按本规则选择唯一的 ${TOOL_NAME} 作为本轮最终交付通道。完成思考后必须且只调用一次 ${TOOL_NAME}；不要在工具调用之外另输出最终正文或第二套机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项、伊依留言等全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目固定包含op、table、row、cells。insert时row=null；update/delete时row使用当前表真实存在的整数rowIndex；delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏、JSON正文或其他机器格式。\n\n${details}`.trim();
 }
 
 function rewriteUserReminder(content) {
     const text = String(content ?? '');
     const at = text.lastIndexOf(USER_MARKER);
     const clean = at >= 0 ? text.slice(0, at).trimEnd() : text;
-    return `${clean}\n\n[Memo-N本轮严格工具交付：先完整定稿正常回复，再且只调用一次${TOOL_NAME}。reply必须包含本来应有的状态栏、正文、行动选项和其他可见结构；changes按当前实时七表完整记录必要变化，无变化为[]。]`;
+    return `${clean}\n\n[Memo-N本轮唯一交付：思考完成后调用一次${TOOL_NAME}。reply必须包含本来应有的状态栏、正文、行动选项和其他可见结构；changes按当前实时七表完整记录必要变化，无变化为[]。不要直接输出最终正文，也不要输出tableEdit/JSON等第二套机器格式。]`;
 }
 
 function stripOldHistoryExample(content) {
@@ -170,7 +170,7 @@ function strictToolDefinition() {
         type: 'function',
         function: {
             name: TOOL_NAME,
-            description: '提交本轮完整玩家可见回复与Memo-N七表变更。每轮必须且只调用一次。',
+            description: '这是本轮唯一有效的最终交付通道。思考完成后调用一次，提交完整玩家可见回复与Memo-N七表变更。',
             strict: true,
             parameters: structuredClone(TOOL_PARAMETERS),
         },
@@ -204,8 +204,10 @@ function enforceStrictTool(data) {
         }
     }
 
+    // SillyTavern在function calling开启时会默认补tool_choice='auto'。
+    // DeepSeek V4 thinking mode官方明确要求不要发送tool_choice，因此最后阶段覆盖tools后彻底删除该字段。
     data.tools = [strictToolDefinition()];
-    data.tool_choice = { type: 'function', function: { name: TOOL_NAME } };
+    delete data.tool_choice;
 
     globalThis.__memoNStrictToolState = {
         at: Date.now(),
@@ -213,8 +215,9 @@ function enforceStrictTool(data) {
         contractCount,
         endpoint: data.custom_url,
         tool: TOOL_NAME,
+        toolChoiceOmitted: !Object.prototype.hasOwnProperty.call(data, 'tool_choice'),
     };
-    console.log(`[Memo-N] 官方CUSTOM DeepSeek已启用严格单API工具交付｜contract=${contractCount}`);
+    console.log(`[Memo-N] 官方CUSTOM DeepSeek已启用strict单API工具交付｜无tool_choice｜contract=${contractCount}`);
 }
 
 function syncSwipe(piece) {
@@ -265,7 +268,7 @@ async function handleMemoFinish(parameters) {
         };
         return '';
     } finally {
-        // ToolManager在stealth工具返回后会直接停止本轮，不会递归Generate；此时即可恢复用户原设置。
+        // stealth工具返回后SillyTavern直接停止本轮，不递归Generate，因此仍保持一次API。
         restoreFunctionCalling();
     }
 }
@@ -274,7 +277,7 @@ ToolManager.unregisterFunctionTool(TOOL_NAME);
 ToolManager.registerFunctionTool({
     name: TOOL_NAME,
     displayName: 'Memo-N',
-    description: '提交Memo-N本轮完整回复与七表变化。',
+    description: '这是Memo-N本轮唯一最终交付通道：提交完整回复与七表变化。',
     parameters: TOOL_PARAMETERS,
     action: handleMemoFinish,
     formatMessage: async () => '',
@@ -289,4 +292,4 @@ APP.eventSource.on(APP.event_types.GENERATION_ENDED, restoreFunctionCalling);
 APP.eventSource.on(APP.event_types.GENERATION_STOPPED, restoreFunctionCalling);
 APP.eventSource.on(APP.event_types.CHAT_CHANGED, restoreFunctionCalling);
 
-console.log('[Memo-N] CUSTOM DeepSeek strict-tool单API桥已加载：stealth工具执行后不触发第二次生成');
+console.log('[Memo-N] CUSTOM DeepSeek strict-tool单API桥已加载：thinking模式不发送tool_choice，stealth不触发第二次生成');
