@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.34-cell-editor-size';
-const DISPLAY_VERSION = '0.34';
+const RUNTIME_VERSION = '0.35-cell-editor-popup-rows';
+const DISPLAY_VERSION = '0.35';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -59,6 +59,7 @@ const runtimes = [
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
     ['角色状态表点击桥', './scripts/ui/roleStatusClickBridge.js'],
+    // 真实的数据页“编辑单元格”走 callGenericPopup(INPUT)，只把这一类弹窗从3行扩大到10行。
     ['单元格编辑输入框尺寸', './scripts/ui/cellEditorSize.js'],
     ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
 ];
@@ -70,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.34 cell editor size runtime loaded');
+console.log('[Memo-N][loader] v0.35 actual cell editor popup rows runtime loaded');
