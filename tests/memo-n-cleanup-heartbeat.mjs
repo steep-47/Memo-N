@@ -18,11 +18,15 @@ for (const token of [
 }
 
 for (const token of [
-    'globalThis.eventOn',
-    "helper._eventOn = (eventType, listener) => globalThis.eventOn(eventType, listener)",
-    'helper?._bind?._eventOn',
+    "import { APP } from '../../core/manager.js'",
+    'APP?.eventSource',
+    'source.on(eventType, listener)',
+    'source.removeListener(eventType, listener)',
 ]) {
-    if (!bridge.includes(token)) throw new Error(`heartbeat event bridge missing: ${token}`);
+    if (!bridge.includes(token)) throw new Error(`main-page heartbeat bridge missing: ${token}`);
+}
+if (bridge.includes('globalThis.eventOn') || bridge.includes('helper?._bind?._eventOn')) {
+    throw new Error('主页面心跳桥不得再调用 iframe eventOn 接口');
 }
 
 const guardedStall = /if \(hasStreamProgress\) \{[\s\S]*?idleMs >= CLEANUP_STALL_MS[\s\S]*?abort\('stalled'\)/.test(source);
@@ -36,9 +40,9 @@ if (!source.includes('原表未修改')) throw new Error('中止/断流路径必
 const bridgePos = loader.indexOf("'./scripts/runtime/tavernHelperHeartbeatCompat.js'");
 const cleanupPos = loader.indexOf("'./scripts/runtime/stableTableCleanup.js'");
 if (bridgePos < 0 || cleanupPos < 0 || bridgePos > cleanupPos) {
-    throw new Error('流式事件桥必须先于表格整理器加载');
+    throw new Error('主页面流式事件桥必须先于表格整理器加载');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.28'")) throw new Error('loader版本未升级到0.28');
-if (!loader.includes('0.28-cleanup-heartbeat-event-bridge')) throw new Error('loader缓存标识未更新');
+if (!loader.includes("const DISPLAY_VERSION = '0.29'")) throw new Error('loader版本未升级到0.29');
+if (!loader.includes('0.29-cleanup-heartbeat-main-event-source')) throw new Error('loader缓存标识未更新');
 
-console.log('memo-n cleanup heartbeat PASS: real eventOn bridge, generation scoped streaming progress, guarded stall stop, immediate cancellation path, 0.28 cache marker');
+console.log('memo-n cleanup heartbeat PASS: main-page eventSource bridge, generation scoped streaming progress, guarded stall stop, immediate cancellation path, 0.29 cache marker');
