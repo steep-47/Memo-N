@@ -1,14 +1,15 @@
 const RUNTIME_VERSION = '0.21-table-view-stability';
 const DISPLAY_VERSION = '0.21';
 
-// 热更新时旧的 Memo-N 抽屉与事件可能仍在当前页面。
-// 已存在完整 Memo-N 入口时复用旧主入口，只加载本版本运行时，避免 index.js 再次插入同 ID 抽屉和重复事件。
+// index.js 必须保持唯一的标准模块URL。
+// core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
+// 导致主入口、顶部抽屉与事件监听各初始化两次。缓存版本号只用于非循环的运行时模块。
 const existingMemoIndex = !!globalThis.memoN
     && !!document.querySelector('[id="table_database_settings_drawer"]');
 if (existingMemoIndex) {
     console.log('[Memo-N][loader] 检测到当前页面已有 Memo-N 主入口，跳过 index.js 重复启动');
 } else {
-    await import(`./index.js?v=${RUNTIME_VERSION}`);
+    await import('./index.js');
 }
 
 async function loadRuntime(label, path) {
