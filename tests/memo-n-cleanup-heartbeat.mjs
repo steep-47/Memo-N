@@ -13,8 +13,12 @@ for (const token of [
     'CLEANUP_STALL_MS = 180_000',
     '等待首个流式进展',
     '最近有进展',
+    'const markProgress = (_text, id)',
 ]) {
     if (!source.includes(token)) throw new Error(`cleanup heartbeat missing: ${token}`);
+}
+if (source.includes('lastFullLength') || source.includes('if (!value) return')) {
+    throw new Error('心跳不得依赖可见正文增长；推理阶段的空正文流式事件也应算进展');
 }
 
 for (const token of [
@@ -42,7 +46,7 @@ const cleanupPos = loader.indexOf("'./scripts/runtime/stableTableCleanup.js'");
 if (bridgePos < 0 || cleanupPos < 0 || bridgePos > cleanupPos) {
     throw new Error('主页面流式事件桥必须先于表格整理器加载');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.29'")) throw new Error('loader版本未升级到0.29');
-if (!loader.includes('0.29-cleanup-heartbeat-main-event-source')) throw new Error('loader缓存标识未更新');
+if (!loader.includes("const DISPLAY_VERSION = '0.30'")) throw new Error('loader版本未升级到0.30');
+if (!loader.includes('0.30-cleanup-heartbeat-main-stream-events')) throw new Error('loader缓存标识未更新');
 
-console.log('memo-n cleanup heartbeat PASS: main-page eventSource bridge, generation scoped streaming progress, guarded stall stop, immediate cancellation path, 0.29 cache marker');
+console.log('memo-n cleanup heartbeat PASS: main-page eventSource, reasoning-stage stream activity, guarded stall stop, immediate cancellation path, 0.30 cache marker');
