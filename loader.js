@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.39-custom-deepseek-strict-tool';
-const DISPLAY_VERSION = '0.39';
+const RUNTIME_VERSION = '0.40-rollback-strict-tool';
+const DISPLAY_VERSION = '0.40';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -43,9 +43,7 @@ const runtimes = [
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
-    // 官方DeepSeek通过CUSTOM直连时使用strict function tool：reply与changes同一次API交付；
-    // 工具为stealth，酒馆执行后直接停止，不触发递归Generate或第二次API。
-    ['CUSTOM DeepSeek严格工具单API', './scripts/runtime/customDeepSeekStrictToolBridge.js'],
+    // strict function tool 与当前 DeepSeek thinking mode 的 tool_choice 不兼容，保持禁用。
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
@@ -74,4 +72,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.39 official custom DeepSeek strict-tool one-call runtime loaded');
+console.log('[Memo-N][loader] v0.40 loaded: DeepSeek strict-tool bridge disabled for thinking mode compatibility');
