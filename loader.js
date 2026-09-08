@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.17-manual-visible-channel-isolation';
-const DISPLAY_VERSION = '0.17';
+const RUNTIME_VERSION = '0.18-ability-field-semantics';
+const DISPLAY_VERSION = '0.18';
 
 // index.js 也使用版本化URL加载，避免插件更新后主入口仍命中旧浏览器缓存。
 await import(`./index.js?v=${RUNTIME_VERSION}`);
@@ -53,4 +53,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.17 manual visible-channel isolation runtime loaded');
+console.log('[Memo-N][loader] v0.18 ability field semantics runtime loaded');
