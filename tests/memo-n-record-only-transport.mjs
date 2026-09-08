@@ -38,7 +38,7 @@ if (!structuredInsert.includes('insertRow(1,{"0":"陈尘","1":"男","14":"左眉
     throw new Error('tableIndex/operation/colN insert XML没有规范化');
 }
 
-const structuredUpdateRaw = `<tableEdit><!--\n<tableIndex>1</tableIndex>\n<operation><action>update</action><rowIndex>0</rowIndex><data><col12>记账、炼丹</col12><col15>青云宗外门弟子</col15></data></operation>\n</tableEdit>`;
+const structuredUpdateRaw = `<tableEdit><!--\n<tableIndex>1</tableIndex>\n<operation><action>update</action><rowIndex>0</rowIndex><data><col12>记账、炼丹</col12><col15>青云宗外门弟子</col15></data></operation>\n--></tableEdit>`;
 const structuredUpdate = normalizeRecordOnlyResponse(structuredUpdateRaw, 'test');
 if (!structuredUpdate.includes('updateRow(1,0,{"12":"记账、炼丹","15":"青云宗外门弟子"})')) {
     throw new Error('tableIndex/operation/colN update XML没有规范化');
