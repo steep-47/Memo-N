@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.27-cleanup-stream-heartbeat';
-const DISPLAY_VERSION = '0.27';
+const RUNTIME_VERSION = '0.28-cleanup-heartbeat-event-bridge';
+const DISPLAY_VERSION = '0.28';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -51,6 +51,9 @@ const runtimes = [
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
+    // 酒馆助手把事件监听公开为全局 eventOn，而不是 TavernHelper._eventOn。
+    // 先桥接真实事件接口，再安装整理器，避免心跳能力检查错误回退到旧死等弹窗。
+    ['整理流式心跳事件桥', './scripts/runtime/tavernHelperHeartbeatCompat.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
@@ -66,4 +69,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.27 cleanup stream heartbeat runtime loaded');
+console.log('[Memo-N][loader] v0.28 cleanup heartbeat event bridge runtime loaded');
