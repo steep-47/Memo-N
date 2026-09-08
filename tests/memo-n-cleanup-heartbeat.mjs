@@ -1,52 +1,44 @@
 import fs from 'node:fs/promises';
 
 const source = await fs.readFile(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
-const bridge = await fs.readFile(new URL('../scripts/runtime/tavernHelperHeartbeatCompat.js', import.meta.url), 'utf8');
+const evidence = await fs.readFile(new URL('../scripts/runtime/cleanupEvidenceWindow.js', import.meta.url), 'utf8');
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
 
 for (const token of [
-    'generation_id: generationId',
-    'should_stream: true',
+    'handleMainAPIRequest',
+    'await handleMainAPIRequest(SYSTEM_PROMPT,userPrompt)',
+    'handleCustomAPIRequest',
+    'executeMemoTableEdit',
+    'parseMemoTableEdit',
+]) {
+    if (!source.includes(token)) throw new Error(`stable cleanup path missing: ${token}`);
+}
+
+for (const forbidden of [
+    'requestMainApiWithHeartbeat',
+    'generation_id',
+    'should_stream',
+    'stopGenerationById',
     'js_stream_token_received_incrementally',
     'js_stream_token_received_fully',
-    'stopGenerationById',
-    'CLEANUP_STALL_MS = 180_000',
-    '等待首个流式进展',
-    '最近有进展',
-    'const markProgress = (_text, id)',
+    'CLEANUP_STALL_MS',
+    'TavernHelper.generateRaw',
 ]) {
-    if (!source.includes(token)) throw new Error(`cleanup heartbeat missing: ${token}`);
-}
-if (source.includes('lastFullLength') || source.includes('if (!value) return')) {
-    throw new Error('心跳不得依赖可见正文增长；推理阶段的空正文流式事件也应算进展');
+    if (source.includes(forbidden)) throw new Error(`stable cleanup must not use heartbeat/direct TavernHelper path: ${forbidden}`);
 }
 
-for (const token of [
-    "import { APP } from '../../core/manager.js'",
-    'APP?.eventSource',
-    'source.on(eventType, listener)',
-    'source.removeListener(eventType, listener)',
-]) {
-    if (!bridge.includes(token)) throw new Error(`main-page heartbeat bridge missing: ${token}`);
-}
-if (bridge.includes('globalThis.eventOn') || bridge.includes('helper?._bind?._eventOn')) {
-    throw new Error('主页面心跳桥不得再调用 iframe eventOn 接口');
+if (!evidence.includes('buildOneRoundEvidence')) throw new Error('cleanup one-round evidence window missing');
+if (!evidence.includes('最近仅保留1轮聊天作校对证据')) throw new Error('cleanup evidence scope marker missing');
+if (evidence.includes('patchTavernHelper') || evidence.includes('helper.generateRaw') || evidence.includes('globalThis.TavernHelper')) {
+    throw new Error('cleanup evidence window must not modify TavernHelper');
 }
 
-const guardedStall = /if \(hasStreamProgress\) \{[\s\S]*?idleMs >= CLEANUP_STALL_MS[\s\S]*?abort\('stalled'\)/.test(source);
-if (!guardedStall) throw new Error('断流停止必须只在已经收到流式进展后触发');
-
-if (!source.includes("return settled.reason === 'stalled' ? CLEANUP_STALLED : 'suspended'")) {
-    throw new Error('手动中止与断流停止必须返回不同结果');
+if (loader.includes("'./scripts/runtime/tavernHelperHeartbeatCompat.js'")) {
+    throw new Error('heartbeat bridge must stay unloaded after restoring stable cleanup API path');
 }
-if (!source.includes('原表未修改')) throw new Error('中止/断流路径必须明确保持原表不变');
+if (!loader.includes("'./scripts/runtime/stableTableCleanup.js'")) throw new Error('stable cleanup runtime missing from loader');
+if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) throw new Error('cleanup evidence runtime missing from loader');
+if (!loader.includes("const DISPLAY_VERSION = '0.32'")) throw new Error('loader version must be 0.32');
+if (!loader.includes('0.32-cleanup-stable-main-api')) throw new Error('loader cache marker must use restored stable API path');
 
-const bridgePos = loader.indexOf("'./scripts/runtime/tavernHelperHeartbeatCompat.js'");
-const cleanupPos = loader.indexOf("'./scripts/runtime/stableTableCleanup.js'");
-if (bridgePos < 0 || cleanupPos < 0 || bridgePos > cleanupPos) {
-    throw new Error('主页面流式事件桥必须先于表格整理器加载');
-}
-if (!loader.includes("const DISPLAY_VERSION = '0.30'")) throw new Error('loader版本未升级到0.30');
-if (!loader.includes('0.30-cleanup-heartbeat-main-stream-events')) throw new Error('loader缓存标识未更新');
-
-console.log('memo-n cleanup heartbeat PASS: main-page eventSource, reasoning-stage stream activity, guarded stall stop, immediate cancellation path, 0.30 cache marker');
+console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.32 cache marker');
