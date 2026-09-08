@@ -224,11 +224,11 @@ function syncSwipe(piece) {
     }
 }
 
-async function putEnvelopeIntoCurrentReply(envelope) {
+async function putEnvelopeIntoCurrentReply(rawEnvelope) {
     const job = bridgeJob;
     if (!job || !job.session || USER.getContext?.()?.chat !== job.session) throw new Error('聊天上下文已变化');
 
-    const raw = JSON.stringify({ reply: envelope.reply, changes: envelope.changes });
+    const raw = JSON.stringify(rawEnvelope);
     const chat = job.session;
     let piece = chat.at(-1);
 
@@ -247,14 +247,21 @@ async function putEnvelopeIntoCurrentReply(envelope) {
 
 async function handleMemoFinish(parameters) {
     try {
-        const envelope = parseRecordEnvelope(parameters);
-        if (!envelope.ok) throw new Error(envelope.error || '严格工具参数无效');
-        await putEnvelopeIntoCurrentReply(envelope);
+        const validated = parseRecordEnvelope(parameters);
+        if (!validated.ok) throw new Error(validated.error || '严格工具参数无效');
+
+        // parseRecordEnvelope只负责验证。它会把cells转为执行器内部data，
+        // 因而交回recordEngine时必须保留工具参数原始的reply+changes[cells]结构，避免二次解析失真。
+        const rawEnvelope = {
+            reply: validated.reply,
+            changes: structuredClone(parameters.changes),
+        };
+        await putEnvelopeIntoCurrentReply(rawEnvelope);
         globalThis.__memoNStrictToolState = {
             ...(globalThis.__memoNStrictToolState || {}),
             completed: true,
             completedAt: Date.now(),
-            changes: envelope.changes.length,
+            changes: rawEnvelope.changes.length,
         };
         return '';
     } finally {
