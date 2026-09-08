@@ -1,8 +1,15 @@
-const RUNTIME_VERSION = '0.20-player-profile-complete';
-const DISPLAY_VERSION = '0.20';
+const RUNTIME_VERSION = '0.21-table-view-stability';
+const DISPLAY_VERSION = '0.21';
 
-// index.js 也使用版本化URL加载，避免插件更新后主入口仍命中旧浏览器缓存。
-await import(`./index.js?v=${RUNTIME_VERSION}`);
+// 热更新时旧的 Memo-N 抽屉与事件可能仍在当前页面。
+// 已存在完整 Memo-N 入口时复用旧主入口，只加载本版本运行时，避免 index.js 再次插入同 ID 抽屉和重复事件。
+const existingMemoIndex = !!globalThis.memoN
+    && !!document.querySelector('[id="table_database_settings_drawer"]');
+if (existingMemoIndex) {
+    console.log('[Memo-N][loader] 检测到当前页面已有 Memo-N 主入口，跳过 index.js 重复启动');
+} else {
+    await import(`./index.js?v=${RUNTIME_VERSION}`);
+}
 
 async function loadRuntime(label, path) {
     try {
@@ -18,6 +25,7 @@ async function loadRuntime(label, path) {
 }
 
 const runtimes = [
+    ['表格视图单例与渲染稳定', './scripts/runtime/tableViewStabilityGuard.js'],
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
     ['玩家身份与称号字段结构', './scripts/runtime/playerProfileSchema.js'],
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
@@ -54,4 +62,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.20 player profile complete runtime loaded');
+console.log('[Memo-N][loader] v0.21 table view stability runtime loaded');
