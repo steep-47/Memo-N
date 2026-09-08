@@ -33,8 +33,10 @@ const runtimes = [
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
-    ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
+    // 两层都是generateRaw包装器：先安装返回兼容层，再安装请求格式锁。
+    // 实际调用顺序因此是：格式锁注入 -> API -> 兼容规范化 -> 严格执行器。
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
+    ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
