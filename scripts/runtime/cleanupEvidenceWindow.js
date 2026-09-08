@@ -140,12 +140,14 @@ function patchCustomApi() {
             if (typeof args[0] === 'string') {
                 args[0] = rewriteCleanupUserPrompt(args[0]);
             } else if (Array.isArray(args[0])) {
-                args[0] = args[0].map(item => {
-                    if (item?.role === 'user' && typeof item?.content === 'string') {
-                        return { ...item, content: rewriteCleanupUserPrompt(item.content) };
+                const messages = args[0].map(item => ({ ...item }));
+                for (let i = messages.length - 1; i >= 0; i--) {
+                    if (messages[i]?.role === 'user' && typeof messages[i]?.content === 'string') {
+                        messages[i].content = rewriteCleanupUserPrompt(messages[i].content);
+                        break;
                     }
-                    return item;
-                });
+                }
+                args[0] = messages;
             }
         }
         return original.apply(this, args);
