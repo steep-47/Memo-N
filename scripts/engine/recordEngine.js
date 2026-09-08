@@ -1,15 +1,13 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon82';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js';
-import { isNativeDeepSeek } from '../runtime/providerRoute.js?v=memon73';
 
 const MARKER = '[Memo-N native tableEdit one-call v1]';
-const DEEPSEEK_REPLY_PREFIX = '<tableEdit><!--\n';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
 let armed = null;
@@ -71,18 +69,6 @@ function liveColumnMap() {
     }).join('\n');
 }
 
-function liveRowMap() {
-    const sheets = BASE.getChatSheets?.() ?? [];
-    return WORLD_TABLE_NAMES.map((name, tableIndex) => {
-        const sheet = sheets.find(item => item?.name === name);
-        if (!sheet) return `#${tableIndex} ${name}：当前表不存在，本轮不得写入`;
-        const rowCount = Math.max(0, (Number(sheet.getRowCount?.()) || 1) - 1);
-        return rowCount === 0
-            ? `#${tableIndex} ${name}：当前数据行数=0（空表，只能insertRow）`
-            : `#${tableIndex} ${name}：当前数据行数=${rowCount}，合法rowIndex=0-${rowCount - 1}；具体对象必须再核对当前表格第一列`;
-    }).join('\n');
-}
-
 function recordContract() {
     return `${MARKER}
 本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
@@ -97,29 +83,19 @@ deleteRow(tableIndex,rowIndex)
 记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。即使七表都没有变化，也先输出无变化记录块，再输出正常正文：
 <tableEdit><!-- NO_CHANGE --></tableEdit>
 
-tableEdit虽然按协议位于实际输出第一段，但必须先在内部确定完整玩家可见回复与玩家下次输入前的最终落点，再以该完整定稿中明确成立的事实为准，结合当前已有七表逐表核对，完整维护所有应变化或应补齐的字段。
+tableEdit是同一轮回复的记忆维护结果，必须以本轮规划并即将输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
 
-[当前真实行号边界｜本轮唯一依据，优先于全部历史聊天与旧tableEdit]
-${liveRowMap()}
-旧聊天、导入记录和历史tableEdit只能帮助确认剧情事实，不能证明某行现在存在，也不能用来推算rowIndex。当前表显示为空时，即使历史中曾出现insertRow，也只能按当前缺失事实重新insert，不得update或delete；当前表存在行时，rowIndex必须抄当前表第一列并核对该行对象。
-
 [逐表记忆审计｜完成reply后按0→1→2→3→4→5→6全部检查]
-#0 当前状态表：维护玩家下次输入前的最终日期、时间、地点、当前场景人物。正文含多段时间或地点推进时记录最后落点，不照抄开头状态栏；该表只保留当前有效状态，不保存流水账。
-#1 角色状态表：只记录玩家本人。检查姓名、性别、种族、年龄、修为、灵根/体质、灵力、神识、身体状态、灵石、钱财、技能/术法、擅长、其他状态、外貌特征、身份/所属、别名/称号等明确现值。灵石、钱财保存钱财戳中的货币余额；灵力、神识、身体状态及其他状态保存状态戳中的持续资源与当前状态；身份/所属保存已确认的当前稳定身份、组织或势力归属；别名/称号保存已确认的别名、化名、道号、称号等持续可识别称谓；外貌特征保存已确认的稳定外观与持久变化。除本轮新确认或变化外，表中字段为空而当前上下文已有明确现值时也补齐；正文钱财戳、状态戳以及已确认的身份、称谓、能力和外貌逐项核对。数字0是有效值，不当作空白。未知信息留空，不根据名字、性别、种族、年龄或常识猜测外貌、身份或称号。
-#2 背包表：检查玩家实际获得、消耗、丢失、交付、数量变化、品质/状态变化的普通物品，也补录表中缺失但当前明确仍持有的物品。装备、工具、文书、材料、丹药、符箓和生活物资只要需要保持数量或持有连续性，都属于库存；作为通用余额结算的钱、金银铜钱、灵石等货币不进背包表。已经失去且不再持有的项目按现有表语义更新或删除。
+#0 当前状态表：维护当前日期、时间、地点、当前场景人物。只要正文明确发生时间推进、地点改变、场景人物进入/离开，就检查对应字段；该表最多维护当前有效状态，不保存流水账。
+#1 角色状态表：只记录玩家本人。检查姓名、性别、种族、年龄、修为、灵根/体质、灵力、神识、身体状态、灵石、钱财、技能/术法、擅长、其他状态等本轮新确认或变化内容。未知信息留空，不根据名字、外貌或常识猜测。
+#2 背包表：检查玩家实际获得、消耗、丢失、交付、数量变化、品质/状态变化的物品。只保存当前实际持有库存；已经失去且不再持有的项目按现有表语义更新或删除。
 #3 当前任务与约定表：检查新接受的任务、命令、承诺、约定、期限、地点、相关人物，以及本轮状态变化。已经明确完成、取消、失效的事项不继续当作进行中事项保留。
 #4 人物主表：只记录值得持续识别的NPC稳定信息。首次明确出现的重要NPC应检查是否需要建立；已有NPC优先update，不重复insert。维护姓名、性别、种族/血脉、修炼体系/路径、别名/称呼、身份/所属、外貌特征、性格、与玩家关系、长期重要信息。正式姓名出现后应更新旧的描述性称呼记录，而不是另建同一人物。
 #5 人物发展表：对已经进入长期追踪的NPC检查本轮最新发展锚点，包括姓名、原生修为/境界、主要能力、当前地点、年龄、最后确认时间、当前重要状态、主要目标/重要事项。年龄与最后确认时间是不同字段；只更新本轮实际新确认或发生变化的字段，不模拟离线成长。
 #6 历史事件表：只记录会影响未来推演的重要既成节点，例如突破/失败、势力加入退出、婚姻或重要亲属变化、重伤残疾/寿元重大损耗、重大机缘、战争/宗门覆灭导致处境改变、死亡等。普通日常、普通修炼、微小财富变化不要写入历史表。
-
-[钱财戳、状态戳与背包边界]
-- 钱财戳只包含玩家实际持有并作为货币或账户余额直接结算的通货，如钱、金银铜钱、灵石；仅有售价、可兑换或看起来贵重的普通物品不是钱财。
-- 明确按通用货币余额使用的灵石写入表1“灵石”，即使同时可以修炼消耗，也不因可消耗而重复写入背包。被封存、镶嵌、任务指定或明确作为材料的特殊灵石物件按普通物品写入背包。
-- 状态戳包含玩家当前持续资源和生效状态。灵力、神识写入表1同名字段；体力、伤势等身体状态写入“身体状态”；其他已确认资源、增益、异常或限制写入“其他状态”。
-- 普通物品只写背包表，不写钱财字段或状态字段。交易、兑换或物品消耗发生时，表1只更新实际货币/状态变化，表2只更新实际获得或失去的物品，两表可在同一轮分别更新但不得重复记同一对象。
 
 [完整性判断]
 - 不要因为某项变化看起来“小”就漏掉：只要它属于七表当前状态字段且正文已明确确认，就应检查是否需要insert/update/delete。
@@ -128,15 +104,14 @@ ${liveRowMap()}
 - 表4和表5通过同一NPC姓名关联；确认同一人后不要重复建档。身份信息不足时宁可暂不合并，也不要猜测。
 - 修为只记录人物自身原生修炼体系的真实名称/阶段，不按战力换算成人族境界。
 - 未知、未确认、仅推测、模型自行补全的内容不记录；不要为了“详细”制造事实。
-- 当前表字段空缺不等于事实未知；近期定稿或本轮状态栏已经明确现值时，按漏记修复补齐，不要求本轮再次获得或变化。
 - 完成逐表检查后，再生成tableEdit；记录操作应覆盖本轮所有确定需要维护的字段，而不是只挑最显眼的几项。
 
 [操作规则]
 - insertRow仅用于当前表中没有该对象/事实且本轮首次明确确认。
-- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，并核对该行第一列对象确实是本次要更新的对象，只写本轮变化或新确认的字段。
-- deleteRow只用于当前表中真实存在且已明确失效/消失的记录；当前行号边界显示0行时不输出deleteRow，旧聊天中曾经存在不等于当前仍存在。
+- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
+- deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
-- 只有最终落点与表0一致、玩家全部明确现值与表1一致、当前持有库存及其他应记录事实也没有新增/变化/漏项时，才使用NO_CHANGE。
+- 没有任何事实变化时使用NO_CHANGE。
 - 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
 - 记录块必须是实际输出第一段，</tableEdit>之后立刻输出完整正常正文。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
 }
@@ -151,18 +126,9 @@ function clearCustomResponseFormat(data) {
     else delete data.custom_include_body;
 }
 
-function hasActiveTools(data) {
-    if (Array.isArray(data?.tools)) return data.tools.length > 0;
-    return !!data?.tools && typeof data.tools === 'object' && Object.keys(data.tools).length > 0;
-}
-
-function canUseDeepSeekReplyPrefix(data) {
-    return isNativeDeepSeek(data) && !hasActiveTools(data);
-}
-
 function reinforceLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N本轮输出顺序：先在内部确定完整正常正文与玩家下次输入前的最终落点；实际输出第一段为完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>，随后输出已确定的正文、状态栏、行动选项和其他数据块。表中空缺但当前上下文已明确的现值也要补齐。旧聊天与历史tableEdit不代表当前行存在，rowIndex只服从以下本轮实时边界：\n${liveRowMap()}]`;
+    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
@@ -198,7 +164,7 @@ function reinforcePreviousAssistant(messages, block) {
     for (let index = lastUserIndex - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'assistant' || typeof message.content !== 'string') continue;
-        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n[以上仅为上一轮记录格式范例，不代表本轮表格仍有相同行或rowIndex；本轮只服从当前实时表格边界。]\n\n${message.content}`;
+        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n\n${message.content}`;
         return true;
     }
     return false;
@@ -219,7 +185,6 @@ function inject(data) {
         baseMes: String(base?.mes ?? ''),
         baseSwipeId: Number(base?.swipe_id ?? -1),
         baseReasoning: base ? reasoningText(base) : '',
-        responsePrefix: '',
     };
     armed = null;
 
@@ -228,22 +193,12 @@ function inject(data) {
         reinforcePreviousAssistant(data.messages, previousRecordBlock(historyAssistant));
         reinforceLastUser(data.messages);
         data.messages.push({ role: 'system', content: recordContract() });
-        if (canUseDeepSeekReplyPrefix(data)) {
-            // SillyTavern's native DeepSeek backend marks a final assistant message
-            // as `prefix: true` and routes it through DeepSeek's beta prefix endpoint.
-            // The API may return only the continuation, so unpack() restores this
-            // known prefix locally before parsing and keeps it out of chat history.
-            pending.responsePrefix = DEEPSEEK_REPLY_PREFIX;
-            data.messages.push({ role: 'assistant', content: DEEPSEEK_REPLY_PREFIX });
-        }
     }
 
     delete data.response_format;
     delete data.json_schema;
     clearCustomResponseFormat(data);
-    console.log(pending.responsePrefix
-        ? '[Memo-N] 已启用DeepSeek单次API硬前缀：tableEdit记录块 + 正常正文'
-        : '[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
+    console.log('[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
 }
 
 function syncSwipe(chat) {
@@ -324,18 +279,9 @@ function legacyEnvelopeCandidate(raw) {
     return text.startsWith('{') && text.includes('"reply"') && text.includes('"changes"');
 }
 
-function restoreExpectedPrefix(raw, job) {
-    const text = String(raw ?? '');
-    const prefix = String(job?.responsePrefix ?? '');
-    if (!prefix || !text.trim() || /<tableEdit\b/i.test(text)) return text;
-    return `${prefix}${text.trimStart()}`;
-}
-
 function selectEnvelope(chat, job, appendMode) {
     const current = String(chat?.mes ?? '');
-    const rawContent = appendMode ? current.slice(job.baseMes.length) : current;
-    const rawReply = rawContent.trim();
-    const content = restoreExpectedPrefix(rawContent, job).trim();
+    const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
@@ -343,13 +289,13 @@ function selectEnvelope(chat, job, appendMode) {
     if (contentTableEdit.ok) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
     // 部分兼容接口把机器块放入当前Swipe的思考区，但正文仍在content。
-    const reasoningTableEdit = rawReply && reasoning ? parseRelayTableEditEnvelope(reasoning, rawReply) : null;
+    const reasoningTableEdit = content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
     if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning', fingerprint };
 
     // 兼容更新前已经开始生成的MEMO_N_CHANGES块。
     const contentRelay = parseRelayTaggedEnvelope(content);
     if (contentRelay.ok) return { current, envelope: contentRelay, source: 'legacy-tagged-content', fingerprint };
-    const reasoningRelay = rawReply && reasoning ? parseRelayTaggedEnvelope(reasoning, rawReply) : null;
+    const reasoningRelay = content && reasoning ? parseRelayTaggedEnvelope(reasoning, content) : null;
     if (reasoningRelay?.ok) return { current, envelope: reasoningRelay, source: 'legacy-tagged-reasoning', fingerprint };
 
     // Keep compatibility with a response that was already in flight under the old
@@ -372,7 +318,7 @@ function selectEnvelope(chat, job, appendMode) {
         return { current, envelope: reasoningRelay, source: 'relay-reasoning-incomplete', fingerprint };
     }
 
-    if (rawReply) {
+    if (content) {
         return { current, envelope: contentTableEdit, source: 'plain-content', fingerprint };
     }
 
