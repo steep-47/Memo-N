@@ -1,32 +1,25 @@
-const STYLE_ID = 'memo-n-cell-editor-size-style';
+import { EDITOR } from '../../core/manager.js';
+
+const PATCH_MARK = '__memoNCellEditorPopupSizeV2';
 
 function install() {
-    if (document.getElementById(STYLE_ID)) return;
+    const original = EDITOR.callGenericPopup;
+    if (typeof original !== 'function' || original[PATCH_MARK]) return;
 
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-        /* “编辑单元格”表单中，只有单元格内容使用 textarea#value；其他表格设置字段使用不同 id。 */
-        textarea#value.wide100p {
-            width: 100% !important;
-            min-height: 28vh !important;
-            height: 28vh;
-            max-height: 52vh !important;
-            box-sizing: border-box;
-            resize: vertical;
-            line-height: 1.5;
+    const wrapped = function (...args) {
+        const [text, type] = args;
+        if (String(text ?? '').trim() === '编辑单元格' && type === EDITOR.POPUP_TYPE.INPUT) {
+            args[3] = {
+                ...(args[3] && typeof args[3] === 'object' ? args[3] : {}),
+                rows: 10,
+            };
         }
+        return original.apply(this, args);
+    };
 
-        @media (min-width: 900px) {
-            textarea#value.wide100p {
-                min-height: 260px !important;
-                height: 260px;
-                max-height: 55vh !important;
-            }
-        }
-    `;
-    document.head.appendChild(style);
-    console.log('[Memo-N] 单元格编辑输入框尺寸优化已加载');
+    Object.defineProperty(wrapped, PATCH_MARK, { value: true });
+    EDITOR.callGenericPopup = wrapped;
+    console.log('[Memo-N] 单元格编辑弹窗尺寸优化已加载：编辑单元格输入框固定为10行');
 }
 
 install();
