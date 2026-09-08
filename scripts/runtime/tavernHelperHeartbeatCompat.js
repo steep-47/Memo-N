@@ -1,33 +1,29 @@
+import { APP } from '../../core/manager.js';
+
 const INSTALL_FLAG = '__memoTavernHelperHeartbeatCompatInstalled';
 
 function install() {
     if (globalThis[INSTALL_FLAG]) return true;
 
     const helper = globalThis.TavernHelper;
+    const source = APP?.eventSource;
     if (!helper || typeof helper !== 'object') return false;
+    if (!source || typeof source.on !== 'function' || typeof source.removeListener !== 'function') return false;
 
-    if (typeof helper._eventOn === 'function') {
-        globalThis[INSTALL_FLAG] = true;
-        console.log('[Memo][heartbeat-compat] TavernHelper 已直接提供 _eventOn');
-        return true;
-    }
+    // Memo-N 是主页面扩展，不是 iframe 脚本。
+    // 酒馆助手的全局 eventOn / _bind._eventOn 会尝试解析 iframe id，
+    // 在主页面环境会出现 frameElement is null。这里直接使用 Memo 已经从 /script.js
+    // 导入的主页面 eventSource，监听的是同一条 SillyTavern 事件总线。
+    helper._eventOn = (eventType, listener) => {
+        source.on(eventType, listener);
+        return {
+            stop: () => source.removeListener(eventType, listener),
+        };
+    };
 
-    if (typeof globalThis.eventOn === 'function') {
-        helper._eventOn = (eventType, listener) => globalThis.eventOn(eventType, listener);
-        globalThis[INSTALL_FLAG] = true;
-        console.log('[Memo][heartbeat-compat] 已使用全局 eventOn 接入流式心跳');
-        return true;
-    }
-
-    const boundEventOn = helper?._bind?._eventOn;
-    if (typeof boundEventOn === 'function') {
-        helper._eventOn = (eventType, listener) => boundEventOn.call(globalThis, eventType, listener);
-        globalThis[INSTALL_FLAG] = true;
-        console.log('[Memo][heartbeat-compat] 已使用 TavernHelper._bind._eventOn 接入流式心跳');
-        return true;
-    }
-
-    return false;
+    globalThis[INSTALL_FLAG] = true;
+    console.log('[Memo][heartbeat-compat] 已使用主页面 APP.eventSource 接入流式心跳');
+    return true;
 }
 
 if (!install()) {
@@ -40,8 +36,8 @@ if (!install()) {
         }
         if (attempts >= 20) {
             clearInterval(retryTimer);
-            console.error('[Memo][heartbeat-compat] 未找到可用的流式事件监听接口；表格整理心跳监控不可用');
-            globalThis?.toastr?.warning?.('Memo 表格整理无法接入酒馆流式事件；请更新酒馆助手后重试。');
+            console.error('[Memo][heartbeat-compat] 主页面 eventSource 或 TavernHelper 不可用；表格整理心跳监控不可用');
+            globalThis?.toastr?.warning?.('Memo 表格整理无法接入酒馆流式事件；请刷新酒馆后重试。');
         }
     }, 500);
 }
