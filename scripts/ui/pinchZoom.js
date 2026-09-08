@@ -1,5 +1,5 @@
 // 数据页：单指横向滚动使用浏览器原生 overflow-x；仅保留双指缩放。
-// #1 角色状态表仅在展示层拆成两个短表；外貌紧跟年龄显示，底层原表与列索引保持不变。
+// #1 角色状态表只在展示层重排成两个信息密度更均衡的短表；底层真实列顺序与列索引保持不变。
 
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 2.0;
@@ -109,6 +109,24 @@ function roleTableSignature(source) {
         .join('\u001e');
 }
 
+function findHeaderIndex(headers, aliases) {
+    const names = Array.isArray(aliases) ? aliases : [aliases];
+    for (const name of names) {
+        const index = headers.findIndex(header => header === normalizeHeader(name));
+        if (index >= 0) return index;
+    }
+    return -1;
+}
+
+function collectRoleColumns(headers, groups) {
+    const indices = [];
+    for (const group of groups) {
+        const index = findHeaderIndex(headers, group);
+        if (index >= 0 && !indices.includes(index)) indices.push(index);
+    }
+    return indices;
+}
+
 function splitRoleStatusTable() {
     const container = document.querySelector('#tableContainer');
     if (!container) return;
@@ -119,33 +137,44 @@ function splitRoleStatusTable() {
 
     const headers = Array.from(headerRow.cells).map(cell => normalizeHeader(cell.textContent));
     const indexColumn = headers[0] === '' ? 0 : -1;
-    const find = predicate => headers.findIndex(predicate);
-    const name = find(h => h === '姓名');
-    const age = find(h => h === '年龄');
-    const appearance = find(h => h === '外貌特征' || h === '外貌' || h === '容貌');
-    const spiritSense = find(h => h.includes('神识'));
-    const bodyState = find(h => h.includes('身体状态'));
 
-    if (name < 0 || spiritSense < name || bodyState <= spiritSense) {
+    // 上半表：人物识别 + 基础修炼。两列长文本（外貌、身份）由多个短字段平衡。
+    const firstGroups = [
+        ['姓名'], ['性别'], ['种族'], ['年龄'],
+        ['外貌特征','外貌','容貌'],
+        ['身份/所属','身份','所属','所属势力'],
+        ['别名/称号','别名','称号','别名/称呼'],
+        ['修为'], ['灵根/体质'],
+    ];
+    // 下半表：资源 + 能力 + 当前状态。技能、擅长、其他状态等长字段由数值字段平衡。
+    const secondGroups = [
+        ['姓名'], ['灵力'], ['神识'], ['技能/术法'], ['擅长'],
+        ['身体状态'], ['其他状态'], ['灵石'], ['钱财'],
+    ];
+
+    const first = collectRoleColumns(headers, firstGroups);
+    const second = collectRoleColumns(headers, secondGroups);
+    const name = findHeaderIndex(headers, ['姓名']);
+
+    if (name < 0 || first.length < 2 || second.length < 2) {
         source.classList.remove('memory-role-status-source');
         container.querySelectorAll('.memory-role-status-two-tables').forEach(el => el.remove());
         return;
     }
 
+    // 自定义附加列不能在拆分视图里凭空消失；统一追加到下半表末尾。
+    const assigned = new Set([indexColumn, ...first, ...second]);
+    headers.forEach((header, index) => {
+        if (index < 0 || assigned.has(index) || !header) return;
+        second.push(index);
+        assigned.add(index);
+    });
+
     source.classList.add('memory-role-status-source');
-    const signature = `memon82-basic-appearance:${roleTableSignature(source)}`;
+    const signature = `memon20-profile-density:${roleTableSignature(source)}`;
     let view = container.querySelector('.memory-role-status-two-tables');
     if (view?.dataset?.sourceSignature === signature) return;
 
-    const first = Array.from({ length: spiritSense - name + 1 }, (_, i) => name + i);
-    if (appearance >= 0) {
-        const oldPosition = first.indexOf(appearance);
-        if (oldPosition >= 0) first.splice(oldPosition, 1);
-        const agePosition = first.indexOf(age);
-        first.splice(agePosition >= 0 ? agePosition + 1 : first.length, 0, appearance);
-    }
-    const second = [name, ...Array.from({ length: headers.length - bodyState }, (_, i) => bodyState + i)]
-        .filter((index, position) => position === 0 || index !== appearance);
     const nextView = document.createElement('div');
     nextView.className = 'memory-role-status-two-tables';
     nextView.dataset.sourceSignature = signature;
@@ -267,4 +296,4 @@ document.addEventListener('touchend', finishTouch, { passive: true, capture: tru
 document.addEventListener('touchcancel', finishTouch, { passive: true, capture: true });
 window.addEventListener('resize', queueRefresh, { passive: true });
 
-console.log('[世界状态记忆表格] 原生横向惯性滚动 + 双指缩放已加载');
+console.log('[世界状态记忆表格] 原生横向惯性滚动 + 双指缩放 + 玩家表信息密度分组已加载');
