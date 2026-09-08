@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.32-cleanup-stable-main-api';
-const DISPLAY_VERSION = '0.32';
+const RUNTIME_VERSION = '0.33-cleanup-expression-refinement';
+const DISPLAY_VERSION = '0.33';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -51,10 +51,10 @@ const runtimes = [
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
-    // 恢复心跳功能加入前已工作过的整理主API调用链：handleMainAPIRequest -> EDITOR.generateRaw。
+    // 保持心跳功能加入前已工作过的整理主API调用链：handleMainAPIRequest -> EDITOR.generateRaw。
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
-    // 七表仍为主体；最近聊天固定缩为1轮，只改整理请求文本，不改写TavernHelper。
-    ['整理最近证据窗口', './scripts/runtime/cleanupEvidenceWindow.js'],
+    // 七表仍为主体；最近聊天固定缩为1轮，同时让整理器主动维护长文本可读性。
+    ['整理最近证据与表达规则', './scripts/runtime/cleanupEvidenceWindow.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
@@ -69,4 +69,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.32 stable cleanup main API runtime loaded');
+console.log('[Memo-N][loader] v0.33 cleanup expression refinement runtime loaded');
