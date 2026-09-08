@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.23-canonical-output-protocol';
+const RUNTIME_VERSION = '0.23-canonical-output-protocol-v3';
 const DISPLAY_VERSION = '0.23';
 
 // index.js 必须保持唯一的标准模块URL。
