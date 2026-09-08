@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.19-seven-table-semantic-boundaries';
-const DISPLAY_VERSION = '0.19';
+const RUNTIME_VERSION = '0.20-player-profile-fields';
+const DISPLAY_VERSION = '0.20';
 
 // index.js 也使用版本化URL加载，避免插件更新后主入口仍命中旧浏览器缓存。
 await import(`./index.js?v=${RUNTIME_VERSION}`);
@@ -19,6 +19,7 @@ async function loadRuntime(label, path) {
 
 const runtimes = [
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['玩家身份与称号字段结构', './scripts/runtime/playerProfileSchema.js'],
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
@@ -53,4 +54,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.19 seven-table semantic boundaries runtime loaded');
+console.log('[Memo-N][loader] v0.20 player profile fields runtime loaded');
