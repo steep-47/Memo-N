@@ -1,8 +1,9 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV1';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV2';
 const PROTOCOL_MARK = '[Memo-N唯一输出格式v1]';
+const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
 这是记录专用请求的最终输出格式约束，优先于模板中其他格式示例。
@@ -40,12 +41,20 @@ function requestText(value) {
         .join('\n');
 }
 
+function looksLikeMemoSevenTableRequest(text) {
+    const source = String(text ?? '');
+    const tableHits = MEMO_TABLE_NAMES.reduce((count, name) => count + (source.includes(name) ? 1 : 0), 0);
+    if (tableHits < 5) return false;
+    return /(?:insertRow|updateRow|deleteRow|tableEdit|rowIndex|colIndex)/i.test(source);
+}
+
 function isMemoRecordOnlyRequest(value) {
     const text = requestText(value);
     return text.includes('Memo独立表格记录器')
         || text.includes('[Memo七表独立记录')
         || text.includes('# Memo独立记录操作协议')
-        || text.includes('Memo世界状态表格整理器');
+        || text.includes('Memo世界状态表格整理器')
+        || looksLikeMemoSevenTableRequest(text);
 }
 
 function appendProtocol(value) {
@@ -163,10 +172,12 @@ function install() {
 install();
 
 export {
+    MEMO_TABLE_NAMES,
     PROTOCOL_MARK,
     STRICT_OUTPUT_PROTOCOL,
     appendProtocol,
     injectProtocolIntoConfig,
     injectProtocolIntoMessages,
     isMemoRecordOnlyRequest,
+    looksLikeMemoSevenTableRequest,
 };
