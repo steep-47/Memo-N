@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.22-structured-xml-compat';
-const DISPLAY_VERSION = '0.22';
+const RUNTIME_VERSION = '0.23-canonical-output-protocol';
+const DISPLAY_VERSION = '0.23';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -33,6 +33,7 @@ const runtimes = [
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
+    ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
@@ -63,4 +64,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.22 structured XML compatibility runtime loaded');
+console.log('[Memo-N][loader] v0.23 canonical record-only output protocol loaded');
