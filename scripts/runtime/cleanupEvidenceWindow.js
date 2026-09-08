@@ -1,7 +1,7 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoCleanupEvidenceWindowV1';
+const PATCH_MARK = '__memoCleanupEvidenceWindowV2';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const EVIDENCE_RULE = '当前七表是表格整理的主体和主要事实来源；最近聊天只作为极小的校对证据窗口，用于确认表内已有记录的明显冲突、失效或错误。整理不以重新阅读剧情和补录大量信息为目标；表内没有对应问题时，不主动从最近聊天扩写新内容。';
 
@@ -89,30 +89,6 @@ function rewriteCleanupSystemPrompt(value) {
     return text;
 }
 
-function patchTavernHelper() {
-    const helper = globalThis.TavernHelper;
-    if (!helper || typeof helper.generateRaw !== 'function') return false;
-    if (helper.generateRaw[PATCH_MARK]) return true;
-
-    const original = helper.generateRaw;
-    const wrapped = async function (config = {}) {
-        const prompts = Array.isArray(config?.ordered_prompts) ? config.ordered_prompts : null;
-        const isCleanup = prompts?.some(item => String(item?.content ?? '').includes(CLEANUP_MARKER));
-        if (!isCleanup) return original.apply(this, arguments);
-
-        const nextPrompts = prompts.map(item => {
-            if (!item || typeof item !== 'object') return item;
-            if (item.role === 'system') return { ...item, content: rewriteCleanupSystemPrompt(item.content) };
-            if (item.role === 'user') return { ...item, content: rewriteCleanupUserPrompt(item.content) };
-            return item;
-        });
-        return original.call(this, { ...config, ordered_prompts: nextPrompts });
-    };
-    Object.defineProperty(wrapped, PATCH_MARK, { value: true });
-    helper.generateRaw = wrapped;
-    return true;
-}
-
 function patchEditorGenerateRaw() {
     if (typeof EDITOR.generateRaw !== 'function' || EDITOR.generateRaw[PATCH_MARK]) return;
     const original = EDITOR.generateRaw;
@@ -159,16 +135,9 @@ function patchCustomApi() {
 function install() {
     patchEditorGenerateRaw();
     patchCustomApi();
-
-    if (patchTavernHelper()) return;
-    let attempts = 0;
-    const timer = setInterval(() => {
-        attempts += 1;
-        if (patchTavernHelper() || attempts >= 20) clearInterval(timer);
-    }, 500);
 }
 
 install();
-console.log('[Memo-N] 表格整理证据窗口已加载：七表为主体，最近仅保留1轮聊天作校对证据');
+console.log('[Memo-N] 表格整理证据窗口已加载：七表为主体，最近仅保留1轮聊天作校对证据，不改写TavernHelper');
 
 export { EVIDENCE_RULE, buildOneRoundEvidence, rewriteCleanupUserPrompt, rewriteCleanupSystemPrompt };
