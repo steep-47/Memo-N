@@ -42,6 +42,16 @@ const injectedTwice = injectProtocolIntoMessages(injectedMessages);
 const markerCount = injectedTwice.map(item => item?.content || '').join('\n').split(PROTOCOL_MARK).length - 1;
 if (markerCount !== 1) throw new Error(`唯一协议重复注入：${markerCount}`);
 
+const noDollar3Request = {
+    ordered_prompts: [
+        { role: 'system', content: '请整理下面这些状态数据。' },
+        { role: 'user', content: '当前状态表 角色状态表 背包表 当前任务与约定表 人物主表 人物发展表 历史事件表；现有规则里可用 insertRow/updateRow/deleteRow。' },
+    ],
+};
+if (!isMemoRecordOnlyRequest(noDollar3Request)) {
+    throw new Error('删除$3协议占位后，七表请求仍应被结构签名识别');
+}
+
 const cleanupConfig = {
     systemPrompt: '你是Memo世界状态表格整理器。',
     prompt: '<当前七表>...</当前七表>',
@@ -63,4 +73,4 @@ if (protocolPos < 0 || transportPos < 0 || protocolPos >= transportPos) {
 }
 if (!loader.includes("const DISPLAY_VERSION = '0.23'")) throw new Error('loader版本未升级到0.23');
 
-console.log('memo-n output protocol PASS: manual/cleanup forced system protocol, idempotent, canonical example present, loaded before fallback transport');
+console.log('memo-n output protocol PASS: manual/cleanup forced system protocol, no-$3 signature fallback, idempotent, canonical example present, loaded before transport fallback');
