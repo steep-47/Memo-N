@@ -1,18 +1,30 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNDenseExpressionRuleV2';
+const PATCH_MARK = '__memoNDenseExpressionRuleV3';
 const OLD_STEP_MARKERS = [
     '[Memo七表独立记录v4-记录优先]',
     '[Memo七表独立记录v5-完整但不摘抄]',
+    '[Memo七表独立记录v6-能力字段分层]',
 ];
-const STEP_MARKER = '[Memo七表独立记录v6-能力字段分层]';
+const STEP_MARKER = '[Memo七表独立记录v7-技能与擅长语义分层]';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const RULE = '长文本字段应在不损失有效细节的前提下提炼表达。保留人物辨识度、位置、程度、状态、条件和关系等有用信息，合并重复与同义内容，去掉冗长叙述和无必要修辞；优先改写为紧凑、自然、信息密度高的描述，不为缩短而过度概括，也不削弱原本的表达力度。';
-const ABILITY_RULE = '角色状态表中，“技能/术法”记录已经掌握、可具体调用或施展的本领、技艺、功法或术法；“擅长”记录长期稳定的能力方向、熟练领域与优势倾向。两者可以同时存在：前者写具体表现，后者写能力方向；只有完全同义且没有层级区别时才避免机械重复。';
+const OLD_ABILITY_RULES = [
+    '角色状态表中，“技能/术法”记录已经掌握、可具体调用或施展的本领、技艺、功法或术法；“擅长”记录长期稳定的能力方向、熟练领域与优势倾向。两者可以同时存在：前者写具体表现，后者写能力方向；只有完全同义且没有层级区别时才避免机械重复。',
+];
+const ABILITY_RULE = '角色状态表中，“技能/术法”记录已经明确学会、能够作为具体技法独立施展或调用的武功、功法、招式、术法、技艺或技能，回答“具体会哪一种技法/本领”；“擅长”记录人物长期稳定的能力领域、熟练事项与优势，回答“擅长做什么”。一般性的识字、记忆、计算、做饭、记账、炼丹、画符、攀爬、交际等能力方向，如果没有明确到某个具体技法、功法、术法或独立技能，应归入“擅长”，不能仅因文本写成“会……”就塞进“技能/术法”。同一领域可以同时存在具体技能与擅长方向，例如既擅长某领域又掌握该领域中的具体技法；按语义分层记录，不机械互斥。维护时若发现既有内容放错栏，应按此边界迁移、合并并去重。';
+
+function replaceOldAbilityRules(value) {
+    let text = String(value ?? '');
+    for (const oldRule of OLD_ABILITY_RULES) {
+        if (text.includes(oldRule)) text = text.replaceAll(oldRule, ABILITY_RULE);
+    }
+    return text;
+}
 
 function upgradeDefaultStepPrompt(value) {
-    let text = String(value ?? '');
+    let text = replaceOldAbilityRules(value);
     if (!text) return text;
     const recognized = OLD_STEP_MARKERS.some(marker => text.includes(marker)) || text.includes(STEP_MARKER);
     if (!recognized) return text;
@@ -32,8 +44,9 @@ function upgradeDefaultStepPrompt(value) {
 }
 
 function upgradeBaseMessagePrompt(value) {
-    const text = String(value ?? '');
-    if (!text || !text.includes('# dataTable 世界状态记忆') || text.includes(ABILITY_RULE)) return text;
+    let text = replaceOldAbilityRules(value);
+    if (!text || !text.includes('# dataTable 世界状态记忆')) return text;
+    if (text.includes(ABILITY_RULE)) return text;
     const section = `# 玩家能力字段\n- ${ABILITY_RULE}\n`;
     if (text.includes('# NPC长期发展锚点')) return text.replace('# NPC长期发展锚点', `${section}# NPC长期发展锚点`);
     if (text.includes('# 输出')) return text.replace('# 输出', `${section}# 输出`);
@@ -48,7 +61,7 @@ function installPromptRules() {
     if (upgradedStep && upgradedStep !== currentStep) {
         USER.tableBaseSetting.step_by_step_user_prompt = upgradedStep;
         changed = true;
-        console.log('[Memo-N][field-semantics] 已升级手动更新默认提示：完整记录并区分技能与擅长');
+        console.log('[Memo-N][field-semantics] 已升级手动更新默认提示：具体技能与擅长领域分层记录');
     }
 
     const defaultStep = USER.tableBaseDefaultSettings?.step_by_step_user_prompt;
@@ -62,7 +75,7 @@ function installPromptRules() {
     if (upgradedBase && upgradedBase !== currentBase) {
         USER.tableBaseSetting.message_template = upgradedBase;
         changed = true;
-        console.log('[Memo-N][field-semantics] 已给正常记录补充技能/术法与擅长的字段边界');
+        console.log('[Memo-N][field-semantics] 已给正常记录补充具体技能/术法与擅长领域的严格边界');
     }
 
     const defaultBase = USER.tableBaseDefaultSettings?.message_template;
@@ -75,7 +88,7 @@ function installPromptRules() {
 }
 
 function appendCleanupRules(text) {
-    let source = String(text ?? '');
+    let source = replaceOldAbilityRules(text);
     if (!source) return source;
     const additions = [];
     if (!source.includes(RULE)) additions.push(`[长文本字段表达]\n${RULE}`);
@@ -127,7 +140,7 @@ function install() {
     installPromptRules();
     patchEditorGenerateRaw();
     patchCustomApi();
-    console.log('[Memo-N] 表格表达与能力字段规则已加载：保留细节，并区分具体技能与能力方向');
+    console.log('[Memo-N] 表格表达与能力字段规则已加载：技能写具体技法，擅长写稳定能力领域');
 }
 
 install();
