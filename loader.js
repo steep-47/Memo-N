@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.20-player-profile-fields';
+const RUNTIME_VERSION = '0.20-player-profile-complete';
 const DISPLAY_VERSION = '0.20';
 
 // index.js 也使用版本化URL加载，避免插件更新后主入口仍命中旧浏览器缓存。
@@ -54,4 +54,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.20 player profile fields runtime loaded');
+console.log('[Memo-N][loader] v0.20 player profile complete runtime loaded');
