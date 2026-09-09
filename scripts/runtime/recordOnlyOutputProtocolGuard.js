@@ -1,8 +1,8 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV3';
-const PROTOCOL_MARK = '[Memo-N唯一输出格式v1]';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV4';
+const PROTOCOL_MARK = '[Memo-N唯一输出格式v2]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 
@@ -18,13 +18,19 @@ ${TRANSPORT_MARK}
 <tableEdit><!--
 insertRow(1,{"0":"示例角色","11":"青木诀"})
 updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"})
-deleteRow(3,0)
+updateRow(4,0,{"5":"练气士"},"老叔公")
+deleteRow(2,1,"蛐蛐罐")
 --></tableEdit>
 
-仅使用以下三种函数签名：
+允许的函数签名：
 insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
 updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
 deleteRow(tableIndex:number,rowIndex:number)
+
+表2背包、表4人物主表、表5人物发展表属于对象身份保护表，它们的update/delete必须使用带对象核对名的安全签名：
+updateRow(tableIndex,rowIndex,data,"当前目标行第一列原值")
+deleteRow(tableIndex,rowIndex,"当前目标行第一列原值")
+对象核对名必须原样抄写执行前当前表目标row的第一列，不能写计划修改后的名称，也不能根据旧聊天猜。表2/4/5新增对象时，insertRow的data第0列必须写对象名。
 
 data直接写成函数的JSON对象参数，列键使用数字索引或当前表中完全一致的真实表头名。输出层不使用 <tableIndex>、<operation>、<action>、<data>、<col0> 等操作标签，也不把函数再改写成XML。
 
@@ -168,7 +174,7 @@ function install() {
             if (patchTavern() || tries >= 20) clearInterval(retry);
         }, 500);
     }
-    console.log(`[Memo-N] 记录专用唯一输出协议已加载：EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
+    console.log(`[Memo-N] 记录专用唯一输出协议v2已加载：对象身份保护签名已对齐｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
 }
 
 install();
