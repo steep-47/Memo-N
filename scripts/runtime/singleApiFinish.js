@@ -20,8 +20,6 @@ async function finishLatest(){
     const chat=latestAssistant();
     if(!chat)return;
 
-    // recordEngine在GENERATION_ENDED时同步挂上这个Promise，真正的严格执行与saveChat在Promise内部完成。
-    // 成功提示必须等持久化完成后再读__memoStrictExecution，否则会在渲染阶段过早返回。
     const persistence=chat.__memoStrictPersistence;
     if(persistence&&typeof persistence.then==='function'){
         try{if(await persistence!==true)return;}catch(_){return;}
@@ -36,21 +34,21 @@ async function finishLatest(){
     if(wasHandled(chat,token))return;
     markHandled(chat,token);
 
+    // NO_CHANGE不显示为绿色“写入成功”；绿色只表示七表事务成功且确有实际写入。
     if(status.noChange===true){
-        EDITOR.info('Memo-N：本轮无需更新表格','',1500);
+        EDITOR.info('Memo-N：七表检查完成，本轮无可写变化','',1800);
         return;
     }
     if(status.changed!==true)return;
-    EDITOR.success(`Memo-N：已记录${status.count||''}${status.count?'项变化':''}`,'',2500);
+    EDITOR.success(`Memo-N：七表检查完成，已记录${status.count||''}${status.count?'项变化':''}`,'',2500);
 }
 
 function scheduleFinish(){
     void finishLatest().catch(error=>console.error('[Memo-N] 写入提示任务异常',error));
 }
 
-// 统一记录链在GENERATION_ENDED才开始严格执行和持久化；提示也必须绑定同一生命周期尾端。
 const endEvent=APP.event_types.GENERATION_ENDED;
 APP.eventSource.on(endEvent,scheduleFinish);
 APP.eventSource.makeLast?.(endEvent,scheduleFinish);
 
-console.log('[Memo-N] 写入提示已加载：等待严格事务与聊天保存完成后再提示');
+console.log('[Memo-N] 写入提示已加载：绿色仅用于七表事务成功且实际发生写入');
