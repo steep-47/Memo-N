@@ -52,8 +52,8 @@
         在这里可以调整分步填表的相关参数
     </div>
     <div class="dataTable_tablePrompt_list">
-        <label for="separateReadContextLayers">上下文层数</label><small> (控制分步填表读取的上下文层数)</small>
-        <input type="number" id="separateReadContextLayers" class="margin0 text_pole" style="margin-bottom: 20px; width: 80px;" min="0" value="1"/>
+        <label for="separateReadContextLayers">上下文层数</label><small> (控制分步填表读取的上下文层数，最少1轮)</small>
+        <input type="number" id="separateReadContextLayers" class="margin0 text_pole" style="margin-bottom: 20px; width: 80px;" min="1" step="1" value="1" required/>
         <label for="step_by_step_user_prompt">分步填表提示词</label><small> (用于分步填表时的提示词)</small>
         <textarea id="step_by_step_user_prompt" class="wide100p" rows="10"></textarea>
     </div>
