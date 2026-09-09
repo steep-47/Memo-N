@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.44-zero-context';
-const DISPLAY_VERSION = '0.44';
+const RUNTIME_VERSION = '0.45-min-one-context';
+const DISPLAY_VERSION = '0.45';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -32,7 +32,7 @@ const runtimes = [
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
-    ['上下文轮数0值与空白保护', './scripts/runtime/contextRoundInputGuard.js'],
+    ['上下文轮数最小值保护', './scripts/runtime/contextRoundInputGuard.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
     // 两层都是generateRaw包装器：先安装返回兼容层，再安装请求格式锁。
     // 实际调用顺序因此是：格式锁注入 -> API -> 兼容规范化 -> 严格执行器。
@@ -71,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.44 loaded: true zero-round manual context + blank-input guard');
+console.log('[Memo-N][loader] v0.45 loaded: manual context minimum is one round');
