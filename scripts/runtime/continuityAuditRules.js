@@ -2,7 +2,7 @@ import { APP, USER } from '../../core/manager.js';
 import { defaultSettings } from '../../data/pluginSetting.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
-const MARK = '[Memo-N逐表连续性审计v5]';
+const MARK = '[Memo-N逐表连续性审计v6]';
 const OLD_MARK_RE = /\[Memo-N逐表连续性审计v\d+\]/;
 
 const AUDIT_RULES = `
@@ -21,11 +21,12 @@ NO_CHANGE只能在0～6七张表全部检查完成、确认每一张都无需修
 同一句话同时包含身份、境界、经历、持续状态、外貌、地点等多个概念时，应拆开分别记录；某个字段只保存它本身负责的事实，不吸收相邻概念。
 字段名回答什么，就只写什么：没有对应字段的事实再判断是否进入“重要信息”“当前重要状态”或表6，而不是改造其他字段去容纳它。
 
-修炼相关事实严格按性质分开：
-- “修炼体系/路径”只保存人物稳定的修行类别或专精路线标签，不写解释句。对人族常规修仙，“练气士”是统称，与当前处于炼气、筑基、金丹或更高境界无关；已确认走灵根→法力→常规修仙机制，且没有明确稳定专精时，统一记“练气士”。会普通功法、术法、御器等属于练气士的正常修行内容，不因此自动改成“法修”或其他专精。
-- 人族常规修仙一旦已经明确形成稳定专精/职业，优先记录更具体的专精标签，例如“剑修”“法修”“魂修”“丹师”“器师”“符师”“阵师”“御兽”“旁门”等；此时不再同时保留泛称“练气士”，例如写“剑修”，不要写“练气士／剑修”。若确有多个稳定专精均被明确确认，可用“／”连接具体专精，但仍不额外附加“练气士”。一次拿剑、施法、炼丹、画符或使用某种技艺，只能说明做过该行为，不能直接判成对应专精。
-- “武夫”和“体修”都是区别于常规练气士修仙的独立路线，二者也不是同义词；已确认走一至九品等凡俗武道者记“武夫”，已确认走体修路线者记“体修”。不得写“练气士／武夫”“练气士／体修”，也不得只因肉身强、近战或使用兵器就互相误判。
-- 妖族已确认开启灵智并实际修行、使用妖力或进入妖族1～10级等体系者记“妖修”；灵族已确认达到自主修行阶段并按本源/灵体体系修炼者记“灵修”。基础类别不能只靠种族猜：人族可能仍是凡人、武夫或体修；普通野兽不等于妖修；仅有朦胧灵性、尚未达到自主修行阶段的灵物不等于灵修。必须结合已经确认的修行事实判断。
+修炼相关事实按“根基条件→大路线→稳定专精→境界/经历/状态”逐层判断：
+- “修炼体系/路径”只保存人物稳定的修行类别或专精路线标签，不写解释句。对人族，先确认灵根条件：无灵根而走一至九品等凡俗武道者记“武夫”；有灵根、以灵气修行为根基并明确专精体魄/肉身者记“体修”。武夫与体修是两条不同路线，不能只凭肉身强、近战或使用兵器互相替代。
+- 有灵根、走灵根→法力→常规修仙机制且没有明确稳定专精时，统一记“练气士”。“练气士”是修仙统称，与当前处于炼气、筑基、金丹或更高境界无关；会普通功法、术法、御器等属于练气士的正常修行内容，不因此自动改成“法修”或其他专精。
+- 常规修仙一旦已经明确形成稳定专精/职业，优先记录更具体的专精标签，例如“剑修”“法修”“魂修”“丹师”“器师”“符师”“阵师”“御兽”“旁门”等；此时不再同时保留泛称“练气士”，例如写“剑修”，不要写“练气士／剑修”。若确有多个稳定专精均被明确确认，可用“／”连接具体专精，但仍不额外附加“练气士”。一次拿剑、施法、炼丹、画符或使用某种技艺，只能说明做过该行为，不能直接判成对应专精。
+- “武夫”只用于已经确认无灵根并走凡俗武道的人；“体修”只用于已经确认有灵根并把体魄/肉身作为稳定专精路线的人。灵根未知时，不仅凭战斗风格把人物硬归为武夫或体修；等待足够事实再定。
+- 妖族已确认开启灵智并实际修行、使用妖力或进入妖族1～10级等体系者记“妖修”；灵族已确认达到自主修行阶段并按本源/灵体体系修炼者记“灵修”。基础类别不能只靠种族猜：普通野兽不等于妖修；仅有朦胧灵性、尚未达到自主修行阶段的灵物不等于灵修。必须结合已经确认的修行事实判断。
 - “修为/境界”回答“这个角色当前处于什么境界/阶段”。只写当前境界或阶段本身，例如“炼气中段”；不把修炼体系、年龄、持续年限、瓶颈原因、经历等附在修为字段里。
 - 修炼经历、长期停滞、瓶颈、受伤、特殊限制等，按事实性质写入表4“重要信息”或表5“当前重要状态”；例如“早年曾引气入体”属于经历，“多年未进”属于长期状态，而不是体系/路径标签或境界名称。
 
@@ -63,8 +64,21 @@ deleteRow(tableIndex,rowIndex,"当前行第一列原值")
 正常剧情中NO_CHANGE应很少见；它表示七表真的全部没有新事实或变化，不表示“没有大事”。
 `;
 
+function normalizeLegacySemantics(text) {
+    return String(text ?? '')
+        .replace(/只要是值得长期追踪的NPC/g, '只要已经形成可持续识别的NPC')
+        .replace(/首次明确出现的重要NPC应检查是否需要建立/g, '首次形成可持续识别的NPC应检查是否需要建立')
+        .replace(/重大既成节点才进表6/g, '表6还承接0～5没有合适字段但后续剧情需要知道的连续性事实')
+        .replace(/历史表只保存影响未来推演的重要节点/g, '历史表既保存重大节点，也承接0～5没有合适字段但后续剧情需要知道的连续性事实')
+        .replace(/重要节点才写历史/g, '重大节点与必要连续性事实按表6职责写历史')
+        .replace(/表6只记录会改变未来推演的重要节点，如突破\/失败、势力加入退出、婚姻或重要亲属变化、重伤残疾\/寿元重大损耗、重大机缘、战争\/宗门覆灭导致处境改变、死亡。普通修炼、日常生活、微小财富变化不写历史。/g,
+            '表6既记录重大历史节点，也承接0～5没有合适字段但后续剧情需要知道的已发生事实；连续事件优先压缩维护同一条记录，纯氛围或无后续意义的琐碎动作不单独记录。')
+        .replace(/#6 历史事件表：只记录会影响未来推演的重要既成节点，例如突破\/失败、势力加入退出、婚姻或重要亲属变化、重伤残疾\/寿元重大损耗、重大机缘、战争\/宗门覆灭导致处境改变、死亡等。普通日常、普通修炼、微小财富变化不要写入历史表。/g,
+            '#6 历史事件表：既记录重大历史节点，也承接0～5没有合适字段但对后续剧情连续性有用的已发生事实；发现、异常、关键交互、决定、线索、关系转折或连续事件若后续需要知道，也应检查是否压缩记录。');
+}
+
 function stripOldAudit(text) {
-    const source = String(text ?? '');
+    const source = normalizeLegacySemantics(text);
     const match = OLD_MARK_RE.exec(source);
     if (!match) return source;
     return source.slice(0, match.index).trimEnd();
@@ -81,7 +95,9 @@ function patchManualPrompt(text) {
     try {
         const messages = JSON5.parse(source);
         if (!Array.isArray(messages) || !messages.length) return source;
-        const cleaned = messages.filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')));
+        const cleaned = messages
+            .filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')))
+            .map(message => ({ ...message, content: normalizeLegacySemantics(message?.content) }));
         cleaned.push({ role: 'system', content: AUDIT_RULES.trim() });
         return JSON.stringify(cleaned);
     } catch (error) {
@@ -101,7 +117,9 @@ function patchSettings(settings) {
 function injectFinalAudit(data) {
     patchSettings(USER?.tableBaseSetting);
     if (!data || typeof data !== 'object' || !Array.isArray(data.messages)) return;
-    data.messages = data.messages.filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')));
+    data.messages = data.messages
+        .filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')))
+        .map(message => ({ ...message, content: normalizeLegacySemantics(message?.content) }));
     data.messages.push({
         role: 'system',
         content: AUDIT_RULES.trim(),
@@ -120,4 +138,4 @@ const settingsReady = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
 APP.eventSource.on(settingsReady, injectFinalAudit);
 APP.eventSource.makeLast?.(settingsReady, injectFinalAudit);
 
-console.log('[Memo-N] 逐表连续性审计v5已加载：练气士为常规修仙统称，明确专精取代泛称，武夫/体修独立');
+console.log('[Memo-N] 逐表连续性审计v6已加载：武夫=无灵根武道，体修=有灵根体魄专精，并清理旧人物/历史门槛语义');
