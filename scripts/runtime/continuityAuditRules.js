@@ -77,6 +77,11 @@ function normalizeLegacySemantics(text) {
             '#6 历史事件表：既记录重大历史节点，也承接0～5没有合适字段但对后续剧情连续性有用的已发生事实；发现、异常、关键交互、决定、线索、关系转折或连续事件若后续需要知道，也应检查是否压缩记录。');
 }
 
+function normalizeMessageContent(message) {
+    if (!message || typeof message !== 'object' || typeof message.content !== 'string') return message;
+    return { ...message, content: normalizeLegacySemantics(message.content) };
+}
+
 function stripOldAudit(text) {
     const source = normalizeLegacySemantics(text);
     const match = OLD_MARK_RE.exec(source);
@@ -96,8 +101,8 @@ function patchManualPrompt(text) {
         const messages = JSON5.parse(source);
         if (!Array.isArray(messages) || !messages.length) return source;
         const cleaned = messages
-            .filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')))
-            .map(message => ({ ...message, content: normalizeLegacySemantics(message?.content) }));
+            .filter(message => !OLD_MARK_RE.test(typeof message?.content === 'string' ? message.content : ''))
+            .map(normalizeMessageContent);
         cleaned.push({ role: 'system', content: AUDIT_RULES.trim() });
         return JSON.stringify(cleaned);
     } catch (error) {
@@ -118,8 +123,8 @@ function injectFinalAudit(data) {
     patchSettings(USER?.tableBaseSetting);
     if (!data || typeof data !== 'object' || !Array.isArray(data.messages)) return;
     data.messages = data.messages
-        .filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')))
-        .map(message => ({ ...message, content: normalizeLegacySemantics(message?.content) }));
+        .filter(message => !OLD_MARK_RE.test(typeof message?.content === 'string' ? message.content : ''))
+        .map(normalizeMessageContent);
     data.messages.push({
         role: 'system',
         content: AUDIT_RULES.trim(),
