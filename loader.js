@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.50-root-path-classification';
+const RUNTIME_VERSION = '0.50-final-rule-audit';
 const DISPLAY_VERSION = '0.50';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -71,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.50 loaded: martial artist requires no spirit root; body cultivator requires spirit root and body specialization');
+console.log('[Memo-N][loader] v0.50 loaded: final rule audit complete; root/path classification and seven-table continuity aligned');
