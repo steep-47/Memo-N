@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.42-memon72-stable-record';
-const DISPLAY_VERSION = '0.42';
+const RUNTIME_VERSION = '0.43-continuity-audit';
+const DISPLAY_VERSION = '0.43';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -42,8 +42,6 @@ const runtimes = [
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
-    // 恢复 memon72 已实际使用过的稳定链：单次正文API直接输出原生tableEdit记录块 + 正文。
-    // 不加载 JSON Output、DeepSeek prefix、strict tool 或中转站专用传输桥。
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
     ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
@@ -53,15 +51,14 @@ const runtimes = [
     ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
     ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
-    // 保持心跳功能加入前已工作过的整理主API调用链：handleMainAPIRequest -> EDITOR.generateRaw。
+    // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
+    ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
-    // 七表仍为主体；最近聊天固定缩为1轮，同时让整理器主动维护长文本可读性。
     ['整理最近证据与表达规则', './scripts/runtime/cleanupEvidenceWindow.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
     ['角色状态表点击桥', './scripts/ui/roleStatusClickBridge.js'],
-    // 真实的数据页“编辑单元格”走 callGenericPopup(INPUT)，只把这一类弹窗从3行扩大到10行。
     ['单元格编辑输入框尺寸', './scripts/ui/cellEditorSize.js'],
     ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
 ];
@@ -73,4 +70,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.42 loaded: restored memon72 stable one-call native tableEdit record path');
+console.log('[Memo-N][loader] v0.43 loaded: seven-table continuity audit + guarded row identity');
