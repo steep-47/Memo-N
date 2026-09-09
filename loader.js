@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.45-min-one-context';
-const DISPLAY_VERSION = '0.45';
+const RUNTIME_VERSION = '0.46-attribution-continuity';
+const DISPLAY_VERSION = '0.46';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -71,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.45 loaded: manual context minimum is one round');
+console.log('[Memo-N][loader] v0.46 loaded: stronger person attribution and continuity audit');
