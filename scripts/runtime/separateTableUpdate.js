@@ -12,6 +12,7 @@ const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作协议
 固定标准表索引：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件。
 每轮必须按0→1→2→3→4→5→6逐表检查。每张表只判断“当前待处理回复是否产生该表负责的新事实，或最终事实是否与当前表已有记录不同”：有则修改，没有则跳过并继续下一张。不得因为前几张表无变化、变化很小或认为“没大事”而提前结束；只有七表全部检查完且均无需修改时才允许NO_CHANGE。
 表6除重大历史节点外，也承接0～5没有合适字段、但对后续剧情连续性有用的已发生事实；同一连续事件可更新已有记录，不必每轮机械新增。
+记录前先把正文拆成最小的独立事实，再逐项归位，不把一句话整体塞进一个字段。修炼相关信息中：“修炼体系/路径”只写角色修什么、走哪条路线/体系，正文未确认则留空；“修为”只写当前境界/阶段本身；修炼经历、长期停滞、瓶颈、伤势或限制按事实性质写入人物主表重要信息或人物发展表当前重要状态。不得把种族、境界、经历、感悟、持续年限拼成自行命名的修炼体系，也不得把“多年未进”等状态附在修为境界后面。
 只能使用：
 insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
 updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
@@ -22,7 +23,7 @@ deleteRow(tableIndex,rowIndex,"当前行第一列原值")
 对象核对名必须原样抄当前表格执行前该row的第一列；人物改名时仍写旧姓名作核对，新姓名放data里。表2/4/5新增对象必须在data第0列写对象名；同名已存在时优先update，不重复insert。
 data键优先使用数字列索引；也可使用当前表中完全一致的真实表头名，执行器会安全映射。禁止使用不存在、近似或自行编造的列名。
 updateRow只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须明确使用insertRow。当前表格是rowIndex和对象名的唯一依据，不按旧聊天猜行号。
-人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护。
+人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护，最后确认时间记录到世界日期即可。
 最终只能输出一个完整<tableEdit>...</tableEdit>，不得输出剧情、JSON、解释或Markdown。`;
 
 function isAppendGeneration(type){const value=String(type??'').toLowerCase();return value==='continue'||value==='append'||value==='appendfinal';}
@@ -55,12 +56,11 @@ function normalizedContextRounds(value){
     if(value===undefined||value===null||String(value).trim()==='')return 1;
     const numeric=Number(value);
     if(!Number.isFinite(numeric))return 1;
-    return Math.max(0,Math.floor(numeric));
+    return Math.max(1,Math.floor(numeric));
 }
 function buildRecentContext(targetPiece){
     const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];
     const rounds=normalizedContextRounds(USER.tableBaseSetting.separateReadContextLayers);
-    if(!rounds)return'';
     const targetIndex=targetPiece?chat.indexOf(targetPiece):-1;
     const source=(targetIndex>=0?chat.slice(0,targetIndex):chat).filter(item=>item&&typeof item==='object');
     const selected=[];
