@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.48-cultivation-path-labels';
-const DISPLAY_VERSION = '0.48';
+const RUNTIME_VERSION = '0.49-cultivation-hierarchy';
+const DISPLAY_VERSION = '0.49';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -71,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.48 loaded: cultivation path uses normalized practitioner/route labels');
+console.log('[Memo-N][loader] v0.49 loaded: cultivator umbrella/specialty hierarchy aligned');
