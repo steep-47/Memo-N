@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.50-final-rule-audit';
+const RUNTIME_VERSION = '0.50-final-rule-audit-2';
 const DISPLAY_VERSION = '0.50';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -71,4 +71,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.50 loaded: final rule audit complete; root/path classification and seven-table continuity aligned');
+console.log('[Memo-N][loader] v0.50 loaded: complete record/manual/cleanup/output audit passed; latest modules forced by final cache key');
