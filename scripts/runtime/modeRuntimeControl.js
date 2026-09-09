@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.17';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.50';
 import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon82';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 
@@ -73,4 +73,4 @@ const promptEvent=APP.event_types.CHAT_COMPLETION_PROMPT_READY;const renderedEve
 APP.eventSource.on(promptEvent,preparePromptMode);APP.eventSource.on(renderedEvent,beforeRendered);APP.eventSource.on(renderedEvent,triggerIndependentRecord);
 if(typeof APP.eventSource.makeFirst==='function'){APP.eventSource.makeFirst(promptEvent,preparePromptMode);APP.eventSource.makeFirst(renderedEvent,beforeRendered);}if(typeof APP.eventSource.makeLast==='function')APP.eventSource.makeLast(renderedEvent,triggerIndependentRecord);
 forceNormalMode();
-console.log('[Memo] 独立记录 API：消息版本绑定队列 + 同消息并发完整重算 + stale丢弃 + Swipe快照');
+console.log('[Memo] 独立记录 API：已使用0.50最新填表规则｜消息版本绑定队列 + 同消息并发完整重算 + stale丢弃 + Swipe快照');
