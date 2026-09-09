@@ -47,9 +47,15 @@ function attachValidatedRecord(piece,rawContent,matches){
         piece.swipe_info[id].extra.memo_n_manual_table_edit=machineBlock;
     }
 }
+function normalizedContextRounds(value){
+    if(value===undefined||value===null||String(value).trim()==='')return 1;
+    const numeric=Number(value);
+    if(!Number.isFinite(numeric))return 1;
+    return Math.max(0,Math.floor(numeric));
+}
 function buildRecentContext(targetPiece){
     const chat=Array.isArray(USER.getContext?.()?.chat)?USER.getContext().chat:[];
-    const rounds=Math.max(0,Number(USER.tableBaseSetting.separateReadContextLayers)||1);
+    const rounds=normalizedContextRounds(USER.tableBaseSetting.separateReadContextLayers);
     if(!rounds)return'';
     const targetIndex=targetPiece?chat.indexOf(targetPiece):-1;
     const source=(targetIndex>=0?chat.slice(0,targetIndex):chat).filter(item=>item&&typeof item==='object');
