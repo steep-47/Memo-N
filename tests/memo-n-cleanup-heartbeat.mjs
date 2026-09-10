@@ -28,7 +28,7 @@ for (const forbidden of [
 }
 
 if (!evidence.includes('buildOneRoundEvidence')) throw new Error('cleanup one-round evidence window missing');
-if (!evidence.includes('最近仅保留1轮聊天作校对证据')) throw new Error('cleanup evidence scope marker missing');
+if (!evidence.includes('最近聊天只作为极小的校对证据窗口')) throw new Error('cleanup evidence scope marker missing');
 if (evidence.includes('patchTavernHelper') || evidence.includes('helper.generateRaw') || evidence.includes('globalThis.TavernHelper')) {
     throw new Error('cleanup evidence window must not modify TavernHelper');
 }
@@ -38,7 +38,7 @@ if (loader.includes("'./scripts/runtime/tavernHelperHeartbeatCompat.js'")) {
 }
 if (!loader.includes("'./scripts/runtime/stableTableCleanup.js'")) throw new Error('stable cleanup runtime missing from loader');
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) throw new Error('cleanup evidence runtime missing from loader');
-if (!loader.includes("const DISPLAY_VERSION = '0.32'")) throw new Error('loader version must be 0.32');
-if (!loader.includes('0.32-cleanup-stable-main-api')) throw new Error('loader cache marker must use restored stable API path');
+if (!loader.includes("const DISPLAY_VERSION = '0.51'")) throw new Error('loader version must be 0.51');
+if (!loader.includes('0.51-story-prompt-compaction-1')) throw new Error('loader cache marker must use current prompt compaction path');
 
-console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.32 cache marker');
+console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.51 cache marker');

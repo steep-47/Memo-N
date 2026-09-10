@@ -113,7 +113,9 @@ function patchManualPrompt(text) {
 
 function patchSettings(settings) {
     if (!settings || typeof settings !== 'object') return;
-    if ('message_template' in settings) settings.message_template = appendRules(settings.message_template);
+    // 正常剧情只读取精简的当前表格事实；详细审计留在手动更新和整理请求中。
+    // 同时清掉旧版本曾写入基础模板的审计块，避免用户设置继续携带重复内容。
+    if ('message_template' in settings) settings.message_template = stripOldAudit(settings.message_template);
     if ('refresh_system_message_template' in settings) settings.refresh_system_message_template = appendRules(settings.refresh_system_message_template);
     if ('refresh_user_message_template' in settings) settings.refresh_user_message_template = appendRules(settings.refresh_user_message_template);
     if ('step_by_step_user_prompt' in settings) settings.step_by_step_user_prompt = patchManualPrompt(settings.step_by_step_user_prompt);
@@ -125,10 +127,6 @@ function injectFinalAudit(data) {
     data.messages = data.messages
         .filter(message => !OLD_MARK_RE.test(typeof message?.content === 'string' ? message.content : ''))
         .map(normalizeMessageContent);
-    data.messages.push({
-        role: 'system',
-        content: AUDIT_RULES.trim(),
-    });
 }
 
 try { patchSettings(defaultSettings); } catch (error) {
@@ -143,4 +141,4 @@ const settingsReady = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
 APP.eventSource.on(settingsReady, injectFinalAudit);
 APP.eventSource.makeLast?.(settingsReady, injectFinalAudit);
 
-console.log('[Memo-N] 逐表连续性审计v6已加载：武夫=无灵根武道，体修=有灵根体魄专精，并清理旧人物/历史门槛语义');
+console.log('[Memo-N] 逐表连续性审计v6已加载：详细规则仅用于手动更新与整理，正常剧情不再重复注入');

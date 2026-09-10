@@ -8,7 +8,6 @@ for (const token of [
     '<最近聊天>',
     '最近聊天只作为极小的校对证据窗口',
     '表内没有对应问题时，不主动从最近聊天扩写新内容',
-    'helper.generateRaw = wrapped',
     'EDITOR.generateRaw = wrapped',
     'proto.callLLM = wrapped',
 ]) {
@@ -18,8 +17,8 @@ for (const token of [
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
     throw new Error('cleanup evidence window runtime is not loaded');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.31'")) {
-    throw new Error('loader version is not 0.31');
+if (!loader.includes("const DISPLAY_VERSION = '0.51'")) {
+    throw new Error('loader version is not 0.51');
 }
 
 console.log('memo-n cleanup evidence window PASS: seven tables remain primary, chat reduced to one evidence round');

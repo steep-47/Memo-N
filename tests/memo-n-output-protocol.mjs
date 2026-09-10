@@ -74,6 +74,6 @@ if (protocolPos < 0 || transportPos < 0 || transportPos >= protocolPos) {
 if (!loader.includes('格式锁注入 -> API -> 兼容规范化 -> 严格执行器')) {
     throw new Error('loader未声明实际记录链路顺序');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.23'")) throw new Error('loader版本未升级到0.23');
+if (!loader.includes("const DISPLAY_VERSION = '0.51'")) throw new Error('loader版本未升级到0.51');
 
 console.log('memo-n output protocol PASS: manual/cleanup forced system protocol, no-$3 signature fallback, idempotent, canonical example present, wrapper composition correct');

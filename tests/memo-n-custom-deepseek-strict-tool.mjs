@@ -18,11 +18,11 @@ assert(!engine.includes('isNativeDeepSeek'), '稳定链不得重新加入DeepSee
 assert(!engine.includes("data.response_format = { type: 'json_object' }"), '稳定链不得重新加入JSON Output');
 assert(!engine.includes('memo_n_finish'), '稳定链不得重新加入strict tool');
 
-assert(loader.includes("const RUNTIME_VERSION = '0.42-memon72-stable-record'"), 'loader运行时版本不是0.42稳定记录版');
-assert(loader.includes("const DISPLAY_VERSION = '0.42'"), 'loader显示版本不是0.42');
+assert(loader.includes("const RUNTIME_VERSION = '0.51-story-prompt-compaction-1'"), 'loader运行时版本不是0.51精简提示版');
+assert(loader.includes("const DISPLAY_VERSION = '0.51'"), 'loader显示版本不是0.51');
 assert(loader.includes("['单次API记录引擎', './scripts/engine/recordEngine.js']"), 'loader没有加载单一recordEngine');
 assert(!loader.includes("['CUSTOM DeepSeek严格工具单API', './scripts/runtime/customDeepSeekStrictToolBridge.js']"), 'loader不得加载strict tool桥');
 assert(!loader.includes("['CUSTOM DeepSeek单API JSON输出', './scripts/runtime/customDeepSeekJsonBridge.js']"), 'loader不得加载JSON Output桥');
-assert(manifest.version === '0.42', 'manifest版本不是0.42');
+assert(manifest.version === '0.51', 'manifest版本不是0.51');
 
 console.log('Memo-N memon72 stable one-call record transport guards passed.');

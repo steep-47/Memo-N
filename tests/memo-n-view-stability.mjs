@@ -32,6 +32,6 @@ for (const required of [
     if (!guard.includes(required)) throw new Error(`视图稳定守卫缺少关键机制：${required}`);
 }
 
-if (manifest.version !== '0.21') throw new Error(`manifest 版本应为0.21，实际=${manifest.version}`);
+if (manifest.version !== '0.51') throw new Error(`manifest 版本应为0.51，实际=${manifest.version}`);
 
-console.log('memo-n view stability PASS: canonical-index=1, runtime-order=1, refresh-queue=1, drawer-dedupe=1, sheet-uid-dedupe=1, version=0.21');
+console.log('memo-n view stability PASS: canonical-index=1, runtime-order=1, refresh-queue=1, drawer-dedupe=1, sheet-uid-dedupe=1, version=0.51');

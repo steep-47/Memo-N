@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon82';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -133,36 +133,26 @@ if (request.response_format || request.json_schema) throw new Error('一次API�
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
 if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
-if (request.messages.at(-1)?.role !== 'assistant' || request.messages.at(-1)?.content !== '<tableEdit><!--\n') {
-    throw new Error('内置直连DeepSeek没有获得原生助手硬前缀');
-}
-const contract = request.messages.at(-2)?.content || '';
+if (request.messages.at(-1)?.role !== 'system') throw new Error('单次API记录协议没有位于请求末尾');
+const contract = request.messages.at(-1)?.content || '';
 if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
     throw new Error('前置记录协议未正确注入');
 }
-if (!contract.includes('玩家下次输入前的最终落点') || !contract.includes('数字0是有效值') || !contract.includes('当前上下文已有明确现值时也补齐')) {
+if (!contract.includes('正文中明确成立的事实') || !contract.includes('外貌特征') || !contract.includes('未知信息留空')) {
     throw new Error('最终落点或角色状态漏记修复规则未注入');
 }
-if (!contract.includes('[钱财戳、状态戳与背包边界]')
-    || !contract.includes('仅有售价、可兑换或看起来贵重的普通物品不是钱财')
-    || !contract.includes('灵力、神识写入表1同名字段')
-    || !contract.includes('普通物品只写背包表')) {
-    throw new Error('钱财戳、状态戳与背包分类规则未注入');
+if (!contract.includes('[当前真实列号映射｜column严格从0开始]')
+    || !contract.includes('#0 当前状态表：0=日期，1=时间，2=地点，3=当前场景人物')
+    || !contract.includes('#6 历史事件表：0=时间')) {
+    throw new Error('当前七表真实列号映射未注入');
 }
-if (!contract.includes('[当前真实行号边界｜本轮唯一依据，优先于全部历史聊天与旧tableEdit]')
-    || !contract.includes('#3 当前任务与约定表：当前数据行数=0（空表，只能insertRow）')
-    || !contract.includes('#4 人物主表：当前数据行数=2，合法rowIndex=0-1')
-    || !contract.includes('历史中曾出现insertRow，也只能按当前缺失事实重新insert')) {
-    throw new Error('导入旧聊天后的实时行号边界未注入');
-}
-if (!request.messages[0]?.content.includes('最终落点') || !request.messages[0]?.content.includes('表中空缺')) {
-    throw new Error('最后一条用户消息缺少最终状态审计提醒');
+if (!request.messages[0]?.content.includes('Memo-N本轮输出顺序') || !request.messages[0]?.content.includes('NO_CHANGE')) {
+    throw new Error('最后一条用户消息缺少单次记录顺序提醒');
 }
 
 const first = {
     is_user: false,
-    // DeepSeek前缀续写接口可以只返回已提供前缀之后的内容。
-    mes: 'updateRow(0,0,{1:"08:02"})\n--></tableEdit>\n\n第一轮正常正文',
+    mes: tableEdit('第一轮正常正文', 'updateRow(0,0,{1:"08:02"})'),
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -179,12 +169,11 @@ const secondRequest = await armRequest('normal', 'deepseek', [
     { role: 'user', content: '继续行动' },
 ]);
 if (secondRequest.response_format || secondRequest.json_schema
-    || secondRequest.messages.at(-1)?.role !== 'assistant'
-    || secondRequest.messages.at(-1)?.content !== '<tableEdit><!--\n') {
+    || secondRequest.messages.at(-1)?.role !== 'system'
+    || !secondRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) {
     throw new Error('第二轮请求协议发生漂移');
 }
-if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')
-    || !secondRequest.messages[0]?.content.includes('不代表本轮表格仍有相同行或rowIndex')) throw new Error('第二轮历史副本没有标明仅作格式范例');
+if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复已执行记录范例');
 if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
 const second = {
     is_user: false,
@@ -309,8 +298,8 @@ const otherProviderRequest = await armRequest('normal', 'openai');
 if (!otherProviderRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('非DeepSeek正文API没有使用同一单次记录链路');
 
 const proxiedDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { reverse_proxy: 'https://relay.invalid/v1' });
-if (proxiedDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Error('代理DeepSeek被错误注入仅原生端点支持的硬前缀');
+if (!proxiedDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('代理DeepSeek没有使用统一记录协议');
 const toolDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { tools: [{ type: 'function', function: { name: 'x' } }] });
-if (toolDeepSeekRequest.messages.at(-1)?.role === 'assistant') throw new Error('带工具请求被错误注入DeepSeek不支持的硬前缀');
+if (!toolDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('带工具请求没有使用统一记录协议');
 
-console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, deepseek-hard-prefix=2, prefix-reconstruction=1, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, status-continuity=1, provider-neutral=1, prefix-safety-fallback=2');
+console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, final-contract=3, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, status-continuity=1, provider-neutral=1');

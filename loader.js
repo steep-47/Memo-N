@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.50-character-memory-cleanup-1';
-const DISPLAY_VERSION = '0.50';
+const RUNTIME_VERSION = '0.51-story-prompt-compaction-1';
+const DISPLAY_VERSION = '0.51';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -66,4 +66,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.50 loaded: character-specific memory modules removed; latest modules forced by cleanup cache key');
+console.log('[Memo-N][loader] v0.51 loaded: compact story context enabled; detailed table audit isolated from normal narrative');

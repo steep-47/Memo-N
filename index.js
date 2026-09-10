@@ -23,6 +23,14 @@ console.log("______________________记忆插件：开始加载__________________
 
 const VERSION = '0.1.0-memon.82'
 
+const COMPACT_STORY_CONTEXT_TEMPLATE = `# Memo-N 当前世界状态
+以下表格保存已经确认的当前事实，只作为连续性依据。它不是剧情提纲、任务清单或出场名单，也不提高玩家、任务或已记录NPC的叙事优先级。
+
+{{tableData}}
+
+# 使用边界
+先按当前预设、人物动机和现场因果完成世界推演，再依据最终实际结果维护记录。允许本轮没有可记录变化；不为填表主动制造事件、关系、关注、机缘或主线。表中没有记录不等于世界中不存在，未知信息保持未知。`;
+
 const editErrorInfo = {
     forgotCommentTag: false,
     functionNameError: false,
@@ -181,7 +189,11 @@ export function findNextChatWhitTableData(startIndex, isIncludeStartIndex = fals
  * @returns 生成的完整提示词
  */
 export function initTableData(eventData) {
-    const allPrompt = USER.tableBaseSetting.message_template.replace('{{tableData}}', getTablePrompt(eventData))
+    const useCompactStoryContext = USER.tableBaseSetting.compact_story_context !== false;
+    const template = useCompactStoryContext
+        ? COMPACT_STORY_CONTEXT_TEMPLATE
+        : USER.tableBaseSetting.message_template;
+    const allPrompt = template.replace('{{tableData}}', getTablePrompt(eventData, useCompactStoryContext))
     const promptContent = replaceUserTag(allPrompt)  //替换所有的<user>标签
     console.log("完整提示", promptContent)
     return promptContent
