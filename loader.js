@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.50-final-rule-audit-2';
+const RUNTIME_VERSION = '0.50-character-memory-cleanup-1';
 const DISPLAY_VERSION = '0.50';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -44,13 +44,8 @@ const runtimes = [
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
-    ['世界七表伊依隔离守卫', './scripts/runtime/worldTableGuard.js'],
     ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
-    ['伊依自动记忆运行时', './scripts/yiyi/yiyiMemoryRuntime.js'],
-    ['伊依预设角色记忆桥', './scripts/yiyi/yiyiPresetMemoryBridge.js'],
-    ['伊依长期记忆库UI', './scripts/ui/yiyiMemoryPanel.js'],
-    ['伊依启动自检', './scripts/yiyi/yiyiDiagnostics.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
@@ -71,4 +66,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.50 loaded: complete record/manual/cleanup/output audit passed; latest modules forced by final cache key');
+console.log('[Memo-N][loader] v0.50 loaded: character-specific memory modules removed; latest modules forced by cleanup cache key');

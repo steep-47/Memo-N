@@ -71,7 +71,7 @@ function liveColumnMap() {
 
 function recordContract() {
     return `${MARKER}
-本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项和伊依留言等结构。
+本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项及其他原定结构。
 
 机器记录块格式：
 <tableEdit><!--
@@ -112,7 +112,6 @@ ${liveColumnMap()}
 - deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
 - 没有任何事实变化时使用NO_CHANGE。
-- 伊依是后台陪伴者，不是剧情世界实体，不写入世界七表。
 - 记录块必须是实际输出第一段，</tableEdit>之后立刻输出完整正常正文。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
 }
 

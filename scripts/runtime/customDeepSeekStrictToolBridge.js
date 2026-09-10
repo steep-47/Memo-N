@@ -17,7 +17,7 @@ const TOOL_PARAMETERS = {
     properties: {
         reply: {
             type: 'string',
-            description: '给玩家看的完整正常回复，必须保留原预设要求的状态栏、正文、行动选项、伊依留言等全部应有内容。',
+            description: '给玩家看的完整正常回复，必须保留原预设要求的状态栏、正文、行动选项及其他全部应有内容。',
         },
         changes: {
             type: 'array',
@@ -148,7 +148,7 @@ function detailRules(oldContract) {
 
 function toolContract(oldContract) {
     const details = detailRules(oldContract);
-    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\nDeepSeek V4思考模式下不发送tool_choice，因此由模型按本规则选择唯一的 ${TOOL_NAME} 作为本轮最终交付通道。完成思考后必须且只调用一次 ${TOOL_NAME}；不要在工具调用之外另输出最终正文或第二套机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项、伊依留言等全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目固定包含op、table、row、cells。insert时row=null；update/delete时row使用当前表真实存在的整数rowIndex；delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏、JSON正文或其他机器格式。\n\n${details}`.trim();
+    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\nDeepSeek V4思考模式下不发送tool_choice，因此由模型按本规则选择唯一的 ${TOOL_NAME} 作为本轮最终交付通道。完成思考后必须且只调用一次 ${TOOL_NAME}；不要在工具调用之外另输出最终正文或第二套机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项及其他全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目固定包含op、table、row、cells。insert时row=null；update/delete时row使用当前表真实存在的整数rowIndex；delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏、JSON正文或其他机器格式。\n\n${details}`.trim();
 }
 
 function rewriteUserReminder(content) {

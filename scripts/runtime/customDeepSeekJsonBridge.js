@@ -47,7 +47,7 @@ function buildJsonContract(oldContract) {
 最终响应必须且只能是一个合法JSON对象，JSON外不得出现任何字符：
 {"reply":"给玩家看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
 
-reply必须包含本轮完整玩家可见内容，包括原预设要求的状态栏、正文、行动选项和伊依留言等；不得为了记录省略任何本来应输出的部分。
+reply必须包含本轮完整玩家可见内容，包括原预设要求的状态栏、正文、行动选项及其他原定结构；不得为了记录省略任何本来应输出的部分。
 changes只保存依据最终reply及当前七表确认需要执行的表格变更。没有任何变化时changes必须为[]。
 每个changes项目固定包含op、table、row、cells：insert的row为null；update/delete的row必须是当前表真实存在的整数；delete的cells为[]；cells只使用当前真实column编号，value为字符串或数字。
 先在内部确定完整reply与玩家下次输入前的最终落点，再逐表核对并形成changes；不要把正文放进changes，也不要输出tableEdit、函数调用、SQL、Markdown代码围栏或额外字段。

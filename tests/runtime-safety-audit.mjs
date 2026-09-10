@@ -140,7 +140,6 @@ const pinchZoomText = await fs.readFile(new URL('../scripts/ui/pinchZoom.js', im
 const engineText = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 const providerText = await fs.readFile(new URL('../scripts/runtime/providerRoute.js', import.meta.url), 'utf8');
 const envelopeText = await fs.readFile(new URL('../scripts/engine/recordEnvelope.js', import.meta.url), 'utf8');
-const yiyiText = await fs.readFile(new URL('../scripts/yiyi/yiyiMemoryRuntime.js', import.meta.url), 'utf8');
 const editorText = await fs.readFile(new URL('../scripts/editor/chatSheetsDataView.js', import.meta.url), 'utf8');
 const swipeRestoreText = await fs.readFile(new URL('../scripts/runtime/swipeSnapshotRestore.js', import.meta.url), 'utf8');
 const modeControlText = await fs.readFile(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
@@ -178,7 +177,6 @@ if (!envelopeText.includes('escapeControlCharsInsideJsonStrings') || !envelopeTe
 if (!envelopeText.includes('parseRelayTableEditEnvelope') || !envelopeText.includes('Memo-N记录块尚未闭合') || !envelopeText.includes('/<tableEdit\\b[^>]*>/i')) throw new Error('原生tableEdit记录块缺少严格解析或半截等待能力');
 if (!bootstrapText.includes('TRANSPORT_NEUTRAL_OUTPUT') || !bootstrapText.includes('最终传输格式只服从本轮请求末尾')) throw new Error('手机已保存模板没有保持传输格式中立');
 if (!settingsText.includes('independent_record_api_enabled: false') || !bootstrapText.includes("RECORD_MODE_MIGRATION_KEY = 'record_mode_single_api_v71'") || !bootstrapText.includes('store.independent_record_api_enabled = false')) throw new Error('Memo-N没有把单次API记录设为默认并迁移v70设置');
-if (!yiyiText.includes('Memo-N <tableEdit>记录块') || !yiyiText.includes('先完整输出并闭合该块')) throw new Error('伊依记忆块与Memo-N原生tableEdit顺序未对齐');
 if (!independentText.includes('if(!prepareAutoBaseline')) throw new Error('自动独立记录缺少基线成功门控');
 if (!independentText.includes('if(!baselineReady)throw new Error')) throw new Error('手动独立记录缺少基线成功门控');
 if (!independentText.includes('!sessionChat.includes(initialPiece)')) throw new Error('手动独立记录缺少目标消息当前聊天归属校验');
@@ -193,4 +191,4 @@ if (!engineText.includes('await BASE.refreshContextView?.()')) throw new Error('
 const detachedGate = independentText.indexOf("return'detached'");
 const independentExecute = independentText.indexOf('const result=executeMemoTableEdit');
 if (detachedGate < 0 || independentExecute < 0 || detachedGate > independentExecute) throw new Error('独立记录缺少执行前聊天会话身份门控');
-console.log('memo-n engine audit PASS: native-tableedit-one-call=1, deepseek-hard-prefix=1, prefix-reconstruction=1, prefix-safety-gates=2, last-user-anchor=1, whole-json-disabled=1, stop-preserved=1, reasoning-parser=1, yiyi-order=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');
+console.log('memo-n engine audit PASS: native-tableedit-one-call=1, deepseek-hard-prefix=1, prefix-reconstruction=1, prefix-safety-gates=2, last-user-anchor=1, whole-json-disabled=1, stop-preserved=1, reasoning-parser=1, strict-executor=1, session-gate=1, failure-baseline=1, persistence-rollback=1, status-await=1, independent-gates=2, no-change-toast=1');
