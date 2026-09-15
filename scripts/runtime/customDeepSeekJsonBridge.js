@@ -45,7 +45,7 @@ function buildJsonContract(oldContract) {
     return `${JSON_MARKER}
 本轮只调用当前这一次正文API，同时完成正常回复与世界记录。
 最终响应必须且只能是一个合法JSON对象，JSON外不得出现任何字符：
-{"reply":"给玩家看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"expected":"对象核对名","cells":[{"column":0,"value":"值"}]}]}
+{"reply":"给玩家看的完整正常回复","changes":[{"op":"update","table":5,"row":0,"expected":"当前行第一列原值","cells":[{"column":6,"value":"新状态"}]}]}
 
 reply必须包含本轮完整玩家可见内容，包括原预设要求的状态栏、正文、行动选项及其他原定结构；不得为了记录省略任何本来应输出的部分。
 changes只保存依据最终reply及当前七表确认需要执行的表格变更。没有任何变化时changes必须为[]。
