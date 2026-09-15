@@ -3,7 +3,7 @@ import { saveReply } from '/script.js';
 import { oai_settings } from '/scripts/openai.js';
 import { ToolManager } from '/scripts/tool-calling.js';
 import { parseRecordEnvelope } from '../engine/recordEnvelope.js';
-import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-strict-tool41';
+import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-strict-tool42';
 
 const TOOL_NAME = 'memo_n_finish';
 const OLD_MARKER = '[Memo-N native tableEdit one-call v1]';
@@ -29,6 +29,10 @@ const TOOL_PARAMETERS = {
                     op: { type: 'string', enum: ['insert', 'update', 'delete'] },
                     table: { type: 'integer' },
                     row: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+                    expected: {
+                        type: 'string',
+                        description: '仅表2/4/5的update/delete使用；必须原样填写当前目标row第一列原值，用于防止更新或删除错对象。',
+                    },
                     cells: {
                         type: 'array',
                         items: {
@@ -148,14 +152,14 @@ function detailRules(oldContract) {
 
 function toolContract(oldContract) {
     const details = detailRules(oldContract);
-    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\nDeepSeek V4思考模式下不发送tool_choice，因此由模型按本规则选择唯一的 ${TOOL_NAME} 作为本轮最终交付通道。完成思考后必须且只调用一次 ${TOOL_NAME}；不要在工具调用之外另输出最终正文或第二套机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项及其他全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目固定包含op、table、row、cells。insert时row=null；update/delete时row使用当前表真实存在的整数rowIndex；delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏、JSON正文或其他机器格式。\n\n${details}`.trim();
+    return `${TOOL_MARKER}\n本轮仍只调用当前这一次正文API，同时完成正常回复与世界记录。\nDeepSeek V4思考模式下不发送tool_choice，因此由模型按本规则选择唯一的 ${TOOL_NAME} 作为本轮最终交付通道。完成思考后必须且只调用一次 ${TOOL_NAME}；不要在工具调用之外另输出最终正文或第二套机器格式。\n\n工具参数中的reply是给玩家看的完整最终回复：先按原预设完成应有的状态栏、正文、行动选项及其他全部结构，再把这份完整定稿原样放入reply。\n工具参数中的changes只记录依据最终reply与当前七表确定需要执行的全部变更；没有任何变化时changes必须为[]。\n每个changes项目使用op、table、row、cells；表2/4/5的update/delete还必须带expected，值必须原样抄该row当前第一列。insert时row=null且不写expected；其他表的update/delete不写expected。delete时cells=[]；cells只使用当前真实column编号，value只写字符串或数字。\n先确定完整reply与玩家下次输入前的最终落点，再逐表核对changes。不要输出<tableEdit>、函数文本、SQL、Markdown代码围栏、JSON正文或其他机器格式。\n\n${details}`.trim();
 }
 
 function rewriteUserReminder(content) {
     const text = String(content ?? '');
     const at = text.lastIndexOf(USER_MARKER);
     const clean = at >= 0 ? text.slice(0, at).trimEnd() : text;
-    return `${clean}\n\n[Memo-N本轮唯一交付：思考完成后调用一次${TOOL_NAME}。reply必须包含本来应有的状态栏、正文、行动选项和其他可见结构；changes按当前实时七表完整记录必要变化，无变化为[]。不要直接输出最终正文，也不要输出tableEdit/JSON等第二套机器格式。]`;
+    return `${clean}\n\n[Memo-N本轮唯一交付：思考完成后调用一次${TOOL_NAME}。reply必须包含本来应有的状态栏、正文、行动选项和其他可见结构；changes按当前实时七表完整记录必要变化；表2/4/5的update/delete必须带当前行第一列原值expected；无变化为[]。不要直接输出最终正文，也不要输出tableEdit/JSON等第二套机器格式。]`;
 }
 
 function stripOldHistoryExample(content) {
