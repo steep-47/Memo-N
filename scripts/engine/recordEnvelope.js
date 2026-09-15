@@ -1,4 +1,5 @@
 const OP_TYPES = new Set(['insert', 'update', 'delete']);
+const IDENTITY_TABLES = new Set([2, 4, 5]);
 // Root-level HTML comments can be removed by the mobile render pipeline before
 // GENERATION_ENDED. Plain sentinels survive in chat.mes and are stripped here.
 const RELAY_TAG_START = 'MEMO_N_CHANGES_V1';
@@ -56,25 +57,46 @@ function normalizeCells(value, label, allowEmpty = false) {
     return result;
 }
 
+function normalizeExpected(value, label, required) {
+    if (value === undefined || value === null) {
+        if (required) throw new Error(`${label}.expected必须填写当前目标行第一列原值`);
+        return undefined;
+    }
+    if (typeof value !== 'string' && typeof value !== 'number') throw new Error(`${label}.expected必须是字符串或有限数字`);
+    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error(`${label}.expected必须是字符串或有限数字`);
+    const normalized = String(value).trim();
+    if (!normalized) {
+        if (required) throw new Error(`${label}.expected必须填写当前目标行第一列原值`);
+        return undefined;
+    }
+    return normalized;
+}
+
 function normalizeChange(change, index) {
     const label = `changes[${index}]`;
     if (!change || typeof change !== 'object' || Array.isArray(change)) throw new Error(`${label}必须是对象`);
-    const allowed = new Set(['op', 'table', 'row', 'cells']);
+    const allowed = new Set(['op', 'table', 'row', 'cells', 'expected']);
     for (const key of Object.keys(change)) if (!allowed.has(key)) throw new Error(`${label}包含未知字段${key}`);
     if (!OP_TYPES.has(change.op)) throw new Error(`${label}.op必须是insert/update/delete`);
     if (!isIndex(change.table)) throw new Error(`${label}.table必须是非负安全整数`);
     if (change.op === 'insert') {
         if (change.row !== null) throw new Error(`${label}插入操作row必须为null`);
+        if (change.expected !== undefined && change.expected !== null && String(change.expected).trim()) throw new Error(`${label}插入操作不得携带expected`);
         return { op: 'insert', table: change.table, data: normalizeCells(change.cells, label) };
     }
     if (!isIndex(change.row)) throw new Error(`${label}.row必须是真实存在的非负安全整数`);
+    const expected = normalizeExpected(change.expected, label, IDENTITY_TABLES.has(change.table));
     if (change.op === 'delete') {
         const normalized = normalizeCellsContainer(change.cells, label, true);
         normalizeCells(normalized, label, true);
         if (normalized.length) throw new Error(`${label}删除操作cells必须为空数组`);
-        return { op: 'delete', table: change.table, row: change.row };
+        return expected === undefined
+            ? { op: 'delete', table: change.table, row: change.row }
+            : { op: 'delete', table: change.table, row: change.row, expected };
     }
-    return { op: 'update', table: change.table, row: change.row, data: normalizeCells(change.cells, label) };
+    const normalized = { op: 'update', table: change.table, row: change.row, data: normalizeCells(change.cells, label) };
+    if (expected !== undefined) normalized.expected = expected;
+    return normalized;
 }
 
 function escapeControlCharsInsideJsonStrings(text) {
@@ -338,8 +360,12 @@ export function changesToStrictCalls(changes) {
     if (!Array.isArray(changes) || !changes.length) return ['NO_CHANGE'];
     return changes.map(change => {
         if (change.op === 'insert') return `insertRow(${change.table},${JSON.stringify(change.data)})`;
-        if (change.op === 'update') return `updateRow(${change.table},${change.row},${JSON.stringify(change.data)})`;
-        return `deleteRow(${change.table},${change.row})`;
+        if (change.op === 'update') {
+            const expected = change.expected === undefined ? '' : `,${JSON.stringify(change.expected)}`;
+            return `updateRow(${change.table},${change.row},${JSON.stringify(change.data)}${expected})`;
+        }
+        const expected = change.expected === undefined ? '' : `,${JSON.stringify(change.expected)}`;
+        return `deleteRow(${change.table},${change.row}${expected})`;
     });
 }
 
