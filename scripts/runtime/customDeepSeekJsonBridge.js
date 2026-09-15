@@ -1,5 +1,5 @@
 import { APP } from '../../core/manager.js';
-import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-json37';
+import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-json38';
 
 const OLD_MARKER = '[Memo-N native tableEdit one-call v1]';
 const JSON_MARKER = '[Memo-N DeepSeek JSON one-call v1]';
@@ -45,11 +45,11 @@ function buildJsonContract(oldContract) {
     return `${JSON_MARKER}
 本轮只调用当前这一次正文API，同时完成正常回复与世界记录。
 最终响应必须且只能是一个合法JSON对象，JSON外不得出现任何字符：
-{"reply":"给玩家看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"cells":[{"column":0,"value":"值"}]}]}
+{"reply":"给玩家看的完整正常回复","changes":[{"op":"insert|update|delete","table":0,"row":0,"expected":"对象核对名","cells":[{"column":0,"value":"值"}]}]}
 
 reply必须包含本轮完整玩家可见内容，包括原预设要求的状态栏、正文、行动选项及其他原定结构；不得为了记录省略任何本来应输出的部分。
 changes只保存依据最终reply及当前七表确认需要执行的表格变更。没有任何变化时changes必须为[]。
-每个changes项目固定包含op、table、row、cells：insert的row为null；update/delete的row必须是当前表真实存在的整数；delete的cells为[]；cells只使用当前真实column编号，value为字符串或数字。
+每个changes项目使用op、table、row、cells；表2/4/5的update/delete还必须带expected，值必须原样抄该row当前第一列。insert的row为null且不写expected；其他表的update/delete不写expected。delete的cells为[]；cells只使用当前真实column编号，value为字符串或数字。
 先在内部确定完整reply与玩家下次输入前的最终落点，再逐表核对并形成changes；不要把正文放进changes，也不要输出tableEdit、函数调用、SQL、Markdown代码围栏或额外字段。
 
 ${details}`.trim();
@@ -59,7 +59,7 @@ function rewriteUserReminder(content) {
     const text = String(content ?? '');
     const at = text.lastIndexOf(USER_MARKER);
     const clean = at >= 0 ? text.slice(0, at).trimEnd() : text;
-    return `${clean}\n\n[Memo-N本轮JSON输出：最终只输出一个合法JSON对象 {"reply":"完整正常回复","changes":[...]}。reply必须保留状态栏、正文、行动选项和其他原定结构；changes按当前实时七表记录全部必要变化，无变化为[]。]`;
+    return `${clean}\n\n[Memo-N本轮JSON输出：最终只输出一个合法JSON对象 {"reply":"完整正常回复","changes":[...]}。reply必须保留状态栏、正文、行动选项和其他原定结构；changes按当前实时七表记录全部必要变化；表2/4/5的update/delete必须带当前行第一列原值expected；无变化为[]。]`;
 }
 
 function stripInjectedTableExample(content) {
