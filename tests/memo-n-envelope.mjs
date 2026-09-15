@@ -6,11 +6,14 @@ const valid = parseRecordEnvelope(JSON.stringify({
         { op: 'insert', table: 2, row: null, cells: [{ column: 0, value: '钥匙' }, { column: 2, value: 1 }] },
         { op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:02' }] },
         { op: 'delete', table: 3, row: 1, cells: [] },
+        { op: 'update', table: 5, row: 0, expected: '云姬', cells: [{ column: 6, value: '三五日内回别院' }] },
+        { op: 'delete', table: 4, row: 2, expected: '旧称呼', cells: [] },
     ],
 }));
-if (!valid.ok || valid.changes.length !== 3) throw new Error(`合法信封解析失败：${valid.error}`);
+if (!valid.ok || valid.changes.length !== 5) throw new Error(`合法信封解析失败：${valid.error}`);
 const calls = changesToStrictCalls(valid.changes);
-if (!calls[0].startsWith('insertRow(2,') || !calls[1].startsWith('updateRow(0,0,') || calls[2] !== 'deleteRow(3,1)') throw new Error('变更对象未正确编译为严格事务调用');
+if (!calls[0].startsWith('insertRow(2,') || !calls[1].startsWith('updateRow(0,0,') || calls[2] !== 'deleteRow(3,1)') throw new Error('普通变更对象未正确编译为严格事务调用');
+if (!calls[3].endsWith(',"云姬")') || calls[4] !== 'deleteRow(4,2,"旧称呼")') throw new Error('对象核对名未正确传入严格事务调用');
 
 const noChange = parseRecordEnvelope({ reply: '正文', changes: [] });
 if (!noChange.ok || !noChange.noChange || changesToStrictCalls(noChange.changes)[0] !== 'NO_CHANGE') throw new Error('空变更未正确归一为NO_CHANGE');
@@ -22,12 +25,18 @@ const invalidCases = [
     { reply: '正文', changes: [{ op: 'insert', table: 0, row: 0, cells: [{ column: 0, value: 'x' }] }] },
     { reply: '正文', changes: [{ op: 'delete', table: 0, row: 0, cells: [{ column: 0, value: 'x' }] }] },
     { reply: '正文', changes: [{ op: 'insert', table: 0, row: null, cells: [{ column: 0, value: 'x' }, { column: 0, value: 'y' }] }] },
+    { reply: '正文', changes: [{ op: 'update', table: 5, row: 0, cells: [{ column: 6, value: '变化' }] }] },
+    { reply: '正文', changes: [{ op: 'delete', table: 2, row: 0, cells: [] }] },
+    { reply: '正文', changes: [{ op: 'insert', table: 4, row: null, expected: '不该出现', cells: [{ column: 0, value: '甲' }] }] },
     { reply: '正文', changes: [], extra: true },
 ];
 for (const sample of invalidCases) if (parseRecordEnvelope(sample).ok) throw new Error(`非法信封被接受：${JSON.stringify(sample)}`);
 
 const recoverable = parseRecordEnvelope({ reply: '可保留正文', changes: [{ op: 'INSERT INTO', table: 2, row: null, cells: [] }] });
 if (recoverable.ok || recoverable.reply !== '可保留正文') throw new Error('非法变更时未安全保留可确定的reply正文');
+
+const identityRecoverable = parseRecordEnvelope({ reply: '正文仍保留', changes: [{ op: 'update', table: 5, row: 0, cells: [{ column: 6, value: '变化' }] }] });
+if (identityRecoverable.ok || identityRecoverable.reply !== '正文仍保留' || !/expected/.test(identityRecoverable.error)) throw new Error('缺少对象核对名时未明确拒绝并保留正文');
 
 const rawControl = `{"reply":"第一行
 第二行","changes":[{"op":"insert","table":4,"row":null,"cells":[{"column":0,"value":"甲
@@ -63,6 +72,15 @@ if (!relay.ok || relay.reply.includes('MEMO_N_CHANGES') || relay.changes.length 
     throw new Error(`中转站隐藏记录块解析失败：${relay.error}`);
 }
 
+const identityRelayChanges = [
+    { op: 'update', table: 5, row: 0, expected: '云姬', cells: [{ column: 6, value: '返程中' }] },
+];
+const identityRelayRaw = `正文\n${RELAY_TAG_START}\n${JSON.stringify(identityRelayChanges)}\n${RELAY_TAG_END}`;
+const identityRelay = parseRelayTaggedEnvelope(identityRelayRaw);
+if (!identityRelay.ok || changesToStrictCalls(identityRelay.changes)[0] !== 'updateRow(5,0,{"6":"返程中"},"云姬")') {
+    throw new Error(`中转站对象核对名传递失败：${identityRelay.error}`);
+}
+
 const leadingRelay = parseRelayTaggedEnvelope(`${RELAY_TAG_START}\n${JSON.stringify(relayChanges)}\n${RELAY_TAG_END}\n\n前置块后的正常正文`);
 if (!leadingRelay.ok || leadingRelay.reply !== '前置块后的正常正文' || leadingRelay.changes.length !== 2) {
     throw new Error(`前置记录块解析失败：${leadingRelay.error}`);
@@ -88,4 +106,4 @@ if (incompleteRelay.ok || !/尚未闭合/.test(incompleteRelay.error) || incompl
 const badRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[{"op":"INSERT INTO"}]\n${RELAY_TAG_END}`);
 if (badRelay.ok || badRelay.reply !== '正文') throw new Error('非法中转站变更被接受或正文未保留');
 
-console.log('memo-n-envelope PASS: native tableEdit + legacy tagged/JSON compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
+console.log('memo-n-envelope PASS: native tableEdit + JSON identity guard + tagged compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
