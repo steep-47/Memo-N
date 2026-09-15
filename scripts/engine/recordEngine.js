@@ -5,7 +5,7 @@ import {
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
-} from './recordEnvelope.js';
+} from './recordEnvelope.js?v=memon83';
 
 const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
@@ -80,6 +80,11 @@ updateRow(tableIndex,rowIndex,{columnIndex:"value"})
 deleteRow(tableIndex,rowIndex)
 --></tableEdit>
 
+表2背包表、表4人物主表、表5人物发展表的update/delete必须额外携带当前目标row第一列原值作为对象核对名：
+updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
+deleteRow(tableIndex,rowIndex,"当前行第一列原值")
+对象核对名必须原样抄当前表格执行前该row第一列；人物改名时仍用旧姓名核对，新姓名写入data。
+
 记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。即使七表都没有变化，也先输出无变化记录块，再输出正常正文：
 <tableEdit><!-- NO_CHANGE --></tableEdit>
 
@@ -110,6 +115,7 @@ ${liveColumnMap()}
 - insertRow仅用于当前表中没有该对象/事实且本轮首次明确确认。
 - updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
 - deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
+- 表2/4/5执行updateRow或deleteRow时，必须同时原样抄该row当前第一列作为对象核对名；缺少核对名不得执行。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
 - 没有任何事实变化时使用NO_CHANGE。
 - 记录块必须是实际输出第一段，</tableEdit>之后立刻输出完整正常正文。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
@@ -127,7 +133,7 @@ function clearCustomResponseFormat(data) {
 
 function reinforceLastUser(messages) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
+    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；表2/4/5的update/delete必须带当前row第一列原值作为对象核对名；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
