@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.52-identity-guard-1';
-const DISPLAY_VERSION = '0.52';
+const RUNTIME_VERSION = '0.53-identity-output-guard-1';
+const DISPLAY_VERSION = '0.53';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -49,6 +49,8 @@ const runtimes = [
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
+    // 最后修正单API记录契约中的对象核对格式，避免模型照抄通用三参数update/delete。
+    ['对象核对输出硬约束', './scripts/runtime/identityExpectedPromptGuard.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理最近证据与表达规则', './scripts/runtime/cleanupEvidenceWindow.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
@@ -66,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.52 loaded: identity-guard record fix + compact story context');
+console.log('[Memo-N][loader] v0.53 loaded: identity output contract guard + existing record safety');
