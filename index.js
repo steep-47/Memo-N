@@ -21,7 +21,7 @@ import { initExternalDataAdapter } from './external-data-adapter.js';
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '0.1.0-memon.82'
+const VERSION = '0.1.0-memon.83'
 
 const COMPACT_STORY_CONTEXT_TEMPLATE = `# Memo-N 当前世界状态
 以下表格保存已经确认的当前事实，只作为连续性依据。它不是剧情提纲、任务清单或出场名单，也不提高玩家、任务或已记录NPC的叙事优先级。
