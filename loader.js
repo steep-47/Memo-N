@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.54-adjacent-comment-guard-1';
-const DISPLAY_VERSION = '0.54';
+const RUNTIME_VERSION = '0.55-fixed-block-history-1';
+const DISPLAY_VERSION = '0.55';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -28,6 +28,7 @@ async function loadRuntime(label, path) {
 const runtimes = [
     ['表格视图单例与渲染稳定', './scripts/runtime/tableViewStabilityGuard.js'],
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
+    ['固定分块历史', './scripts/runtime/fixedBlockHistory.js'],
     ['玩家身份与称号字段结构', './scripts/runtime/playerProfileSchema.js'],
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
@@ -68,4 +69,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.54 loaded: adjacent empty-comment compatibility + strict record safety');
+console.log('[Memo-N][loader] v0.55 loaded: fixed-block history + stable cache boundaries');
