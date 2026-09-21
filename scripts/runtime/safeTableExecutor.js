@@ -327,6 +327,13 @@ function normalizeBlocks(raw) {
             .replace(/\s*<\/tableEdit>\s*$/i, '')
             .replace(/^\s*<!--\s*/, '')
             .replace(/\s*-->\s*$/, '')
+            // Thinking models occasionally split one valid record into adjacent
+            // HTML comments (including empty comments), for example:
+            //   <!-- updateRow(...) --><!----><!-- insertRow(...) -->
+            // Those boundaries carry no data. Join only directly adjacent
+            // comment blocks; any real text still remains and is rejected by
+            // the strict residue check below.
+            .replace(/-->\s*(?:<!--\s*-->\s*)*<!--/g, '\n')
             .trim())
         .filter(Boolean);
 }

@@ -17,8 +17,8 @@ for (const token of [
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
     throw new Error('cleanup evidence window runtime is not loaded');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.51'")) {
-    throw new Error('loader version is not 0.51');
+if (!loader.includes("const DISPLAY_VERSION = '0.54'")) {
+    throw new Error('loader version is not 0.54');
 }
 
 console.log('memo-n cleanup evidence window PASS: seven tables remain primary, chat reduced to one evidence round');

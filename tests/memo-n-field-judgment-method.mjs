@@ -28,8 +28,8 @@ for (const token of ['七岁时与沈六', '爬城墙摔伤', '眉不浓不淡']
 if (!contentRules.includes('使用同一外貌判断方法维护') || !engine.includes('外貌特征只维护已确认的稳定外观与持久变化')) {
     throw new Error('精简的正常记录与详细外貌判断没有保持同一语义');
 }
-if (!loader.includes("const DISPLAY_VERSION = '0.51'")) {
-    throw new Error('loader版本未升级到0.51');
+if (!loader.includes("const DISPLAY_VERSION = '0.54'")) {
+    throw new Error('loader版本未升级到0.54');
 }
 
 console.log('memo-n field judgment PASS: detailed method retained for manual/cleanup, compact stable-appearance rule retained for normal story');

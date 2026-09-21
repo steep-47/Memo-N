@@ -61,6 +61,8 @@ const parserCases = [
     ['updateRow(0,0,{0:0})', true, false],
     ['updateRow(0,0,{"h0":"按表头更新"})', true, false],
     ['updateRow(0,{"h1":"单行省略rowIndex"})', true, false],
+    ['<tableEdit><!-- updateRow(0,0,{0:"相邻注释甲"}) --><!----><!-- updateRow(0,0,{1:"相邻注释乙"}) --></tableEdit>', true, false],
+    ['<tableEdit><!-- updateRow(0,0,{0:"合法操作"}) --><!-- 非法说明 --></tableEdit>', false, false],
     ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="1" value="XML更新"/></updateRow>', true, false],
     ['<insertRow tableIndex="2"><data columnIndex="0" value="黄芪"></data><data columnIndex="1" value="药材"/></insertRow>', true, false],
     ['<deleteRow tableIndex="3" rowIndex="0"/>', true, false],
@@ -161,7 +163,7 @@ if (!modeControlText.includes('repairMissingColumnsBeforeCleanup({notify:false,p
 if (!editorText.includes('await BASE.applyJsonToChatSheets(tables, type)') || !editorText.includes('repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true })')) throw new Error('导入/粘贴表格仍可能绕过表头修复或当前Swipe同步');
 if (!editorText.includes('purgeMemoTableState(piece)') || !userSettingsText.includes('purgeMemoTableState(msg)')) throw new Error('清空表格或替换模板仍会遗留可复活旧结构的Swipe快照');
 const cacheChainText = [indexText, editorText, userSettingsText, absoluteRefreshText, cleanupBridgeText, swipeRestoreText, modeControlText].join('\n');
-if (/\?v=memon(?:5|6|80|81)\b/.test(cacheChainText) || !loaderText.includes('0.51-story-prompt-compaction-1')) throw new Error('关键入口仍可能命中旧版浏览器模块缓存');
+if (/\?v=memon(?:5|6|80|81)\b/.test(cacheChainText) || !loaderText.includes('0.54-adjacent-comment-guard-1')) throw new Error('关键入口仍可能命中旧版浏览器模块缓存');
 const roleGroupBlock = pinchZoomText.match(/const firstGroups = \[[\s\S]*?const secondGroups = \[([\s\S]*?)\];/)?.[0] ?? '';
 const secondRoleGroup = pinchZoomText.match(/const secondGroups = \[([\s\S]*?)\];/)?.[1] ?? '';
 if (!roleGroupBlock.includes("['外貌特征','外貌','容貌']") || secondRoleGroup.includes('外貌特征')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');

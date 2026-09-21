@@ -38,7 +38,7 @@ if (loader.includes("'./scripts/runtime/tavernHelperHeartbeatCompat.js'")) {
 }
 if (!loader.includes("'./scripts/runtime/stableTableCleanup.js'")) throw new Error('stable cleanup runtime missing from loader');
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) throw new Error('cleanup evidence runtime missing from loader');
-if (!loader.includes("const DISPLAY_VERSION = '0.51'")) throw new Error('loader version must be 0.51');
-if (!loader.includes('0.51-story-prompt-compaction-1')) throw new Error('loader cache marker must use current prompt compaction path');
+if (!loader.includes("const DISPLAY_VERSION = '0.54'")) throw new Error('loader version must be 0.54');
+if (!loader.includes('0.54-adjacent-comment-guard-1')) throw new Error('loader cache marker must use current adjacent-comment compatibility path');
 
-console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.51 cache marker');
+console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.54 cache marker');

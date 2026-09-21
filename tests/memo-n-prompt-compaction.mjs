@@ -19,6 +19,6 @@ if (patchSettings.includes('settings.message_template = appendRules')) throw new
 const finalAudit = audit.match(/function injectFinalAudit\(data\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 if (finalAudit.includes('data.messages.push')) throw new Error('详细审计仍会在正常剧情请求末尾重复注入');
 if (!engine.includes("const MARKER = '[Memo-N native tableEdit one-call v1]'")) throw new Error('唯一单次API记录协议被移除');
-if (!loader.includes("DISPLAY_VERSION = '0.51'")) throw new Error('插件显示版本没有更新');
+if (!loader.includes("DISPLAY_VERSION = '0.54'")) throw new Error('插件显示版本没有更新');
 
 console.log('memo-n prompt compaction PASS: compact facts=1, duplicate base audit=0, duplicate final audit=0, single record contract=1');
