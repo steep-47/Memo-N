@@ -131,7 +131,8 @@ function applyFixedBlockHistory(eventData) {
 
 function installSettingsUI() {
     const target = $('#step_by_step_options');
-    if (!target.length || $('#memo_n_fixed_block_history').length) return;
+    if ($('#memo_n_fixed_block_history').length) return true;
+    if (!target.length) return false;
 
     const config = getConfig();
     target.append(`
@@ -164,13 +165,19 @@ function installSettingsUI() {
         USER.tableBaseSetting.fixed_block_history_block_turns = value;
         USER.saveSettings();
     });
+    return true;
+}
+
+function scheduleSettingsUI(remaining = 20) {
+    if (installSettingsUI() || remaining <= 0) return;
+    setTimeout(() => scheduleSettingsUI(remaining - 1), 250);
 }
 
 if (!globalThis[MODULE_FLAG]) {
     globalThis[MODULE_FLAG] = true;
     APP.eventSource.on(APP.event_types.CHAT_COMPLETION_PROMPT_READY, applyFixedBlockHistory);
-    jQuery(installSettingsUI);
-    APP.eventSource.on(APP.event_types.CHAT_CHANGED, installSettingsUI);
+    jQuery(() => scheduleSettingsUI());
+    APP.eventSource.on(APP.event_types.CHAT_CHANGED, () => scheduleSettingsUI());
     console.log('[Memo-N] 固定分块历史已加载：默认保留100轮，每50轮冻结一批');
 }
 
