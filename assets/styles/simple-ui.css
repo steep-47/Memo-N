@@ -302,3 +302,36 @@ label[for="step_by_step_user_prompt"] ~ .toggle-description,
         border-radius: 14px;
     }
 }
+
+
+/* 固定分块历史：仅影响发送给模型的历史副本，不改动聊天原文。 */
+.memo-n-fixed-history-panel {
+    margin: 10px 0 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--memo-n-line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--memo-n-accent) 7%, transparent);
+}
+.memo-n-fixed-history-panel > .checkbox_label { margin: 0 0 8px; }
+.memo-n-fixed-history-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.memo-n-fixed-history-values label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: .84em;
+}
+.memo-n-fixed-history-values input { width: 72px !important; }
+.memo-n-fixed-history-panel > small {
+    display: block;
+    margin-top: 8px;
+    line-height: 1.45;
+    opacity: .7;
+}
+@media screen and (max-width: 768px) {
+    .memo-n-fixed-history-values { grid-template-columns: 1fr; }
+}
