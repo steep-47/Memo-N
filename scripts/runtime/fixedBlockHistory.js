@@ -1,7 +1,7 @@
 import { APP, USER } from '../../core/manager.js';
 
-const DEFAULT_KEEP_TURNS = 100;
-const DEFAULT_BLOCK_TURNS = 50;
+const DEFAULT_KEEP_TURNS = 50;
+const DEFAULT_BLOCK_TURNS = 25;
 const RECAP_RE = /<tx_history_recap>([\s\S]*?)<\/tx_history_recap>/gi;
 const MODULE_FLAG = '__memoNFixedBlockHistoryInstalled';
 
@@ -145,7 +145,7 @@ function installSettingsUI() {
                 <label>保留最近轮数 <input type="number" id="memo_n_fixed_history_keep" min="20" max="1000" step="10" value="${config.keepTurns}"></label>
                 <label>每批归档轮数 <input type="number" id="memo_n_fixed_history_block" min="10" max="500" step="10" value="${config.blockTurns}"></label>
             </div>
-            <small>默认100＋50：最近100轮保留原文，每新增50轮冻结一个历史块。不会删除聊天原文，也不会增加API调用。</small>
+            <small>默认50＋25：最近50轮保留原文，每新增25轮冻结一个历史块。不会删除聊天原文，也不会增加API调用。</small>
         </div>
     `);
 
@@ -178,7 +178,7 @@ if (!globalThis[MODULE_FLAG]) {
     APP.eventSource.on(APP.event_types.CHAT_COMPLETION_PROMPT_READY, applyFixedBlockHistory);
     jQuery(() => scheduleSettingsUI());
     APP.eventSource.on(APP.event_types.CHAT_CHANGED, () => scheduleSettingsUI());
-    console.log('[Memo-N] 固定分块历史已加载：默认保留100轮，每50轮冻结一批');
+    console.log('[Memo-N] 固定分块历史已加载：默认保留50轮，每25轮冻结一批');
 }
 
 export { applyFixedBlockHistory, buildArchiveBlocks, extractRecap };
