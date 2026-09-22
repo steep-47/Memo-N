@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.55-fixed-block-history-1';
-const DISPLAY_VERSION = '0.55';
+const RUNTIME_VERSION = '0.56-fixed-block-history-1';
+const DISPLAY_VERSION = '0.56';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -69,4 +69,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.55 loaded: fixed-block history + stable cache boundaries');
+console.log('[Memo-N][loader] v0.56 loaded: fixed-block history defaults 50+25');
