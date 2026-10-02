@@ -69,23 +69,36 @@ function liveColumnMap() {
     }).join('\n');
 }
 
+function liveIdentityMap() {
+    const sheets = BASE.getChatSheets?.() ?? [];
+    return [2, 4, 5].map(tableIndex => {
+        const sheet = sheets.find(item => item?.name === WORLD_TABLE_NAMES[tableIndex]);
+        if (!sheet) return `#${tableIndex}：表不可读取，不得写入`;
+        const count = Math.max(0, Number(sheet.getRowCount?.() ?? 0) - 1);
+        const rows = [];
+        for (let row = 0; row < count; row++) {
+            const name = String(sheet.findCellByPosition?.(row + 1, 1)?.data?.value ?? '').trim();
+            rows.push(JSON.stringify({ tableIndex, rowIndex: row, expected: name, editable: !!name }));
+        }
+        return rows.length ? rows.join('\n') : `#${tableIndex}：无数据行，不得update/delete；新对象使用insertRow`;
+    }).join('\n');
+}
+
 function recordContract(token) {
     return `${MARKER}
 本轮仅使用当前一次API。完整正文、状态栏、选项保持原预设格式和顺序；正文生成后附带唯一正式记录块。若预设要求单个XML根节点，记录块放在该根节点结束标签前；不得放在思考区、代码围栏或引用示例中。记录块位置不要求在正文前。
 
-机器记录块格式：
-<tableEdit memo-round="${token}"><!--
+机器记录块使用<tableEdit memo-round="${token}"><!-- 函数调用 --></tableEdit>。
+统一调用格式（所有表的update/delete均使用完整参数，不在两套格式之间切换）：
 insertRow(tableIndex,{columnIndex:"value"})
-表0/1/3/6：updateRow(tableIndex,rowIndex,{columnIndex:"value"})
-表0/1/3/6：deleteRow(tableIndex,rowIndex)
-表2/4/5：updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
-表2/4/5：deleteRow(tableIndex,rowIndex,"当前行第一列原值")
---></tableEdit>
+updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
+deleteRow(tableIndex,rowIndex,"expected")
+表2/4/5的expected必须从下方本轮对象核对映射原样复制；其他表expected填写空字符串""。
+expected是修改前的对象名，不能填占位词expected或“当前行第一列原值”；人物改名时核对旧姓名，新姓名写入data。
+不得在函数调用前输出“表2/4/5：”等说明文字。
 
-表2背包表、表4人物主表、表5人物发展表的update/delete必须额外携带当前目标row第一列原值作为对象核对名：
-updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前行第一列原值")
-对象核对名必须原样抄当前表格执行前该row第一列；人物改名时仍用旧姓名核对，新姓名写入data。
+[本轮对象核对映射｜rowIndex与expected必须来自同一条]
+${liveIdentityMap()}
 
 记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。只有逐表核对已输出正文与现有表格后确认全部无变化，才使用：
 <tableEdit memo-round="${token}"><!-- NO_CHANGE --></tableEdit>
@@ -125,7 +138,7 @@ ${liveColumnMap()}
 
 function reinforceLastUser(messages, token) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一<tableEdit memo-round="${token}"><!-- 本轮记录调用或经逐表核对的NO_CHANGE --></tableEdit>。单XML根节点时放在根节点内部末尾。]`;
+    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一<tableEdit memo-round="${token}"><!-- 本轮记录调用或经逐表核对的NO_CHANGE --></tableEdit>。单XML根节点时放在根节点内部末尾；updateRow固定4参数、deleteRow固定3参数，表2/4/5的最后参数抄本轮对象映射。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
