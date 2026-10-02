@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon85';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -91,6 +91,7 @@ function recordContract(token) {
 机器记录块的开始标签为<tableEdit memo-round="${token}">，结束标签为</tableEdit>。标签之间使用一个HTML注释，注释内部只能是实际函数调用或NO_CHANGE；不得写入“函数调用”等说明或占位文字。
 统一调用格式（所有表的update/delete均使用完整参数，不在两套格式之间切换）：
 insertRow(tableIndex,{columnIndex:"value"})
+新增操作固定2参数，不携带rowIndex或expected，也不要附加空字符串。
 updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
 deleteRow(tableIndex,rowIndex,"expected")
 表2/4/5的expected必须从下方本轮对象核对映射原样复制；其他表expected填写空字符串""。

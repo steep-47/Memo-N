@@ -423,7 +423,8 @@ function validateAction(call) {
     const rowCount = Math.max(0, Number(sheet.getRowCount?.()) - 1 || 0);
 
     if (call.name === 'insertRow') {
-        if (args.length !== 2) return { ok:false, error:`insertRow参数数量必须为2，实际为${args.length}` };
+        // A trailing empty identity carries no insertion data; accept this exact variant only.
+        if (args.length !== 2 && !(args.length === 3 && args[2] === '')) return { ok:false, error:`insertRow参数数量必须为2（兼容末尾空字符串），实际为${args.length}` };
         const checked = validateData(args[1], headers, `insertRow(${tableIndex})`);
         if (!checked.ok) return checked;
         const action = { type:'insert', tableIndex, sheet, data:checked.data };
