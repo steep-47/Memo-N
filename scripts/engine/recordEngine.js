@@ -88,7 +88,7 @@ function recordContract(token) {
     return `${MARKER}
 本轮仅使用当前一次API。完整正文、状态栏、选项保持原预设格式和顺序；正文生成后附带唯一正式记录块。若预设要求单个XML根节点，记录块放在该根节点结束标签前；不得放在思考区、代码围栏或引用示例中。记录块位置不要求在正文前。
 
-机器记录块使用<tableEdit memo-round="${token}"><!-- 函数调用 --></tableEdit>。
+机器记录块的开始标签为<tableEdit memo-round="${token}">，结束标签为</tableEdit>。标签之间使用一个HTML注释，注释内部只能是实际函数调用或NO_CHANGE；不得写入“函数调用”等说明或占位文字。
 统一调用格式（所有表的update/delete均使用完整参数，不在两套格式之间切换）：
 insertRow(tableIndex,{columnIndex:"value"})
 updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
@@ -138,7 +138,7 @@ ${liveColumnMap()}
 
 function reinforceLastUser(messages, token) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一<tableEdit memo-round="${token}"><!-- 本轮记录调用或经逐表核对的NO_CHANGE --></tableEdit>。单XML根节点时放在根节点内部末尾；updateRow固定4参数、deleteRow固定3参数，表2/4/5的最后参数抄本轮对象映射。]`;
+    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一tableEdit记录块，开始标签必须携带memo-round="${token}"。块内只能是实际操作或经逐表核对的NO_CHANGE，不得抄写格式说明。单XML根节点时放在根节点内部末尾；updateRow固定4参数、deleteRow固定3参数，表2/4/5的最后参数抄本轮对象映射。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
