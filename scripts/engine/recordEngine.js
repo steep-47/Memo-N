@@ -5,7 +5,7 @@ import {
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
-} from './recordEnvelope.js?v=memon83';
+} from './recordEnvelope.js?v=memon84';
 
 const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
@@ -69,15 +69,17 @@ function liveColumnMap() {
     }).join('\n');
 }
 
-function recordContract() {
+function recordContract(token) {
     return `${MARKER}
-本轮只调用当前这一次正文API，同时完成世界记录。思考完成后，实际输出的第一段先给出一个完整的Memo-N <tableEdit>记录块；记录块闭合后，立刻按原有预设正常输出完整正文、状态栏、行动选项及其他原定结构。
+本轮仅使用当前一次API。完整正文、状态栏、选项保持原预设格式和顺序；正文生成后附带唯一正式记录块。若预设要求单个XML根节点，记录块放在该根节点结束标签前；不得放在思考区、代码围栏或引用示例中。记录块位置不要求在正文前。
 
 机器记录块格式：
-<tableEdit><!--
+<tableEdit memo-round="${token}"><!--
 insertRow(tableIndex,{columnIndex:"value"})
-updateRow(tableIndex,rowIndex,{columnIndex:"value"})
-deleteRow(tableIndex,rowIndex)
+表0/1/3/6：updateRow(tableIndex,rowIndex,{columnIndex:"value"})
+表0/1/3/6：deleteRow(tableIndex,rowIndex)
+表2/4/5：updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
+表2/4/5：deleteRow(tableIndex,rowIndex,"当前行第一列原值")
 --></tableEdit>
 
 表2背包表、表4人物主表、表5人物发展表的update/delete必须额外携带当前目标row第一列原值作为对象核对名：
@@ -85,10 +87,10 @@ updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
 deleteRow(tableIndex,rowIndex,"当前行第一列原值")
 对象核对名必须原样抄当前表格执行前该row第一列；人物改名时仍用旧姓名核对，新姓名写入data。
 
-记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。即使七表都没有变化，也先输出无变化记录块，再输出正常正文：
-<tableEdit><!-- NO_CHANGE --></tableEdit>
+记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。只有逐表核对已输出正文与现有表格后确认全部无变化，才使用：
+<tableEdit memo-round="${token}"><!-- NO_CHANGE --></tableEdit>
 
-tableEdit是同一轮回复的记忆维护结果，必须以本轮规划并即将输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
+tableEdit是同一轮回复的记忆维护结果，必须以本轮实际输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
 
 [当前真实列号映射｜column严格从0开始]
 ${liveColumnMap()}
@@ -118,26 +120,16 @@ ${liveColumnMap()}
 - 表2/4/5执行updateRow或deleteRow时，必须同时原样抄该row当前第一列作为对象核对名；缺少核对名不得执行。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
 - 没有任何事实变化时使用NO_CHANGE。
-- 记录块必须是实际输出第一段，</tableEdit>之后立刻输出完整正常正文。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
+- 本轮标识必须原样填写：${token}。记录块仅附带记录，不改变预设正文结构。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
 }
 
-function clearCustomResponseFormat(data) {
-    const current = String(data?.custom_include_body ?? '').trim();
-    if (!current) return;
-    const cleaned = current
-        .replace(/(?:^|\n)\s*response_format\s*:\s*(?:\n\s*type\s*:\s*\S+|[^\n]*)\s*/gi, '\n')
-        .trim();
-    if (cleaned) data.custom_include_body = cleaned;
-    else delete data.custom_include_body;
-}
-
-function reinforceLastUser(messages) {
+function reinforceLastUser(messages, token) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N本轮输出顺序：第一段先输出一个完整<tableEdit><!-- insertRow/updateRow/deleteRow函数调用，或NO_CHANGE --></tableEdit>；表2/4/5的update/delete必须带当前row第一列原值作为对象核对名；随后输出完整正常正文、状态栏、行动选项和其他数据块。]`;
+    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一<tableEdit memo-round="${token}"><!-- 本轮记录调用或经逐表核对的NO_CHANGE --></tableEdit>。单XML根节点时放在根节点内部末尾。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
-        if (!message.content.includes('<tableEdit>')) message.content = `${message.content.trimEnd()}${reminder}`;
+        message.content = `${message.content.trimEnd()}${reminder}`;
         return true;
     }
     return false;
@@ -148,41 +140,14 @@ function validHistoryRecordBlock(value) {
     return /^<tableEdit\b[^>]*>[\s\S]*<\/tableEdit>$/i.test(text) ? text : '';
 }
 
-function previousRecordBlock(chat) {
-    const swipeId = Number(chat?.swipe_id);
-    const swipeBlock = Number.isInteger(swipeId) && swipeId >= 0
-        ? chat?.swipe_info?.[swipeId]?.extra?.memo_n_record_block
-        : '';
-    return validHistoryRecordBlock(swipeBlock)
-        || validHistoryRecordBlock(chat?.extra?.memo_n_record_block)
-        || validHistoryRecordBlock(chat?.__memoStrictExecution?.tableEdit)
-        || '<tableEdit><!-- NO_CHANGE --></tableEdit>';
-}
-
-function reinforcePreviousAssistant(messages, block) {
-    if (!Array.isArray(messages)) return false;
-    let lastUserIndex = -1;
-    for (let index = messages.length - 1; index >= 0; index--) {
-        if (messages[index]?.role === 'user') { lastUserIndex = index; break; }
-    }
-    if (lastUserIndex < 0) return false;
-    for (let index = lastUserIndex - 1; index >= 0; index--) {
-        const message = messages[index];
-        if (message?.role !== 'assistant' || typeof message.content !== 'string') continue;
-        if (!/<tableEdit\b/i.test(message.content)) message.content = `${block}\n\n${message.content}`;
-        return true;
-    }
-    return false;
-}
-
 function inject(data) {
     if (!armed || !active() || !data || typeof data !== 'object') return;
 
     const context = USER.getContext?.();
     const base = lastAssistant();
-    const historyAssistant = recentAssistant();
     pending = {
         at: Date.now(),
+        token: globalThis.crypto.randomUUID(),
         type: armed.type,
         session: context?.chat,
         startLength: Array.isArray(context?.chat) ? context.chat.length : 0,
@@ -195,14 +160,11 @@ function inject(data) {
 
     if (Array.isArray(data.messages)) {
         data.messages = data.messages.filter(message => !String(message?.content ?? '').includes(MARKER));
-        reinforcePreviousAssistant(data.messages, previousRecordBlock(historyAssistant));
-        reinforceLastUser(data.messages);
-        data.messages.push({ role: 'system', content: recordContract() });
+        reinforceLastUser(data.messages, pending.token);
+        data.messages.push({ role: 'system', content: recordContract(pending.token) });
     }
 
-    delete data.response_format;
-    delete data.json_schema;
-    clearCustomResponseFormat(data);
+    // Preserve preset/API structured-output settings instead of silently replacing them.
     console.log('[Memo-N] 已接管本轮一次API：原生tableEdit记录块 + 正常正文');
 }
 
@@ -290,12 +252,14 @@ function selectEnvelope(chat, job, appendMode) {
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 
-    const contentTableEdit = parseRelayTableEditEnvelope(content);
+    const contentTableEdit = parseRelayTableEditEnvelope(content, '', job.token);
     if (contentTableEdit.ok) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
     // 部分兼容接口把机器块放入当前Swipe的思考区，但正文仍在content。
-    const reasoningTableEdit = content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
+    const reasoningTableEdit = !job.token && content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
     if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning', fingerprint };
+
+    if (job.token) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
     // 兼容更新前已经开始生成的MEMO_N_CHANGES块。
     const contentRelay = parseRelayTaggedEnvelope(content);
@@ -382,21 +346,15 @@ async function unpack(chatId) {
     pending = null;
 
     if (!envelope.ok) {
-        if (envelope.reply) {
-            chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
-            syncSwipe(chat);
-        }
         await preserveFailureBaseline(chatId, chat, isAppend);
         setStatus(chat, { changes: [] }, { ok: false, error: envelope.error });
         EDITOR.warning(`Memo-N记录未写入：${envelope.error}。正文已保留，不会自动重试。`);
         return false;
     }
 
-    chat.mes = isAppend ? `${job.baseMes.trimEnd()}\n\n${envelope.reply}` : envelope.reply;
-    syncSwipe(chat);
     if (waited.source === 'tableedit-reasoning') console.log('[Memo-N] 已从当前Swipe思考区读取tableEdit，正文保持content');
     if (waited.source.startsWith('legacy-')) console.log('[Memo-N] 已兼容拆包更新前仍在生成的旧JSON信封');
-    handled.set(chat, chat.mes);
+
 
     const baselineSnapshot = copySnapshot(isAppend ? chat.memo_n_hash_sheets : previousSnapshot(chatId));
     const baseline = isAppend
@@ -408,7 +366,16 @@ async function unpack(chatId) {
         ? executeMemoTableEdit(executionInput, chat)
         : { ok: false, changed: false, noChange: false, count: 0, error: baseline.error };
 
-    if (execution.ok) storeRecordBlock(chat, envelope);
+    if (execution.ok) {
+        chat.mes = isAppend ? `${job.baseMes}${envelope.reply}` : envelope.reply;
+        syncSwipe(chat);
+        storeRecordBlock(chat, envelope);
+    } else {
+        // Keep malformed output intact for diagnosis; do not discard its contents.
+        if (!chat.extra || typeof chat.extra !== 'object') chat.extra = {};
+        chat.extra.memo_n_record_failure = { raw: envelope.rawTableEdit || envelope.tableEdit, error: execution.error };
+    }
+    handled.set(chat, chat.mes);
     setStatus(chat, envelope, execution);
 
     try {
@@ -495,3 +462,4 @@ APP.eventSource.on(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 APP.eventSource.makeLast?.(APP.event_types.GENERATION_ENDED, handleGenerationEnded);
 
 console.log('[Memo-N] 单次API原生tableEdit记录引擎已加载');
+

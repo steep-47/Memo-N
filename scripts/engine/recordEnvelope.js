@@ -283,32 +283,35 @@ export function parseRecordEnvelope(raw) {
  * fallbackReply is used when a relay routes tableEdit to reasoning and the
  * normal reply remains in content.
  */
-export function parseRelayTableEditEnvelope(raw, fallbackReply = '') {
+export function parseRelayTableEditEnvelope(raw, fallbackReply = '', expectedToken = '') {
     const text = String(raw ?? '');
     const fallback = String(fallbackReply ?? '').trim();
-    const open = /<tableEdit\b[^>]*>/i.exec(text);
-    if (!open) return { ok: false, error: '未找到Memo-N记录块', reply: fallback || text.trim() };
-
-    const regex = /<tableEdit\b[^>]*>([\s\S]*?)<\/tableEdit>/ig;
-    const matches = [...text.matchAll(regex)];
-    if (!matches.length) {
-        return { ok: false, error: 'Memo-N记录块尚未闭合', reply: fallback || text.slice(0, open.index).trim() };
+    // Mask excluded regions without changing offsets; preserve their original text.
+    const excluded = /<(think|thinking|analysis|reasoning)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)|<｜begin▁of▁thinking｜>[\s\S]*?(?:<｜end▁of▁thinking｜>|$)|```[^\n]*\n[\s\S]*?(?:```|$)|`[^`\n]*`|<!--(?!\s*(?:insertRow|updateRow|deleteRow|NO_CHANGE)\b)[\s\S]*?-->/gi;
+    const masked = text.replace(excluded, value => ' '.repeat(value.length))
+        .replace(/^\s*>[^\n]*/gm, value => ' '.repeat(value.length));
+    const opens = [...masked.matchAll(/<tableEdit\b[^>]*>/ig)];
+    const fail = error => ({ ok: false, error, reply: fallback || text });
+    if (!opens.length) return fail('未找到本轮正式Memo-N记录块');
+    if (opens.length !== 1) return fail('Memo-N记录块重复');
+    const open = opens[0];
+    if (expectedToken) {
+        const token = /\bmemo-round\s*=\s*["']([^"']+)["']/i.exec(open[0]);
+        if (!token || token[1] !== expectedToken) return fail('Memo-N记录块缺少或不匹配本轮标识');
     }
-    if (matches.length !== 1) {
-        return { ok: false, error: 'Memo-N记录块重复', reply: fallback || text.replace(regex, '').trim() };
-    }
-
-    const match = matches[0];
-    const visible = [text.slice(0, match.index).trim(), text.slice(match.index + match[0].length).trim()]
-        .filter(Boolean).join('\n\n').trim();
-    const body = String(match[1] ?? '').trim();
-    if (!body) return { ok: false, error: 'Memo-N记录块为空', reply: fallback || visible };
-
+    const close = /<\/tableEdit\s*>/ig;
+    close.lastIndex = open.index + open[0].length;
+    const end = close.exec(masked);
+    if (!end) return fail('Memo-N记录块尚未闭合');
+    if (close.exec(masked)) return fail('Memo-N记录块闭合标签重复');
+    const body = text.slice(open.index + open[0].length, end.index).trim();
+    if (!body) return fail('Memo-N记录块为空');
     return {
         ok: true,
-        reply: fallback || visible,
-        tableEdit: match[0],
-        noChange: /\bNO_CHANGE\b/i.test(body),
+        reply: fallback || text.slice(0, open.index) + text.slice(end.index + end[0].length),
+        tableEdit: `<tableEdit>${body}</tableEdit>`,
+        rawTableEdit: text.slice(open.index, end.index + end[0].length),
+        noChange: /^\s*(?:<!--\s*)?NO_CHANGE(?:\s*-->)?\s*$/i.test(body),
         error: '',
     };
 }
@@ -370,3 +373,4 @@ export function changesToStrictCalls(changes) {
 }
 
 export { OP_TYPES, RELAY_TAG_START, RELAY_TAG_END, escapeControlCharsInsideJsonStrings, normalizeCellValue, recoverCompleteEnvelopeFields, extractWrappedEnvelope };
+
