@@ -126,8 +126,38 @@ function repairQuotedPrefix(source) {
     return { text:output, count };
 }
 
+// Repair only a numeric object key with its closing quote omitted.
+// Scan outside values so literal text and escaped quotes stay byte-for-byte intact.
+function repairNumericKeyQuote(source) {
+    let text = '', quote = null, escaped = false, count = 0;
+    for (let i = 0; i < source.length; i++) {
+        const ch = source[i];
+        if (quote) {
+            text += ch;
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '{' || ch === ',') {
+            const match = /^([,{]\s*)"(0|[1-9]\d*)\s*:(\s*)"/.exec(source.slice(i));
+            if (match) {
+                text += match[1] + JSON.stringify(match[2]) + ':' + match[3] + '"';
+                i += match[0].length - 1;
+                quote = '"';
+                count++;
+                continue;
+            }
+        }
+        text += ch;
+        if (ch === '"' || ch === "'" || ch === '`') quote = ch;
+    }
+    return { text, count };
+}
+
 function extractCalls(text) {
-    const source = String(text ?? '');
+    const repairedKeys = repairNumericKeyQuote(String(text ?? ''));
+    const source = repairedKeys.text;
     const calls = [];
     const spans = [];
     let i = 0;
@@ -172,6 +202,9 @@ function extractCalls(text) {
             try { args = JSON5.parse(`[${repaired.text}]`); }
             catch (_) { return { ok:false, error:`${name} 参数无法解析：${error?.message || error}`, calls:[], residue:'' }; }
             correction = `${name}：转义${repaired.count}个字符串开头的内嵌引用引号`;
+        }
+        if (repairedKeys.count && calls.length === 0) {
+            correction = [correction, `补齐${repairedKeys.count}个数字字段名的结束引号`].filter(Boolean).join('；');
         }
         calls.push({ name, args, correction });
         spans.push([found.index, cursor + 1]);

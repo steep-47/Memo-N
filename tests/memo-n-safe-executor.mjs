@@ -170,3 +170,22 @@ sheets[0].rows=[];
 result=executeMemoTableEdit(`insertRow(0,{0:${JSON.stringify(escapedValue)},1:""引用"、说明"})`,{});
 if(!result.ok || sheets[0].rows[0][0]!==escapedValue || sheets[0].rows[0][1] !== '"引用"、说明')throw Error('修复其他字段时改写了合法字符串内部文本');
 console.log('quoted-prefix mixed escaping PASS');
+
+for (const sheet of sheets) sheet.rows = [];
+result = executeMemoTableEdit('insertRow(0,{0:"原值","1:"气运【全员痴女】常驻"})', {});
+if (!result.ok || sheets[0].rows[0][1] !== '气运【全员痴女】常驻' || result.corrections?.length !== 1) throw Error('数字字段缺失引号修复失败');
+result = executeMemoTableEdit('updateRow(0,0,{0:"健康","1:"气运常驻"},"")', {});
+if (!result.ok || sheets[0].rows[0][1] !== '气运常驻') throw Error('update字段缺失引号修复失败');
+const literalKey = '原样：{0:"值","13:"气运"}';
+result = executeMemoTableEdit(`updateRow(0,0,{0:${JSON.stringify(literalKey)},"1:"正常"},"")`, {});
+if (!result.ok || sheets[0].rows[0][0] !== literalKey) throw Error('合法值中的疑似字段被改写');
+for (const call of [
+    'updateRow(0,0,{"1:"气运",2:"越界"},"")',
+    'updateRow(5,0,{"1:"气运"},"错误对象")',
+    'updateRow(0,0,{"1:"气运" 0:"漏逗号"},"")',
+    'updateRow(0,0,{"1:"气运},"")',
+]) {
+    const before = JSON.stringify(sheets.map(s=>s.rows));
+    if (executeMemoTableEdit(call, {}).ok || before !== JSON.stringify(sheets.map(s=>s.rows))) throw Error('修复后非法批次未拒绝或发生部分写入');
+}
+console.log('numeric-key quote PASS: insert, update, literal preservation, invalid batch rollback');
