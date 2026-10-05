@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 // Expected injected failures should not print data-URL stack traces.
 console.warn = () => {};
 console.error = () => {};
+const { completeDepletedInventoryCleanup } = await import('../scripts/runtime/depletedInventoryCleanup.js');
 const source = await fs.readFile(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
 let piece, chat, rows, apiHook, popupHook, saveHook, calls, notices;
 let silent = true;
@@ -12,10 +13,11 @@ const sheet = {
     loadJson: data => { rows = structuredClone(data.rows); },
 };
 const mocks = {
+    completeDepletedInventoryCleanup,
     BASE: { sheetsData: { context: [] }, getChatSheets: () => [sheet], getLastSheetsPiece: () => ({ piece }), refreshContextView() { throw Error('view error'); } },
     USER: { getContext: () => ({ chat }), get tableBaseSetting() { return { bool_silent_refresh: silent }; }, saveChat: async () => saveHook?.() },
     EDITOR: Object.fromEntries(['info', 'warning', 'error', 'success'].map(type => [type, message => notices.push([type, message])])),
-    getTablePromptByPiece: () => JSON.stringify(rows),
+    getTablePromptByPiece: () => { if (calls) throw Error('检测状态不得调用会恢复快照的提示词读取器'); return JSON.stringify(rows); },
     getTableEditTag: raw => ({ matches: [raw] }),
     parseMemoTableEdit: raw => ({ ok: true, noChange: raw[0].includes('NO_CHANGE') }),
     executeMemoTableEdit: () => {

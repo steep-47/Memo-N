@@ -244,3 +244,39 @@ for(const call of [
  if(executeMemoTableEdit(call,{}).ok || before!==JSON.stringify(sheets.map(s=>s.rows)))throw Error('残缺调用恢复越权或部分写入：'+call);
 }
 console.log('bounded missing terminator PASS: nonidentity-only, complete object, next-call boundary, bounds preserved');
+
+// Real executor integration: deterministic inventory cleanup must preserve other rows.
+const { completeDepletedInventoryCleanup } = await import('../scripts/runtime/depletedInventoryCleanup.js');
+const backpack = sheets[2];
+backpack.columns = ['物品名', '类型', '数量', '状态/品质'];
+const originalCells = backpack.getCellsByRowIndex.bind(backpack);
+backpack.getCellsByRowIndex = row => row === 0
+    ? [{}, ...backpack.columns.map(value => ({ data: { value } }))]
+    : originalCells(row);
+Object.defineProperty(backpack, 'hashSheet', { get: () => Array(backpack.rows.length + 1).fill([]) });
+for (const sheet of sheets) sheet.rows = [];
+backpack.rows = [
+    ['还魂草','药材',0,'已售出'], ['干柴','燃料','0','已耗尽'],
+    ['柴胡','药材',0,'已售出'], ['地丁草','药材','0.0','已售出'],
+    ['粗米','粮食',1,'已取少量'], ['工具','工具',1,'已使用'],
+    ['未知','药材','','已售出'], ['未知2','药材','未知','已耗尽'],
+    ['暂存','药材',0,'待确认'], ['部分出售','药材',2,'已售出'],
+    ['否定','药材',0,'未耗尽'],
+];
+const retained = structuredClone(backpack.rows.slice(4));
+const noChange = parseMemoTableEdit('NO_CHANGE');
+const completed = completeDepletedInventoryCleanup(noChange, sheets);
+if (!completed.ok || !completed.block) throw Error('NO_CHANGE遗漏的明确失效库存必须补齐删除');
+const cleanup = executeMemoTableEdit(completed.block, {});
+if (!cleanup.ok || cleanup.count !== 4 || JSON.stringify(backpack.rows) !== JSON.stringify(retained)) {
+    throw Error('四条失效库存未正确删除，或误删保留库存');
+}
+if (completeDepletedInventoryCleanup(noChange, sheets).block) throw Error('重复整理必须幂等');
+backpack.rows.unshift(['失效','药材',0,'已耗尽']);
+const existingDelete = parseMemoTableEdit('deleteRow(2,0,"失效")');
+if (completeDepletedInventoryCleanup(existingDelete, sheets).block) throw Error('模型已有删除不得重复补齐');
+const conflictingUpdate = parseMemoTableEdit('updateRow(2,0,{3:"已耗尽"},"失效")');
+if (completeDepletedInventoryCleanup(conflictingUpdate, sheets).ok) throw Error('冲突操作必须拒绝');
+backpack.columns[2] = '未知数量字段';
+if (completeDepletedInventoryCleanup(noChange, sheets).block) throw Error('未知字段不得猜测删除');
+console.log('depleted inventory cleanup PASS: real executor deletes four stale rows, preserves partial/tool/unknown/ambiguous rows, idempotent, conflict refused');

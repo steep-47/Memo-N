@@ -6,6 +6,8 @@ import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=m
 import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon82';
 import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon92';
 
+import { completeDepletedInventoryCleanup } from './depletedInventoryCleanup.js?v=memon95';
+
 const INSTALL_FLAG='__memoStableTableCleanupInstalled'; let running=false;
 const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第一目标是把现有七张表整理成干净、无重复、无过期、无错位的当前最终状态；第二目标是在整理过程中修复能够由当前表格与最近聊天明确证明的数据问题。它不是“手动更新记录”的替代品，不以某一轮新剧情为中心，而是对七表做全局整理与修理。
 只整理现有七张表，不写剧情，不输出完整JSON表格。
@@ -50,7 +52,7 @@ function captureCleanupState(piece) {
 function cleanupStateKey(piece) {
     return JSON.stringify({
         contextSheets: BASE.sheetsData?.context,
-        tables: getTablePromptByPiece(piece), hash: piece.memo_n_hash_sheets,
+        hash: piece.memo_n_hash_sheets,
         mes: piece.mes, swipe: piece.swipe_id, extra: piece.extra, swipeInfo: piece.swipe_info,
         sheets: (BASE.getChatSheets?.() ?? []).map(sheet => sheet.filterSavingData()),
     });
@@ -99,7 +101,7 @@ async function runStableCleanup() {
         if (typeof rawContent !== 'string' || !rawContent.trim() || /^错误[:：]/.test(rawContent.trim())) {
             return EDITOR.error('表格整理失败：API返回为空或错误内容，原表未修改');
         }
-        const { matches } = getTableEditTag(rawContent);
+        let { matches } = getTableEditTag(rawContent);
         if (!matches || matches.length !== 1) {
             const tail = rawContent.replace(/\s+/g, ' ').trim().slice(-260);
             console.warn('[Memo][table-cleanup] tableEdit块数量异常:', matches?.length ?? 0, rawContent);
@@ -107,7 +109,13 @@ async function runStableCleanup() {
         }
         const parsed = parseMemoTableEdit(matches);
         if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，原表未修改`);
-        if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
+        const completed = completeDepletedInventoryCleanup(parsed, BASE.getChatSheets?.() ?? []);
+        if (!completed.ok) return EDITOR.error(`表格整理失败：${completed.error}，原表未修改`);
+        if (completed.block) {
+            matches = [completed.block];
+            const checked = parseMemoTableEdit(matches);
+            if (!checked.ok) return EDITOR.error(`表格整理失败：${checked.error}，原表未修改`);
+        } else if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
             const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(matches[0])}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
