@@ -5,6 +5,9 @@ let isPopupOpening = false; // 防止在弹窗打开时推送日志导致循环
 let debugEventHistory = [];
 
 function updateTableDebugLog(type, message, detail = "", timeout, stack) {
+    // Apply once at Memo's notification boundary, including caller-specified durations.
+    // A zero timeout stays zero (persistent notification).
+    const toastOptions = { timeOut: Number.isFinite(timeout) ? timeout * 2 : timeout };
     const newLog = {
         time: new Date().toLocaleTimeString(),
         type: type,
@@ -13,20 +16,20 @@ function updateTableDebugLog(type, message, detail = "", timeout, stack) {
     };
     switch (type) {
         case 'info':
-            toastr.info(message, detail, { timeOut: timeout });
+            toastr.info(message, detail, toastOptions);
             break;
         case 'success':
-            toastr.success(message, detail, { timeOut: timeout });
+            toastr.success(message, detail, toastOptions);
             break;
         case 'warning':
             console.warn(message, detail);
-            toastr.warning(message, detail, { timeOut: timeout });
+            toastr.warning(message, detail, toastOptions);
             break;
         case 'error':
             console.error(message, detail);
             // Assuming 'detail' is intended as the title for toastr.
             // If detail is an empty string, toastr might not show a title, which is fine.
-            toastr.error(message, detail, { timeOut: timeout });
+            toastr.error(message, detail, toastOptions);
             if (isPopupOpening) break;
             if (USER.tableBaseSetting.tableDebugModeAble) {
                 setTimeout(() => {
