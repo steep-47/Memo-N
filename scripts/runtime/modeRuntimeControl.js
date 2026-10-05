@@ -1,6 +1,6 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.50';
-import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon86';
+import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon88';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 
 const PREF_KEY='independent_record_api_enabled';

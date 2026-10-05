@@ -138,3 +138,35 @@ result = executeMemoTableEdit('updateRow(4,0,{0:"代安池"},"代安池")', {});
 npc.save = originalSave;
 if (result.ok || npc.rows.length) throw new Error('纠错插入保存失败后未回滚');
 console.log('memo-n-safe-executor recovery PASS: real-round, identity, bounds, duplicate, invalid-field, rollback');
+
+for (const sheet of sheets) sheet.rows = [];
+result = executeMemoTableEdit('insertRow(5,{0:"文十七",1:""赤红灵气"、腕间暗红线条秘术"})', {});
+if (!result.ok || sheets[5].rows[0][1] !== '"赤红灵气"、腕间暗红线条秘术' || result.corrections?.length !== 1) {
+    throw new Error('明确的字符串开头引用引号未完整保留');
+}
+for (const value of ['', '「赤红灵气」、秘术', '"赤红灵气"、秘术', '路径\\文件', 'a"b\\c']) {
+    sheets[0].rows = [];
+    result = executeMemoTableEdit(`insertRow(0,{0:${JSON.stringify(value)}})`, {});
+    if (!result.ok || sheets[0].rows[0][0] !== value || result.corrections?.length) {
+        throw new Error('合法值被兼容处理改写');
+    }
+}
+for (const call of [
+    'insertRow(0,{0:"前缀"赤红灵气"文字"})',
+    'insertRow(0,{0:""赤红灵气"文字"})',
+    'insertRow(0,{0:""赤红灵气"、文字})',
+    'insertRow(0,{0:""赤红灵气"、文字" 1:"漏逗号"})',
+    'insertRow(0,{0:""赤红灵气"、文字",2:"越界"})',
+    'insertRow(0,{0:""赤红灵气"、文字",1:null})',
+]) {
+    for (const sheet of sheets) sheet.rows = [];
+    if (executeMemoTableEdit(call, {}).ok || sheets.some(sheet=>sheet.rows.length)) {
+        throw new Error('不明确或非法数据被放宽：'+call);
+    }
+}
+console.log('memo-n-safe-executor quoted-prefix PASS: content preserved, valid quotes and escapes untouched, ambiguous input refused');
+const escapedValue = '字面量：{0:""原样"、内容"}，路径\\文件';
+sheets[0].rows=[];
+result=executeMemoTableEdit(`insertRow(0,{0:${JSON.stringify(escapedValue)},1:""引用"、说明"})`,{});
+if(!result.ok || sheets[0].rows[0][0]!==escapedValue || sheets[0].rows[0][1] !== '"引用"、说明')throw Error('修复其他字段时改写了合法字符串内部文本');
+console.log('quoted-prefix mixed escaping PASS');

@@ -93,6 +93,39 @@ function quoteNumericObjectKeys(text) {
     return output;
 }
 
+// A narrow fallback for one observed encoding error: a quoted phrase at the
+// start of a numeric-column string, followed by Chinese punctuation and text.
+// Only inspect lexical positions outside existing strings. Never repair general
+// quotes, missing separators, missing terminators, escapes, or nested objects.
+function repairQuotedPrefix(source) {
+    let output = '';
+    let quote = null;
+    let escaped = false;
+    let count = 0;
+    for (let i = 0; i < source.length; i++) {
+        const ch = source[i];
+        if (quote) {
+            output += ch;
+            if (escaped) escaped = false;
+            else if (ch === '\\') escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '{' || ch === ',') {
+            const match = /^([,{]\s*"\d+"\s*:\s*)""([^"\\\r\n(){}\[\]]+)"([、，：；。][^"\\\r\n(){}\[\]]*)"(?=\s*[,}])/.exec(source.slice(i));
+            if (match) {
+                output += match[1] + JSON.stringify('"' + match[2] + '"' + match[3]);
+                i += match[0].length - 1;
+                count++;
+                continue;
+            }
+        }
+        output += ch;
+        if (ch === '"' || ch === "'" || ch === '`') quote = ch;
+    }
+    return { text:output, count };
+}
+
 function extractCalls(text) {
     const source = String(text ?? '');
     const calls = [];
@@ -129,12 +162,18 @@ function extractCalls(text) {
         if (depth !== 0) return { ok:false, error:`${name} 缺少右括号`, calls:[], residue:'' };
         const argsText = source.slice(match.lastIndex, cursor);
         let args;
+        let correction;
+        const normalized = quoteNumericObjectKeys(argsText);
         try {
-            args = JSON5.parse(`[${quoteNumericObjectKeys(argsText)}]`);
+            args = JSON5.parse(`[${normalized}]`);
         } catch (error) {
-            return { ok:false, error:`${name} 参数无法解析：${error?.message || error}`, calls:[], residue:'' };
+            const repaired = repairQuotedPrefix(normalized);
+            if (!repaired.count) return { ok:false, error:`${name} 参数无法解析：${error?.message || error}`, calls:[], residue:'' };
+            try { args = JSON5.parse(`[${repaired.text}]`); }
+            catch (_) { return { ok:false, error:`${name} 参数无法解析：${error?.message || error}`, calls:[], residue:'' }; }
+            correction = `${name}：转义${repaired.count}个字符串开头的内嵌引用引号`;
         }
-        calls.push({ name, args });
+        calls.push({ name, args, correction });
         spans.push([found.index, cursor + 1]);
         i = cursor + 1;
     }
@@ -705,7 +744,7 @@ export function parseMemoTableEdit(raw) {
     }
     const batch = validateBatch(actions);
     if (!batch.ok) return { ok:false, noChange:false, actions:[], error:batch.error };
-    return { ok:true, noChange:actions.length === 0, actions:ordered(actions), error:'' };
+    return { ok:true, noChange:actions.length === 0, actions:ordered(actions), corrections:parsed.calls.map(call => call.correction).filter(Boolean), error:'' };
 }
 
 export function executeMemoTableEdit(raw, piece = null) {
@@ -736,7 +775,7 @@ export function executeMemoTableEdit(raw, piece = null) {
     try {
         for (const action of parsed.actions) applyAction(action);
         saveMemoSnapshot(targetPiece);
-        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, corrections:parsed.actions.map(action => action.correction).filter(Boolean), error:'' };
+        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, corrections:[...(parsed.corrections || []), ...parsed.actions.map(action => action.correction).filter(Boolean)], error:'' };
     } catch (error) {
         const rollbackFailures = rollbackSnapshots(snapshots);
         restorePieceState(targetPiece, pieceState);

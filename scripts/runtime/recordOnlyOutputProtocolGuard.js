@@ -32,6 +32,8 @@ updateRow(tableIndex,rowIndex,data,"当前目标行第一列原值")
 deleteRow(tableIndex,rowIndex,"当前目标行第一列原值")
 对象核对名必须原样抄写执行前当前表目标row的第一列，不能写计划修改后的名称，也不能根据旧聊天猜。表2/4/5新增对象时，insertRow的data第0列必须写对象名。
 
+字符串内容需要引用词语时优先使用中文「」；英文双引号必须正确转义，不得把内层引号直接嵌进双引号字符串。
+
 data直接写成函数的JSON对象参数，列键使用数字索引或当前表中完全一致的真实表头名。输出层不使用 <tableIndex>、<operation>、<action>、<data>、<col0> 等操作标签，也不把函数再改写成XML。
 
 没有任何操作时，完整输出：
