@@ -539,17 +539,17 @@ export async function renderEditableSheetsDOM(_sheets, _viewSheetsContainer, _ce
 
         if (DERIVED.any.batchEditMode === true) {
             if (DERIVED.any.batchEditModeSheet?.name === instance.name) {
-                sheetElement = await instance.renderSheet(cellClickEditModeEvent)
+                sheetElement = await instance.renderSheet(cellClickEditModeEvent, instance.hashSheet, null, { showDeletedRows: false })
             } else {
                 sheetElement = await instance.renderSheet((cell) => {
                     cell.element.style.cursor = 'default'
-                })
+                }, instance.hashSheet, null, { showDeletedRows: false })
                 sheetElement.style.cursor = 'default'
                 sheetElement.style.opacity = '0.5'
                 sheetTitleText.style.opacity = '0.5'
             }
         } else {
-            sheetElement = await instance.renderSheet(_cellClickEvent)
+            sheetElement = await instance.renderSheet(_cellClickEvent, instance.hashSheet, null, { showDeletedRows: false })
         }
         // 已集成到 Sheet.renderSheet 内部，这里无需再次调用
         console.log("渲染表格：", sheetElement)

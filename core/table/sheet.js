@@ -26,7 +26,7 @@ export class Sheet extends SheetBase {
      * @param {Function} cellEventHandler
      * @param targetHashSheet
      * */
-    renderSheet(cellEventHandler = this.lastCellEventHandler, targetHashSheet = this.hashSheet, lastCellsHashSheet = null) {
+    renderSheet(cellEventHandler = this.lastCellEventHandler, targetHashSheet = this.hashSheet, lastCellsHashSheet = null, { showDeletedRows = true } = {}) {
         this.lastCellEventHandler = cellEventHandler;
 
         // 预先计算渲染所需的数据副本，避免修改实际的 this.hashSheet
@@ -52,7 +52,7 @@ export class Sheet extends SheetBase {
 
         // 2) 找出被删除的行（上一轮存在但本轮不存在的行首），并在渲染副本中插入这些行用于高亮展示（不修改实际数据）
         const deleteRowFirstHashes = [];
-        if (prevHashSheetsMap) {
+        if (prevHashSheetsMap && showDeletedRows) {
             const currentFlat = currentHashSheet.flat();
             lastHashSheet.forEach((row, index) => {
                 if (!currentFlat.includes(row?.[0])) {
