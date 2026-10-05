@@ -20,7 +20,7 @@ const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第�
 整理原则：
 - 0当前状态表：快照型，只保留最新有效一行；重复旧快照删除。
 - 1角色状态表：只保存玩家本人最新状态，最多一行；NPC不得进入此表；修为保留玩家自身体系的原生境界，不换算成人族境界；外貌特征只保存已确认的稳定外观和持久变化。
-- 2背包表：维护当前实际持有库存；同一物品重复行必须先依据聊天判断是否真是两次获得，证据不足不得把重复数量直接相加；已完全失去的物品删除。
+- 2背包表：维护当前实际持有库存；同一物品重复行必须先依据聊天判断是否真是两次获得，证据不足不得把重复数量直接相加；数量明确归零、全部售出、耗尽、全部交付或明确不再持有时必须deleteRow删除，不得仅更新成数量0后保留；当前表中数量0且已售出/耗尽的旧库存也要清理。部分消耗只更新剩余数量；仍持有的装备、工具和容器不因使用而删除；数量未知、空白或去向不明不得猜删。
 - 3当前任务与约定表：只保留尚未结束事项；已完成/失败/取消/失效的行删除，确有后续连续性价值的结果按表6职责维护。
 - 4人物主表：NPC身份与关系主表，同一NPC只保留一行。保存姓名、性别、种族/血脉、修炼体系/路径、别名/称呼、身份/所属、外貌特征、性格、与玩家关系、长期重要信息。未知字段留空，不根据修为或外貌猜种族/血脉/体系。修炼体系/路径只写稳定类别或专精标签：人族无灵根并走凡俗一至九品武道→“武夫”；人族有灵根并稳定专精体魄/肉身→“体修”；有灵根走常规修仙且无明确专精→“练气士”；已明确剑修、法修、魂修、丹师、器师、符师、阵师、御兽、旁门等专精时用具体专精取代“练气士”。武夫≠体修，灵根未知时不凭战斗风格强判。妖族实际修行→“妖修”，灵族达到自主修行并实际修炼→“灵修”。
 - 5人物发展表：NPC最新发展锚点表，同一NPC只保留一行；字段为姓名、修为、主要能力、当前地点、年龄、最后确认时间、当前状态、主要目标/重要事项。修为只保存该NPC自身体系的原生境界/阶段；“实力约等于某人族境界”只是战力参照，不得据此改写修为。年龄是人物当前年龄；最后确认时间只记录该行发展锚点最后被剧情明确确认的世界日期，精确到日即可。两列必须分开，不得把年龄写入最后确认时间，也不得把日期写入年龄。没有实际信息留空。
@@ -35,6 +35,122 @@ const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第�
 - 函数调用必须放在同一个HTML注释中，例如<tableEdit><!-- updateRow(...); deleteRow(...); --></tableEdit>。`;
 function escapeHtml(text){return String(text??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function buildRecentChat(){const chat=Array.isArray(USER.getContext()?.chat)?USER.getContext().chat:[];const ignoreUser=USER.tableBaseSetting.ignore_user_sent===true;const filtered=ignoreUser?chat.filter(item=>item?.is_user===false):chat;const maxRows=Math.max(1,Number(USER.tableBaseSetting.clear_up_stairs)||9);const useTokenLimit=USER.tableBaseSetting.use_token_limit===true;const tokenLimit=Math.max(0,Number(USER.tableBaseSetting.rebuild_token_limit_value)||0);const collected=[];let totalTokens=0;for(let i=filtered.length-1;i>=0&&collected.length<maxRows;i--){const item=filtered[i];const line=`${item?.name||(item?.is_user?'user':'assistant')}: ${String(item?.mes??'')}`.replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').trim();if(!line)continue;if(useTokenLimit&&tokenLimit>0){const tokens=await estimateTokenCount(line);if(collected.length>0&&totalTokens+tokens>tokenLimit)break;totalTokens+=tokens;}collected.push(line);}return collected.reverse().join('\n');}
-async function runStableCleanup(){if(running)return EDITOR.warning('表格整理正在进行中');running=true;const sessionChat=USER.getContext?.()?.chat;const sessionActive=()=>USER.getContext?.()?.chat===sessionChat;try{ensureSevenTableWorld();repairMissingColumnsBeforeCleanup();const reference=BASE.getLastSheetsPiece();const piece=reference?.piece;if(!piece?.memo_n_hash_sheets)return EDITOR.error('表格整理失败：没有找到可整理的表格记录');const tableText=getTablePromptByPiece(piece);if(!String(tableText||'').trim())return EDITOR.error('表格整理失败：当前表格内容无法读取');const recentChat=await buildRecentChat();const userPrompt=`<当前七表>\n${tableText}\n</当前七表>\n<最近聊天>\n${recentChat}\n</最近聊天>\n\n这是“表格整理”，请以当前七表整体最终状态为中心做全局检查，而不是只记录最近一轮。按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件逐表检查：重复与可合并行、已经过期/失效的行、错表或错位内容、字段混写、旧值与已确认新事实冲突，以及最近聊天能够直接证明的明确漏项。人物主表的“种族/血脉”“修炼体系/路径”按根基条件→大路线→稳定专精判断，只保留已确认事实：武夫=无灵根凡俗武道，体修=有灵根且稳定专精体魄，常规有灵根修仙无专精=练气士，明确专精后用具体专精标签；人物发展表“修为”只保留原生体系境界，“年龄”和“最后确认时间”分别维护，最后确认时间只到世界日期。历史表既整理重大节点，也保留0～5无法承接但后续需要的连续性事实，同一连续事件优先合并/更新。按现有rowIndex生成必要的tableEdit操作，不要为了“更完整”编造未知信息。`;const useMainApi=USER.tableBaseSetting.use_main_api!==false;let rawContent;try{rawContent=useMainApi?await handleMainAPIRequest(SYSTEM_PROMPT,userPrompt):await handleCustomAPIRequest(SYSTEM_PROMPT,userPrompt);}catch(error){return EDITOR.error('表格整理API请求失败',error?.message||String(error),error);}if(!sessionActive())return EDITOR.info('表格整理已作废：API等待期间切换了聊天，未执行任何操作');if(rawContent==='suspended')return EDITOR.info('表格整理已取消');if(typeof rawContent!=='string'||!rawContent.trim()||/^错误[:：]/.test(rawContent.trim()))return EDITOR.error('表格整理失败：API返回为空或错误内容，原表未修改');const{matches}=getTableEditTag(rawContent);if(!matches||matches.length!==1){const tail=rawContent.replace(/\s+/g,' ').trim().slice(-260);console.warn('[Memo][table-cleanup] tableEdit块数量异常:',matches?.length??0,rawContent);return EDITOR.error(`表格整理失败：模型必须且只能返回1个tableEdit，实际为${matches?.length??0}个，原表未修改｜末尾：${tail}`);}const parsed=parseMemoTableEdit(matches);if(!parsed.ok)return EDITOR.error(`表格整理失败：${parsed.error}，原表未修改`);if(parsed.noChange)return EDITOR.success('表格检查完成：当前无需整理');const joined=matches[0];if(USER.tableBaseSetting.bool_silent_refresh!==true){const preview=`<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(joined)}</pre><p>确认后才会修改当前表格。</p></div>`;const confirmed=await EDITOR.callGenericPopup(preview,EDITOR.POPUP_TYPE.CONFIRM,'表格整理确认',{okButton:'执行',cancelButton:'取消'});if(!confirmed)return EDITOR.info('表格整理已取消，原表未修改');if(!sessionActive())return EDITOR.info('表格整理已作废：确认期间切换了聊天，未执行任何操作');}const result=executeMemoTableEdit(matches,piece);if(!result.ok)return EDITOR.error(`表格整理执行失败：${result.error}，原表未执行错误操作`);await USER.saveChat();if(!sessionActive()){console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图');return;}try{BASE.refreshContextView();updateSystemMessageTableStatus();}catch(error){console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败',error);}EDITOR.success(`表格整理完成（${result.count}项）`);}catch(error){console.error('[Memo][table-cleanup] 整理失败:',error);EDITOR.error('表格整理失败',error?.message||String(error),error);}finally{running=false;}}
+function captureCleanupState(piece) {
+    const sheets = (BASE.getChatSheets?.() ?? []).map(sheet => {
+        const data = sheet?.filterSavingData?.();
+        if (!data || typeof data !== 'object' || typeof sheet.loadJson !== 'function') throw new Error('无法建立整理回滚备份，未执行操作');
+        return { sheet, data: structuredClone(data) };
+    });
+    const fields = {};
+    for (const key of ['memo_n_hash_sheets', 'extra', 'swipe_info']) {
+        fields[key] = { exists: Object.prototype.hasOwnProperty.call(piece, key), value: structuredClone(piece[key]) };
+    }
+    return { sheets, fields, contextSheets: structuredClone(BASE.sheetsData?.context) };
+}
+function cleanupStateKey(piece) {
+    return JSON.stringify({
+        contextSheets: BASE.sheetsData?.context,
+        tables: getTablePromptByPiece(piece), hash: piece.memo_n_hash_sheets,
+        mes: piece.mes, swipe: piece.swipe_id, extra: piece.extra, swipeInfo: piece.swipe_info,
+        sheets: (BASE.getChatSheets?.() ?? []).map(sheet => sheet.filterSavingData()),
+    });
+}
+function restoreCleanupState(piece, backup) {
+    for (const { sheet, data } of backup.sheets) sheet.loadJson(structuredClone(data));
+    if (BASE.sheetsData) BASE.sheetsData.context = structuredClone(backup.contextSheets);
+    for (const [key, state] of Object.entries(backup.fields)) {
+        if (state.exists) piece[key] = structuredClone(state.value);
+        else delete piece[key];
+    }
+}
+async function runStableCleanup() {
+    if (running) return EDITOR.warning('表格整理正在进行中');
+    running = true;
+    const sessionChat = USER.getContext?.()?.chat;
+    const sessionActive = () => USER.getContext?.()?.chat === sessionChat;
+    try {
+        ensureSevenTableWorld();
+        repairMissingColumnsBeforeCleanup();
+        const piece = BASE.getLastSheetsPiece()?.piece;
+        if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
+        const tableText = getTablePromptByPiece(piece);
+        if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
+        const baselineKey = cleanupStateKey(piece);
+        const chatLength = sessionChat?.length;
+        const currentState = () => sessionActive()
+            && sessionChat?.length === chatLength
+            && BASE.getLastSheetsPiece()?.piece === piece
+            && cleanupStateKey(piece) === baselineKey;
+        const recentChat = await buildRecentChat();
+        if (!currentState()) return EDITOR.info('表格整理已作废：准备期间记录发生变化，请重新整理');
+        const userPrompt = `<当前七表>\n${tableText}\n</当前七表>\n<最近聊天>\n${recentChat}\n</最近聊天>\n\n这是“表格整理”，请以当前七表整体最终状态为中心做全局检查，而不是只记录最近一轮。按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件逐表检查：重复与可合并行、已经过期/失效的行、错表或错位内容、字段混写、旧值与已确认新事实冲突，以及最近聊天能够直接证明的明确漏项。人物主表的“种族/血脉”“修炼体系/路径”按根基条件→大路线→稳定专精判断，只保留已确认事实：武夫=无灵根凡俗武道，体修=有灵根且稳定专精体魄，常规有灵根修仙无专精=练气士，明确专精后用具体专精标签；人物发展表“修为”只保留原生体系境界，“年龄”和“最后确认时间”分别维护，最后确认时间只到世界日期。历史表既整理重大节点，也保留0～5无法承接但后续需要的连续性事实，同一连续事件优先合并/更新。按现有rowIndex生成必要的tableEdit操作，不要为了“更完整”编造未知信息。`;
+        const useMainApi = USER.tableBaseSetting.use_main_api !== false;
+        let rawContent;
+        try {
+            rawContent = useMainApi
+                ? await handleMainAPIRequest(SYSTEM_PROMPT,userPrompt)
+                : await handleCustomAPIRequest(SYSTEM_PROMPT,userPrompt);
+        } catch (error) {
+            return EDITOR.error('表格整理API请求失败', error?.message || String(error), error);
+        }
+        if (!sessionActive()) return EDITOR.info('表格整理已作废：API等待期间切换了聊天，未执行任何操作');
+        if (!currentState()) return EDITOR.info('表格整理已作废：等待期间记录发生变化，未执行旧操作');
+        if (rawContent === 'suspended') return EDITOR.info('表格整理已取消');
+        if (typeof rawContent !== 'string' || !rawContent.trim() || /^错误[:：]/.test(rawContent.trim())) {
+            return EDITOR.error('表格整理失败：API返回为空或错误内容，原表未修改');
+        }
+        const { matches } = getTableEditTag(rawContent);
+        if (!matches || matches.length !== 1) {
+            const tail = rawContent.replace(/\s+/g, ' ').trim().slice(-260);
+            console.warn('[Memo][table-cleanup] tableEdit块数量异常:', matches?.length ?? 0, rawContent);
+            return EDITOR.error(`表格整理失败：模型必须且只能返回1个tableEdit，实际为${matches?.length ?? 0}个，原表未修改｜末尾：${tail}`);
+        }
+        const parsed = parseMemoTableEdit(matches);
+        if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，原表未修改`);
+        if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
+        if (USER.tableBaseSetting.bool_silent_refresh !== true) {
+            const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(matches[0])}</pre><p>确认后才会修改当前表格。</p></div>`;
+            const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
+            if (!confirmed) return EDITOR.info('表格整理已取消，原表未修改');
+        }
+        if (!currentState()) return EDITOR.info('表格整理已作废：确认期间记录发生变化，未执行旧操作');
+        const backup = captureCleanupState(piece);
+        const result = executeMemoTableEdit(matches, piece);
+        if (!result.ok) return EDITOR.error(`表格整理执行失败：${result.error}，原表未执行错误操作`);
+        const committedKey = cleanupStateKey(piece);
+        try {
+            await USER.saveChat();
+        } catch (error) {
+            // Never restore an old backup over another chat or a newer table edit.
+            if (sessionActive() && BASE.getLastSheetsPiece()?.piece === piece && cleanupStateKey(piece) === committedKey) {
+                restoreCleanupState(piece, backup);
+                try {
+                    BASE.refreshContextView();
+                    updateSystemMessageTableStatus();
+                } catch (viewError) {
+                    console.warn('[Memo][table-cleanup] 回滚后视图刷新失败', viewError);
+                }
+                return EDITOR.error(`表格整理保存失败：已恢复原表格和Swipe快照｜${error?.message || error}`);
+            }
+            return EDITOR.error(`表格整理保存失败：期间记录已变化，未覆盖新记录｜${error?.message || error}`);
+        }
+        if (!sessionActive()) {
+            console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图');
+            return;
+        }
+        EDITOR.success(`表格整理完成（${result.count}项）`);
+        try {
+            BASE.refreshContextView();
+            updateSystemMessageTableStatus();
+        } catch (error) {
+            console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败', error);
+        }
+    } catch (error) {
+        console.error('[Memo][table-cleanup] 整理失败:', error);
+        EDITOR.error('表格整理失败', error?.message || String(error), error);
+    } finally {
+        running = false;
+    }
+}
 function install(){if(window[INSTALL_FLAG])return;window[INSTALL_FLAG]=true;console.log('[Memo] 七表严格tableEdit整理器已加载：字段语义、人物归属与连续性规则已对齐');}
 install();export{runStableCleanup};

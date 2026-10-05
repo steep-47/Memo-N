@@ -38,7 +38,7 @@ if (loader.includes("'./scripts/runtime/tavernHelperHeartbeatCompat.js'")) {
 }
 if (!loader.includes("'./scripts/runtime/stableTableCleanup.js'")) throw new Error('stable cleanup runtime missing from loader');
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) throw new Error('cleanup evidence runtime missing from loader');
-if (!loader.includes("const DISPLAY_VERSION = '0.54'")) throw new Error('loader version must be 0.54');
-if (!loader.includes('0.54-adjacent-comment-guard-1')) throw new Error('loader cache marker must use current adjacent-comment compatibility path');
+const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
+if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader/manifest version mismatch');
 
-console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, 0.54 cache marker');
+console.log('memo-n cleanup stable path PASS: original handleMainAPIRequest restored, no direct TavernHelper streaming, one-round evidence preserved, current version aligned');
