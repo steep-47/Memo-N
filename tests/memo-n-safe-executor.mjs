@@ -102,3 +102,39 @@ if (result.ok || taskSheet.rows.length !== 0) {
 }
 
 console.log('memo-n-safe-executor PASS: empty-delete-idempotent=2, mixed-insert-preserved=1, nonempty-delete-strict=1, update-strict=2');
+
+// Reproduce the uploaded round: valid inserts plus an update of a new NPC.
+const npc = sheets[4];
+const development = sheets[5];
+for (const sheet of sheets) sheet.rows = [];
+result = executeMemoTableEdit('insertRow(0,{0:"18:30"})\ninsertRow(5,{0:"代安池"})\nupdateRow(4,0,{0:"代安池",1:"女"},"代安池")', {});
+if (!result.ok || result.count !== 3 || npc.rows[0]?.[0] !== '代安池' || development.rows.length !== 1 || result.corrections?.length !== 1) {
+    throw new Error('真实空表首个NPC误用update未被安全恢复');
+}
+for (const call of [
+    'updateRow(4,1,{0:"乙"},"乙")',
+    'updateRow(4,0,{0:"乙"},"乙")',
+]) {
+    if (parseMemoTableEdit(call).ok) throw new Error('非空表越界或身份不匹配被放宽');
+}
+npc.rows = [];
+for (const call of [
+    'updateRow(4,0,{1:"女"},"代安池")',
+    'updateRow(4,0,{0:"代安池"})',
+    'updateRow(4,0,{0:"代安池"},"别人")',
+    'updateRow(4,1,{0:"代安池"},"代安池")',
+    'updateRow(4,0,{0:"代安池",2:"越界"},"代安池")',
+    'updateRow(4,0,{0:"代安池",1:null},"代安池")',
+    'updateRow(4,0,{0:"代安池"},"代安池")\ninsertRow(4,{0:"代安池"})',
+]) {
+    const before = JSON.stringify(sheets.map(s => s.rows));
+    if (executeMemoTableEdit(call, {}).ok || JSON.stringify(sheets.map(s => s.rows)) !== before) {
+        throw new Error(`不明确或重复操作未保持整批拒绝：${call}`);
+    }
+}
+const originalSave = npc.save;
+npc.save = () => { throw new Error('模拟保存失败'); };
+result = executeMemoTableEdit('updateRow(4,0,{0:"代安池"},"代安池")', {});
+npc.save = originalSave;
+if (result.ok || npc.rows.length) throw new Error('纠错插入保存失败后未回滚');
+console.log('memo-n-safe-executor recovery PASS: real-round, identity, bounds, duplicate, invalid-field, rollback');

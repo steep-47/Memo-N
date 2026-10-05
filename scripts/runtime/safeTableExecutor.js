@@ -477,6 +477,18 @@ function validateAction(call) {
     }
     const rowIndex = strictIndex(args[1]);
     if (rowIndex === null) return { ok:false, error:`updateRow(${tableIndex}) rowIndex=${args[1]}不是非负安全整数` };
+    // Recover only an unambiguous first object on an empty identity table.
+    // Never guess a missing name, relocate a row, or turn a partial update into a new object.
+    if (rowCount === 0 && rowIndex === 0 && IDENTITY_TABLES.has(tableIndex) && args.length === 4 && typeof args[3] === 'string') {
+        const checked = validateData(args[2], headers, `updateRow(${tableIndex},0)`);
+        if (!checked.ok) return checked;
+        const identity = norm(checked.data['0']);
+        const expected = norm(args[3]);
+        if (identity && expected && normIdentity(identity) === normIdentity(expected)) {
+            return { ok:true, action:{ type:'insert', tableIndex, sheet, data:checked.data, identity,
+                correction:`#${tableIndex} 空表首个对象“${identity}”：updateRow转换为insertRow` } };
+        }
+    }
     if (rowIndex >= rowCount) return { ok:false, error:`updateRow(${tableIndex}) rowIndex=${rowIndex}无效或越界；当前数据行数=${rowCount}` };
     const checked = validateData(args[2], headers, `updateRow(${tableIndex},${rowIndex})`);
     if (!checked.ok) return checked;
@@ -724,7 +736,7 @@ export function executeMemoTableEdit(raw, piece = null) {
     try {
         for (const action of parsed.actions) applyAction(action);
         saveMemoSnapshot(targetPiece);
-        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, error:'' };
+        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, corrections:parsed.actions.map(action => action.correction).filter(Boolean), error:'' };
     } catch (error) {
         const rollbackFailures = rollbackSnapshots(snapshots);
         restorePieceState(targetPiece, pieceState);

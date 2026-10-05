@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.60-empty-insert-identity-1';
-const DISPLAY_VERSION = '0.60';
+const RUNTIME_VERSION = '0.61-empty-object-recovery-1';
+const DISPLAY_VERSION = '0.61';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -69,5 +69,5 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.60 loaded: preset-compatible one-call record protocol');
+console.log('[Memo-N][loader] v0.61 loaded: preset-compatible one-call record protocol');
 
