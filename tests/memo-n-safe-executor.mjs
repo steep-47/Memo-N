@@ -228,3 +228,19 @@ if (!result.ok || result.recordBlock.includes('<!--说明-->')) throw Error('标
 for (const sheet of sheets) sheet.rows = [];
 if (!executeMemoTableEdit(result.recordBlock,{}).ok || sheets[0].rows[0][0] !== markupValue) throw Error('HTML字面量标准记录重放丢失');
 console.log('canonical HTML value preservation PASS');
+
+for (const sheet of sheets) sheet.rows = [];
+sheets[1].rows = [['玩家','旧状态']];
+result = executeMemoTableEdit('updateRow(1,0,{1:"健康"},\ninsertRow(6,{0:"日期"})',{});
+if (!result.ok || result.count!==2 || sheets[1].rows[0][1]!=='健康' || !result.recordBlock.includes('updateRow(1,0,{"1":"健康"},"")')) throw Error('明确省略尾部参数的非身份保护表恢复失败');
+for(const call of [
+ 'updateRow(4,0,{0:"人物"},\ninsertRow(6,{0:"日期"})',
+ 'updateRow(1,0,{1:"健康},\ninsertRow(6,{0:"日期"})',
+ 'updateRow(1,0,{1:"健康"}\ninsertRow(6,{0:"日期"})',
+ 'updateRow(1,0,{2:"越界"},\ninsertRow(6,{0:"日期"})',
+ 'updateRow(1,99,{1:"健康"},\ninsertRow(6,{0:"日期"})',
+]) {
+ const before=JSON.stringify(sheets.map(s=>s.rows));
+ if(executeMemoTableEdit(call,{}).ok || before!==JSON.stringify(sheets.map(s=>s.rows)))throw Error('残缺调用恢复越权或部分写入：'+call);
+}
+console.log('bounded missing terminator PASS: nonidentity-only, complete object, next-call boundary, bounds preserved');

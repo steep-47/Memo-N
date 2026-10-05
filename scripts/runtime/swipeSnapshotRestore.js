@@ -1,5 +1,5 @@
 import { APP, BASE, USER } from '../../core/manager.js';
-import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon91';
+import { restoreMemoSnapshot } from './safeTableExecutor.js?v=memon92';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 
 function copyHashSheets(value){try{return BASE.copyHashSheets(value);}catch(_){return JSON.parse(JSON.stringify(value));}}

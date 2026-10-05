@@ -10,7 +10,7 @@ import { Form } from '../../components/formManager.js';
 import { refreshRebuildTemplate } from "../settings/userExtensionSetting.js"
 import { safeParse } from '../../utils/stringUtil.js';
 import { repairMissingColumnsBeforeCleanup } from "./tableStructureRepair.js?v=memon82";
-import { restoreMemoSnapshot } from "./safeTableExecutor.js?v=memon91";
+import { restoreMemoSnapshot } from "./safeTableExecutor.js?v=memon92";
 
 // 在解析响应后添加验证
 function validateActions(actions) {

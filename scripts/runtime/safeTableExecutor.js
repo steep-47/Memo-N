@@ -169,6 +169,8 @@ function extractCalls(text) {
         const name = found[1];
         let cursor = match.lastIndex;
         let depth = 1;
+        let completedArgs = null;
+        let completionCorrection = '';
         let quote = null;
         let escaped = false;
         for (; cursor < source.length; cursor++) {
@@ -183,6 +185,23 @@ function extractCalls(text) {
                 quote = ch;
                 continue;
             }
+            // A completed data object followed by a dangling comma and the next
+            // call can only omit the optional empty expected slot on these tables.
+            if (name === 'updateRow' && depth === 1 && ch === '\n' && /^\s*(?:insertRow|updateRow|deleteRow)\s*\(/.test(source.slice(cursor + 1))) {
+                const unfinished = source.slice(match.lastIndex, cursor).trimEnd();
+                if (/\},$/.test(unfinished)) {
+                    try {
+                        const candidate = JSON5.parse(`[${quoteNumericObjectKeys(unfinished.slice(0, -1))}]`);
+                        if (candidate.length === 3 && [0,1,3,6].includes(strictIndex(candidate[0]))
+                            && strictIndex(candidate[1]) !== null && candidate[2] && typeof candidate[2] === 'object' && !Array.isArray(candidate[2])) {
+                            completedArgs = [...candidate, ''];
+                            completionCorrection = '非身份保护表：补齐末尾空核对参数与右括号';
+                            depth = 0;
+                            break;
+                        }
+                    } catch (_) { /* Keep the original strict rejection. */ }
+                }
+            }
             if (ch === '(') depth++;
             else if (ch === ')') {
                 depth--;
@@ -192,10 +211,10 @@ function extractCalls(text) {
         if (depth !== 0) return { ok:false, error:`${name} 缺少右括号`, calls:[], residue:'' };
         const argsText = source.slice(match.lastIndex, cursor);
         let args;
-        let correction;
+        let correction = completionCorrection || undefined;
         const normalized = quoteNumericObjectKeys(argsText);
         try {
-            args = JSON5.parse(`[${normalized}]`);
+            args = completedArgs || JSON5.parse(`[${normalized}]`);
         } catch (error) {
             const repaired = repairQuotedPrefix(normalized);
             if (!repaired.count) return { ok:false, error:`${name} 参数无法解析：${error?.message || error}`, calls:[], residue:'' };
