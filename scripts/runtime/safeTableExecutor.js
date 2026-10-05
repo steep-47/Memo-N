@@ -495,9 +495,13 @@ function validateAction(call) {
     const rowCount = Math.max(0, Number(sheet.getRowCount?.()) - 1 || 0);
 
     if (call.name === 'insertRow') {
+        // History is append-only: accept the observed redundant zero slot only here.
+        const historyZeroSlot = tableIndex === 6 && args.length === 3 && args[1] === 0 && args[2] && typeof args[2] === 'object' && !Array.isArray(args[2]);
+        if (historyZeroSlot) call.correction = [call.correction, '历史表新增：移除多余的0行号，按正常历史追加'].filter(Boolean).join('；');
+        const insertArgs = historyZeroSlot ? [args[0], args[2]] : args;
         // A trailing empty identity carries no insertion data; accept this exact variant only.
-        if (args.length !== 2 && !(args.length === 3 && args[2] === '')) return { ok:false, error:`insertRow参数数量必须为2（兼容末尾空字符串），实际为${args.length}` };
-        const checked = validateData(args[1], headers, `insertRow(${tableIndex})`);
+        if (insertArgs.length !== 2 && !(insertArgs.length === 3 && insertArgs[2] === '')) return { ok:false, error:`insertRow参数数量必须为2（兼容末尾空字符串），实际为${args.length}` };
+        const checked = validateData(insertArgs[1], headers, `insertRow(${tableIndex})`);
         if (!checked.ok) return checked;
         const action = { type:'insert', tableIndex, sheet, data:checked.data };
         if (IDENTITY_TABLES.has(tableIndex)) {

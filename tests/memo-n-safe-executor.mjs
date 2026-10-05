@@ -189,3 +189,19 @@ for (const call of [
     if (executeMemoTableEdit(call, {}).ok || before !== JSON.stringify(sheets.map(s=>s.rows))) throw Error('修复后非法批次未拒绝或发生部分写入');
 }
 console.log('numeric-key quote PASS: insert, update, literal preservation, invalid batch rollback');
+
+for (const sheet of sheets) sheet.rows = [];
+sheets[6].rows = [['旧日期','旧地点']];
+result = executeMemoTableEdit('insertRow(6,0,{0:"新日期",1:"新地点"})', {});
+if (!result.ok || sheets[6].rows.length !== 2 || sheets[6].rows[0][0] !== '旧日期' || sheets[6].rows[1][0] !== '新日期' || !result.corrections?.length) throw Error('历史兼容未按正常追加或覆盖旧行');
+for (const call of ['insertRow(6,1,{0:"新"})','insertRow(6,"0",{0:"新"})','insertRow(4,0,{0:"新"})','insertRow(6,0,{2:"越界"})','insertRow(6,0,null)']) {
+ const before = JSON.stringify(sheets.map(s=>s.rows));
+ if (executeMemoTableEdit(call,{}).ok || before !== JSON.stringify(sheets.map(s=>s.rows))) throw Error('历史兼容扩大或产生部分写入：'+call);
+}
+const saveHistory = sheets[6].save;
+sheets[6].save = () => { throw Error('模拟保存失败'); };
+const beforeHistory = JSON.stringify(sheets[6].rows);
+result = executeMemoTableEdit('insertRow(6,0,{0:"失败日期"})',{});
+sheets[6].save = saveHistory;
+if (result.ok || JSON.stringify(sheets[6].rows)!==beforeHistory) throw Error('历史追加保存失败未回滚');
+console.log('history zero slot PASS: append preserves old rows, strict variants, save rollback');
