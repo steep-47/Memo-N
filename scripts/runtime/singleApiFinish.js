@@ -10,9 +10,9 @@ function markHandled(chat,token){let set=handled.get(chat);if(!set){set=new Set(
 
 // Called by the record engine only after its save promise has succeeded.
 // No GENERATION_ENDED listener: notification must not depend on listener order.
-export function notifyMemoRecordSaved(chat, session){
+export function notifyMemoRecordSaved(chat, session, savedStatus = chat?.__memoStrictExecution){
     if(independentEnabled() || !chat || USER?.getContext?.()?.chat !== session)return;
-    const status=chat.__memoStrictExecution;
+    const status=savedStatus;
     if(!status||status.ok!==true)return;
     if(Number(status.swipeId)!==Number(chat?.swipe_id??0))return;
     if(String(status.mes??'')!==String(chat.mes??''))return;

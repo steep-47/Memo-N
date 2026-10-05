@@ -8,15 +8,17 @@ let session = [{ is_user: false, mes: '上一轮', memo_n_hash_sheets: { state: 
 let saveMode = 'delay';
 let releaseSave;
 let executionFails = false;
+let clearStatusOnSave = false;
+let blockView = false;
 const notices = [];
 const context = { get chat() { return session; }, updateMessageBlock() { throw Error('view failure'); } };
 const envelope = await import('../scripts/engine/recordEnvelope.js');
 const mocks = {
     APP: { event_types: { GENERATION_STARTED:'start', CHAT_COMPLETION_SETTINGS_READY:'settings', CHARACTER_MESSAGE_RENDERED:'rendered', GENERATION_ENDED:'ended' },
         eventSource: { on(event, fn) { handlers.set(event, fn); }, makeLast() {} } },
-    BASE: { getChatSheets:()=>[], copyHashSheets:structuredClone, getLastSheetsPiece:()=>({piece:session[0]}), refreshContextView:async()=>{}, },
+    BASE: { getChatSheets:()=>[], copyHashSheets:structuredClone, getLastSheetsPiece:()=>({piece:session[0]}), refreshContextView:async()=>{if(blockView)await new Promise(()=>{});}, },
     USER: { tableBaseSetting:{}, getSettings:()=>({}), getContext:()=>context,
-        saveChat:async()=>{ if(saveMode==='fail')throw Error('save failure'); if(saveMode==='delay')await new Promise(resolve=>{releaseSave=resolve;}); } },
+        saveChat:async()=>{ if(clearStatusOnSave) delete session.at(-1).__memoStrictExecution; if(saveMode==='fail')throw Error('save failure'); if(saveMode==='delay')await new Promise(resolve=>{releaseSave=resolve;}); } },
     EDITOR: { info:message=>notices.push(['info',message]), success:message=>notices.push(['success',message]), warning(){},error(){} },
     restoreMemoSnapshot:()=>({ok:true}), saveMemoSnapshot(){},
     executeMemoTableEdit(raw) { return executionFails ? {ok:false,error:'invalid update'} : {ok:true, changed:!raw.includes('NO_CHANGE'), noChange:raw.includes('NO_CHANGE'),count:1}; },
@@ -68,3 +70,17 @@ releaseSave();
 await detached.__memoStrictPersistence;
 assert.equal(notices.length,2,'切换聊天后不得在新聊天显示旧记录成功');
 console.log('memo-n-saved-notice PASS: delayed save, dedupe, save failure, execution failure, no-change, view failure, switched chat');
+
+// Saving hooks can reconstruct a message and remove non-enumerable runtime fields.
+session=[{is_user:false,mes:'旧轮',memo_n_hash_sheets:{state:'before'}}];
+saveMode='ok'; clearStatusOnSave=true;
+const withoutRuntimeStatus=complete('insertRow(0,{0:"时间"})');
+assert.equal(await withoutRuntimeStatus.__memoStrictPersistence,true);
+assert.equal(withoutRuntimeStatus.__memoStrictExecution,undefined);
+assert.equal(notices.at(-1)[0],'success','临时状态消失不应吞掉已经确认的保存成功');
+const beforeView=notices.length;
+clearStatusOnSave=false; blockView=true;
+complete('insertRow(0,{0:"时间"})');
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(notices.length,beforeView+1,'视图刷新未完成时也应提示已保存的结果');
+console.log('saved-result notice PASS: removed runtime status, stalled view');
