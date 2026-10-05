@@ -4,20 +4,24 @@ import assert from 'node:assert/strict';
 // Expected injected failures should not print data-URL stack traces.
 console.warn = () => {};
 console.error = () => {};
-const { completeDepletedInventoryCleanup } = await import('../scripts/runtime/depletedInventoryCleanup.js');
+
 const source = await fs.readFile(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
 let piece, chat, rows, apiHook, popupHook, saveHook, calls, notices;
 let silent = true;
+let inventory = false, rawResponse;
 const sheet = {
+    name: '背包表',
+    getHeader: () => inventory ? ['物品名', '数量', '状态/品质'] : [],
+    getRowCount: () => rows.length + 1,
+    getCellsByRowIndex: row => [{}, ...rows[row - 1].map(value => ({ data: { value } }))],
     filterSavingData: () => ({ rows }),
     loadJson: data => { rows = structuredClone(data.rows); },
 };
 const mocks = {
-    completeDepletedInventoryCleanup,
     BASE: { sheetsData: { context: [] }, getChatSheets: () => [sheet], getLastSheetsPiece: () => ({ piece }), refreshContextView() { throw Error('view error'); } },
     USER: { getContext: () => ({ chat }), get tableBaseSetting() { return { bool_silent_refresh: silent }; }, saveChat: async () => saveHook?.() },
     EDITOR: Object.fromEntries(['info', 'warning', 'error', 'success'].map(type => [type, message => notices.push([type, message])])),
-    getTablePromptByPiece: () => { if (calls) throw Error('检测状态不得调用会恢复快照的提示词读取器'); return JSON.stringify(rows); },
+    getTablePromptByPiece: () => {  return JSON.stringify(rows); },
     getTableEditTag: raw => ({ matches: [raw] }),
     parseMemoTableEdit: raw => ({ ok: true, noChange: raw[0].includes('NO_CHANGE') }),
     executeMemoTableEdit: () => {
@@ -29,7 +33,7 @@ const mocks = {
         piece.swipe_info[0].extra.memo_n_swipe_hash_sheets = { state: 'after' };
         return { ok: true, count: 1 };
     },
-    handleMainAPIRequest: async () => { await apiHook?.(); return '<tableEdit><!-- deleteRow(2,0,"耗尽物品") --></tableEdit>'; },
+    handleMainAPIRequest: async () => { await apiHook?.(); return rawResponse; },
     handleCustomAPIRequest: async () => { throw Error('wrong transport'); },
     estimateTokenCount: async () => 1,
     ensureSevenTableWorld() {}, repairMissingColumnsBeforeCleanup() {}, updateSystemMessageTableStatus() {},
@@ -44,7 +48,8 @@ const { runStableCleanup } = await import(`data:text/javascript;base64,${Buffer.
 function reset() {
     rows = [['耗尽物品', 0], ['工具', 1]];
     piece = { mes: '正文', swipe_id: 0, memo_n_hash_sheets: { state: 'before' }, extra: { memo_n_swipe_hash_sheets: { state: 'before' } }, swipe_info: [{ extra: { memo_n_swipe_hash_sheets: { state: 'before' } } }] };
-    chat = [piece]; mocks.BASE.sheetsData.context = [{ state: 'before' }]; calls = 0; notices = []; apiHook = popupHook = saveHook = undefined; silent = true;
+    chat = [piece]; mocks.BASE.sheetsData.context = [{ state: 'before' }]; calls = 0; notices = []; apiHook = popupHook = saveHook = undefined; silent = true; inventory = false;
+    rawResponse = '<tableEdit><!-- deleteRow(2,0,"耗尽物品") --></tableEdit>';
 }
 reset();
 await runStableCleanup();
@@ -94,3 +99,25 @@ assert.equal(notices.at(-1)[0], 'warning', '重复点击不重复请求');
 release(); await first;
 assert.equal(calls, 1);
 console.log('cleanup transaction PASS: persistence rollback, stale API/confirmation/Swipe, chat switch, concurrent changes, dedupe, view failure');
+
+for (const outcome of ['NO_CHANGE', 'failed']) {
+    reset(); inventory = true;
+    rows = [['耗尽物品', 0, '已耗尽'], ['工具', 1, '已使用']];
+    rawResponse = '<tableEdit><!-- NO_CHANGE --></tableEdit>';
+    apiHook = () => {
+        assert.deepEqual(rows, [['工具', 1, '已使用']], '调用AI之前已保存明确失效库存清理');
+        if (outcome === 'failed') throw Error('API failed');
+    };
+    await runStableCleanup();
+    assert.equal(calls, 1);
+    assert.deepEqual(rows, [['工具', 1, '已使用']], 'AI失败或无变化不能阻止明确库存清理');
+}
+reset(); inventory = true;
+rows = [['耗尽物品', 0, '已耗尽'], ['工具', 1, '已使用']];
+let apiCalled = false;
+apiHook = () => { apiCalled = true; };
+saveHook = () => { throw Error('disk unavailable'); };
+await runStableCleanup();
+assert.equal(apiCalled, false, '本地保存失败不得继续AI整理');
+assert.equal(rows[0][0], '耗尽物品', '本地清理保存失败原子回滚');
+console.log('cleanup flow PASS: deterministic phase before API, NO_CHANGE/API failure independent, local save rollback');

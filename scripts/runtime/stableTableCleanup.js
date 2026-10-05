@@ -6,7 +6,7 @@ import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=m
 import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon82';
 import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon92';
 
-import { completeDepletedInventoryCleanup } from './depletedInventoryCleanup.js?v=memon95';
+
 
 const INSTALL_FLAG='__memoStableTableCleanupInstalled'; let running=false;
 const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第一目标是把现有七张表整理成干净、无重复、无过期、无错位的当前最终状态；第二目标是在整理过程中修复能够由当前表格与最近聊天明确证明的数据问题。它不是“手动更新记录”的替代品，不以某一轮新剧情为中心，而是对七表做全局整理与修理。
@@ -65,6 +65,69 @@ function restoreCleanupState(piece, backup) {
         else delete piece[key];
     }
 }
+function depletedInventoryOperations(sheets) {
+    const inventory = sheets.filter(sheet => sheet?.name === '背包表');
+    if (inventory.length !== 1) return null;
+    const sheet = inventory[0];
+    const headers = sheet.getHeader().map(value => String(value ?? '').trim());
+    const quantity = headers.indexOf('数量');
+    const status = headers.indexOf('状态/品质');
+    if (headers[0] !== '物品名' || quantity < 0 || status < 0
+        || headers.lastIndexOf('数量') !== quantity || headers.lastIndexOf('状态/品质') !== status) return null;
+    const calls = [];
+    for (let row = 1; row < sheet.getRowCount(); row++) {
+        const cells = sheet.getCellsByRowIndex(row).slice(1);
+        const name = String(cells[0]?.data?.value ?? '');
+        const amount = cells[quantity]?.data?.value;
+        const state = String(cells[status]?.data?.value ?? '').trim();
+        const zero = amount === 0 || (typeof amount === 'string' && /^0(?:\.0+)?$/.test(amount.trim()));
+        if (!name.trim() || !zero || !['已售出', '已耗尽'].includes(state)) continue;
+        const expected = JSON.stringify(name).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+        calls.push(`deleteRow(2,${row - 1},${expected})`);
+    }
+    return calls.length ? [`<tableEdit><!--\n${calls.join('\n')}\n--></tableEdit>`] : null;
+}
+async function commitCleanup(matches, piece, sessionActive) {
+    const backup = captureCleanupState(piece);
+    const result = executeMemoTableEdit(matches, piece);
+    if (!result.ok) { EDITOR.error(`表格整理执行失败：${result.error}，原表未执行错误操作`); return false; }
+    const committedKey = cleanupStateKey(piece);
+    try {
+        await USER.saveChat();
+    } catch (error) {
+        // Never restore an old backup over another chat or a newer table edit.
+        if (sessionActive() && BASE.getLastSheetsPiece()?.piece === piece && cleanupStateKey(piece) === committedKey) {
+            restoreCleanupState(piece, backup);
+            try {
+                BASE.refreshContextView();
+                updateSystemMessageTableStatus();
+            } catch (viewError) {
+                console.warn('[Memo][table-cleanup] 回滚后视图刷新失败', viewError);
+            }
+            EDITOR.error(`表格整理保存失败：已恢复原表格和Swipe快照｜${error?.message || error}`);
+            return false;
+        }
+        EDITOR.error(`表格整理保存失败：期间记录已变化，未覆盖新记录｜${error?.message || error}`);
+        return false;
+    }
+    if (!sessionActive()) {
+        console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图');
+        return false;
+    }
+    if (BASE.getLastSheetsPiece()?.piece !== piece || cleanupStateKey(piece) !== committedKey) {
+        EDITOR.info('表格整理已保存，期间记录发生变化，停止后续整理');
+        return false;
+    }
+    EDITOR.success(`表格整理完成（${result.count}项）`);
+    try {
+        BASE.refreshContextView();
+        updateSystemMessageTableStatus();
+    } catch (error) {
+        console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败', error);
+    }
+    return true;
+}
+
 async function runStableCleanup() {
     if (running) return EDITOR.warning('表格整理正在进行中');
     running = true;
@@ -75,7 +138,20 @@ async function runStableCleanup() {
         repairMissingColumnsBeforeCleanup();
         const piece = BASE.getLastSheetsPiece()?.piece;
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
-        const tableText = getTablePromptByPiece(piece);
+        let tableText = getTablePromptByPiece(piece);
+        if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
+        const localOperations = depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
+        if (localOperations) {
+            if (USER.tableBaseSetting.bool_silent_refresh !== true) {
+                const key = cleanupStateKey(piece);
+                const confirmed = await EDITOR.callGenericPopup(`<p>清理数量为0且状态为已售出或已耗尽的库存：</p><pre>${escapeHtml(localOperations[0])}</pre>`, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
+                if (!confirmed) return EDITOR.info('表格整理已取消，其余表格未修改');
+                if (!sessionActive() || BASE.getLastSheetsPiece()?.piece !== piece || cleanupStateKey(piece) !== key) return EDITOR.info('表格整理已作废：确认期间记录发生变化');
+            }
+            if (!await commitCleanup(localOperations, piece, sessionActive)) return;
+        }
+        if (!sessionActive() || BASE.getLastSheetsPiece()?.piece !== piece) return;
+        if (localOperations) tableText = getTablePromptByPiece(piece);
         if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
         const baselineKey = cleanupStateKey(piece);
         const chatLength = sessionChat?.length;
@@ -95,64 +171,28 @@ async function runStableCleanup() {
         } catch (error) {
             return EDITOR.error('表格整理API请求失败', error?.message || String(error), error);
         }
-        if (!sessionActive()) return EDITOR.info('表格整理已作废：API等待期间切换了聊天，未执行任何操作');
-        if (!currentState()) return EDITOR.info('表格整理已作废：等待期间记录发生变化，未执行旧操作');
+        if (!sessionActive()) return EDITOR.info('表格整理已作废：API等待期间切换了聊天，未执行AI操作');
+        if (!currentState()) return EDITOR.info('表格整理已作废：等待期间记录发生变化，未执行旧AI操作');
         if (rawContent === 'suspended') return EDITOR.info('表格整理已取消');
         if (typeof rawContent !== 'string' || !rawContent.trim() || /^错误[:：]/.test(rawContent.trim())) {
-            return EDITOR.error('表格整理失败：API返回为空或错误内容，原表未修改');
+            return EDITOR.error('表格整理失败：API返回为空或错误内容，其余表格未修改');
         }
-        let { matches } = getTableEditTag(rawContent);
+        const { matches } = getTableEditTag(rawContent);
         if (!matches || matches.length !== 1) {
             const tail = rawContent.replace(/\s+/g, ' ').trim().slice(-260);
             console.warn('[Memo][table-cleanup] tableEdit块数量异常:', matches?.length ?? 0, rawContent);
-            return EDITOR.error(`表格整理失败：模型必须且只能返回1个tableEdit，实际为${matches?.length ?? 0}个，原表未修改｜末尾：${tail}`);
+            return EDITOR.error(`表格整理失败：模型必须且只能返回1个tableEdit，实际为${matches?.length ?? 0}个，其余表格未修改｜末尾：${tail}`);
         }
         const parsed = parseMemoTableEdit(matches);
-        if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，原表未修改`);
-        const completed = completeDepletedInventoryCleanup(parsed, BASE.getChatSheets?.() ?? []);
-        if (!completed.ok) return EDITOR.error(`表格整理失败：${completed.error}，原表未修改`);
-        if (completed.block) {
-            matches = [completed.block];
-            const checked = parseMemoTableEdit(matches);
-            if (!checked.ok) return EDITOR.error(`表格整理失败：${checked.error}，原表未修改`);
-        } else if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需整理');
+        if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，其余表格未修改`);
+        if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需进一步整理');
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
             const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(matches[0])}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
-            if (!confirmed) return EDITOR.info('表格整理已取消，原表未修改');
+            if (!confirmed) return EDITOR.info('表格整理已取消，其余表格未修改');
         }
-        if (!currentState()) return EDITOR.info('表格整理已作废：确认期间记录发生变化，未执行旧操作');
-        const backup = captureCleanupState(piece);
-        const result = executeMemoTableEdit(matches, piece);
-        if (!result.ok) return EDITOR.error(`表格整理执行失败：${result.error}，原表未执行错误操作`);
-        const committedKey = cleanupStateKey(piece);
-        try {
-            await USER.saveChat();
-        } catch (error) {
-            // Never restore an old backup over another chat or a newer table edit.
-            if (sessionActive() && BASE.getLastSheetsPiece()?.piece === piece && cleanupStateKey(piece) === committedKey) {
-                restoreCleanupState(piece, backup);
-                try {
-                    BASE.refreshContextView();
-                    updateSystemMessageTableStatus();
-                } catch (viewError) {
-                    console.warn('[Memo][table-cleanup] 回滚后视图刷新失败', viewError);
-                }
-                return EDITOR.error(`表格整理保存失败：已恢复原表格和Swipe快照｜${error?.message || error}`);
-            }
-            return EDITOR.error(`表格整理保存失败：期间记录已变化，未覆盖新记录｜${error?.message || error}`);
-        }
-        if (!sessionActive()) {
-            console.warn('[Memo][table-cleanup] 保存期间切换了聊天，不刷新当前新聊天视图');
-            return;
-        }
-        EDITOR.success(`表格整理完成（${result.count}项）`);
-        try {
-            BASE.refreshContextView();
-            updateSystemMessageTableStatus();
-        } catch (error) {
-            console.warn('[Memo][table-cleanup] 整理已提交，但视图刷新失败', error);
-        }
+        if (!currentState()) return EDITOR.info('表格整理已作废：确认期间记录发生变化，未执行旧AI操作');
+        await commitCleanup(matches, piece, sessionActive);
     } catch (error) {
         console.error('[Memo][table-cleanup] 整理失败:', error);
         EDITOR.error('表格整理失败', error?.message || String(error), error);
@@ -161,4 +201,4 @@ async function runStableCleanup() {
     }
 }
 function install(){if(window[INSTALL_FLAG])return;window[INSTALL_FLAG]=true;console.log('[Memo] 七表严格tableEdit整理器已加载：字段语义、人物归属与连续性规则已对齐');}
-install();export{runStableCleanup};
+install();export{runStableCleanup, depletedInventoryOperations};
