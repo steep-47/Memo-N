@@ -4,7 +4,7 @@ import { handleCustomAPIRequest, handleMainAPIRequest, estimateTokenCount } from
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
 import { ensureSevenTableWorld } from './sevenTableMigration.js?v=memon82';
-import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon90';
+import { executeMemoTableEdit, parseMemoTableEdit } from './safeTableExecutor.js?v=memon91';
 
 const INSTALL_FLAG='__memoStableTableCleanupInstalled'; let running=false;
 const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第一目标是把现有七张表整理成干净、无重复、无过期、无错位的当前最终状态；第二目标是在整理过程中修复能够由当前表格与最近聊天明确证明的数据问题。它不是“手动更新记录”的替代品，不以某一轮新剧情为中心，而是对七表做全局整理与修理。

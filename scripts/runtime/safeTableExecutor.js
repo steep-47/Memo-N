@@ -759,9 +759,9 @@ export function parseMemoTableEdit(raw) {
     const blocks = normalizeBlocks(raw);
     if (!blocks.length) return { ok:false, noChange:false, actions:[], error:'没有tableEdit内容' };
     const joined = blocks.join('\n');
-    const noChange = /\bNO_CHANGE\b/i.test(joined);
     const xml = extractXmlCalls(joined);
     const parsed = xml.recognized ? xml : extractCalls(joined);
+    const noChange = /\bNO_CHANGE\b/i.test(String(parsed.residue ?? ''));
     if (!parsed.ok) return { ok:false, noChange:false, actions:[], error:parsed.error };
     if (noChange && parsed.calls.length) return { ok:false, noChange:false, actions:[], error:'NO_CHANGE不能与实际表格操作同时出现' };
     if (noChange) {
@@ -784,6 +784,20 @@ export function parseMemoTableEdit(raw) {
     return { ok:true, noChange:actions.length === 0, actions:ordered(actions), corrections:parsed.calls.map(call => call.correction).filter(Boolean), error:'' };
 }
 
+function canonicalRecordBlock(parsed) {
+    // Encode HTML delimiters inside values so comment/tag parsing cannot consume data.
+    const json = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+    if (parsed.noChange) return '<tableEdit><!-- NO_CHANGE --></tableEdit>';
+    const calls = parsed.actions.map(action => {
+        const table = action.tableIndex;
+        if (action.type === 'insert') return `insertRow(${table},${json(action.data)})`;
+        const expected = json(action.expected ?? '');
+        if (action.type === 'delete') return `deleteRow(${table},${action.rowIndex},${expected})`;
+        return `updateRow(${table},${action.rowIndex},${json(action.data)},${expected})`;
+    });
+    return `<tableEdit><!--\n${calls.join('\n')}\n--></tableEdit>`;
+}
+
 export function executeMemoTableEdit(raw, piece = null) {
     const parsed = parseMemoTableEdit(raw);
     if (!parsed.ok) return { ok:false, changed:false, noChange:false, count:0, error:parsed.error };
@@ -794,7 +808,7 @@ export function executeMemoTableEdit(raw, piece = null) {
     if (parsed.noChange) {
         try {
             saveMemoSnapshot(targetPiece);
-            return { ok:true, changed:false, noChange:true, count:0, error:'' };
+            return { ok:true, changed:false, noChange:true, count:0, recordBlock:canonicalRecordBlock(parsed), error:'' };
         } catch (error) {
             restorePieceState(targetPiece, pieceState);
             return { ok:false, changed:false, noChange:false, count:0, error:`保存NO_CHANGE快照失败：${error?.message || error}` };
@@ -812,7 +826,7 @@ export function executeMemoTableEdit(raw, piece = null) {
     try {
         for (const action of parsed.actions) applyAction(action);
         saveMemoSnapshot(targetPiece);
-        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, corrections:[...(parsed.corrections || []), ...parsed.actions.map(action => action.correction).filter(Boolean)], error:'' };
+        return { ok:true, changed:true, noChange:false, count:parsed.actions.length, recordBlock:canonicalRecordBlock(parsed), corrections:[...(parsed.corrections || []), ...parsed.actions.map(action => action.correction).filter(Boolean)], error:'' };
     } catch (error) {
         const rollbackFailures = rollbackSnapshots(snapshots);
         restorePieceState(targetPiece, pieceState);

@@ -5,7 +5,7 @@ import { getTableEditTag, getTablePrompt, getTablePromptByPiece } from '../../in
 import { handleCustomAPIRequest, handleMainAPIRequest } from '../settings/standaloneAPI.js';
 import { updateSystemMessageTableStatus } from '../renderer/tablePushToChat.js';
 import { repairMissingColumnsBeforeCleanup } from './tableStructureRepair.js?v=memon82';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './safeTableExecutor.js?v=memon90';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './safeTableExecutor.js?v=memon91';
 import JSON5 from '../../utils/json5.min.mjs';
 
 const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作协议

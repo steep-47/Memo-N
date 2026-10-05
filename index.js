@@ -14,7 +14,7 @@ import {executeTranslation} from "./services/translate.js";
 import applicationFunctionManager from "./services/appFuncManager.js"
 import {SheetBase} from "./core/table/base.js";
 import { Cell } from "./core/table/cell.js";
-import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon90';
+import { executeMemoTableEdit, restoreMemoSnapshot } from './scripts/runtime/safeTableExecutor.js?v=memon91';
 import { getMemoTableEditChannel } from './scripts/runtime/memoResponseChannels.js?v=memon82';
 import { initExternalDataAdapter } from './external-data-adapter.js';
 

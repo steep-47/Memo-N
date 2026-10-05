@@ -33,7 +33,7 @@ class MockSheet {
         const dataRow = row - 1;
         const dataColumn = column - 1;
         if (!this.rows[dataRow] || dataColumn < 0 || dataColumn >= this.columns.length) return null;
-        return { newAction: (_action, payload) => { this.rows[dataRow][dataColumn] = payload.value; } };
+        return { data: { value:this.rows[dataRow][dataColumn] }, newAction: (_action, payload) => { this.rows[dataRow][dataColumn] = payload.value; } };
     }
 
     getCellsByRowIndex(row) {
@@ -205,3 +205,26 @@ result = executeMemoTableEdit('insertRow(6,0,{0:"失败日期"})',{});
 sheets[6].save = saveHistory;
 if (result.ok || JSON.stringify(sheets[6].rows)!==beforeHistory) throw Error('历史追加保存失败未回滚');
 console.log('history zero slot PASS: append preserves old rows, strict variants, save rollback');
+
+for (const sheet of sheets) sheet.rows = [];
+result = executeMemoTableEdit('insertRow(6,0,{0:"NO_CHANGE是原文内容",1:"地点"})',{});
+if (!result.ok || !result.recordBlock.includes('insertRow(6,{') || result.recordBlock.includes('insertRow(6,0,')) throw Error('标准记录块或字面量NO_CHANGE处理失败');
+for (const sheet of sheets) sheet.rows = [];
+const canonicalReplay = executeMemoTableEdit(result.recordBlock,{});
+if (!canonicalReplay.ok || canonicalReplay.corrections?.length || sheets[6].rows[0][0] !== 'NO_CHANGE是原文内容') throw Error('标准记录块无法无纠错重放');
+for (const sheet of sheets) sheet.rows = [];
+result = executeMemoTableEdit('updateRow(4,0,{0:"新人物","1:"女"},"新人物")',{});
+if (!result.ok || !result.recordBlock.includes('insertRow(4,{') || result.recordBlock.includes('updateRow')) throw Error('空表纠错未标准化为真实执行操作');
+for (const sheet of sheets) sheet.rows = [];
+if (!executeMemoTableEdit(result.recordBlock,{}).ok) throw Error('空表纠错标准记录无法重放');
+result = executeMemoTableEdit('NO_CHANGE',{});
+if (!result.ok || result.recordBlock !== '<tableEdit><!-- NO_CHANGE --></tableEdit>') throw Error('NO_CHANGE标准记录未保存');
+console.log('canonical persistence PASS: executed operation serialization, correction-free replay, literal NO_CHANGE');
+
+for (const sheet of sheets) sheet.rows = [];
+const markupValue = '<tableEdit>正文</tableEdit> 与 <!--说明-->';
+result = executeMemoTableEdit(`insertRow(0,{0:${JSON.stringify(markupValue)}})`,{});
+if (!result.ok || result.recordBlock.includes('<!--说明-->')) throw Error('标准记录块未安全编码HTML分隔符');
+for (const sheet of sheets) sheet.rows = [];
+if (!executeMemoTableEdit(result.recordBlock,{}).ok || sheets[0].rows[0][0] !== markupValue) throw Error('HTML字面量标准记录重放丢失');
+console.log('canonical HTML value preservation PASS');

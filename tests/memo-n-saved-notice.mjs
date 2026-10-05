@@ -11,6 +11,7 @@ let executionFails = false;
 let clearStatusOnSave = false;
 let blockView = false;
 let independent = false;
+let baselineSnapshots = 0;
 const notices = [];
 const context = { get chat() { return session; }, updateMessageBlock() { throw Error('view failure'); } };
 const envelope = await import('../scripts/engine/recordEnvelope.js');
@@ -21,8 +22,8 @@ const mocks = {
     USER: { tableBaseSetting:{}, getSettings:()=>({memo_n_settings:{independent_record_api_enabled:independent}}), getContext:()=>context,
         saveChat:async()=>{ if(clearStatusOnSave) { delete session.at(-1).__memoStrictExecution; independent=true; } if(saveMode==='fail')throw Error('save failure'); if(saveMode==='delay')await new Promise(resolve=>{releaseSave=resolve;}); } },
     EDITOR: { info:message=>notices.push(['info',message]), success:message=>notices.push(['success',message]), warning(){},error(){} },
-    restoreMemoSnapshot:()=>({ok:true}), saveMemoSnapshot(){},
-    executeMemoTableEdit(raw) { return executionFails ? {ok:false,error:'invalid update'} : {ok:true, changed:!raw.includes('NO_CHANGE'), noChange:raw.includes('NO_CHANGE'),count:1}; },
+    restoreMemoSnapshot:()=>({ok:true}), saveMemoSnapshot(){baselineSnapshots++;},
+    executeMemoTableEdit(raw) { return executionFails ? {ok:false,error:'invalid update'} : {ok:true, changed:!raw.includes('NO_CHANGE'), noChange:raw.includes('NO_CHANGE'),count:1,recordBlock:raw.includes('NO_CHANGE')?'<tableEdit><!-- NO_CHANGE --></tableEdit>':'<tableEdit><!-- insertRow(0,{"0":"标准时间"}) --></tableEdit>'}; },
     ...envelope,
 };
 globalThis.__noticeMocks = mocks;
@@ -58,15 +59,26 @@ assert.equal(notices.length,0,'保存完成前不得提示成功');
 releaseSave();
 assert.equal(await chat.__memoStrictPersistence,true);
 assert.equal(notices.length,1);
+assert.ok(chat.extra.memo_n_record_block.includes('标准时间'),'保存的是执行器标准结果');
+assert.equal(chat.swipe_info[0].extra.memo_n_record_block,chat.extra.memo_n_record_block,'当前Swipe记录标准结果');
 assert.equal(notices[0][0],'success','视图失败不能吞掉保存成功提示');
 assert.equal(notices[0][2].timeOut,5000,'实际浮窗应停留5秒');
 handlers.get('ended')();
 assert.equal(notices.length,1,'同一次保存不能重复提示');
 saveMode='fail';
-await complete('insertRow(0,{0:"时间"})').__memoStrictPersistence;
+const saveFailureChat = complete('insertRow(0,{0:"时间"})');
+await saveFailureChat.__memoStrictPersistence;
+assert.equal(saveFailureChat.extra.memo_n_record_block,undefined,'保存失败不得留下成功记录块');
+assert.equal(saveFailureChat.swipe_info[0].extra.memo_n_record_block,undefined,'保存失败Swipe不得留下成功记录块');
+assert.ok(saveFailureChat.extra.memo_n_record_failure.error.includes('聊天保存失败'));
 assert.equal(notices.length,1,'保存失败不得显示成功');
 saveMode='ok'; executionFails=true;
-await complete('updateRow(4,99,{0:"错误"})').__memoStrictPersistence;
+const failureChat = complete('updateRow(4,99,{0:"错误"})');
+await failureChat.__memoStrictPersistence;
+assert.equal(failureChat.mes,'正文','失败指令不能留在下一轮正文上下文');
+assert.ok(failureChat.extra.memo_n_record_failure.raw.includes('updateRow(4,99'),'失败原始指令仍需保留用于诊断');
+assert.ok(baselineSnapshots>0,'失败轮必须保存已恢复的表格基线');
+assert.equal(failureChat.extra.memo_n_record_block,undefined,'失败不能留下成功记录块');
 assert.equal(notices.length,1,'执行失败不得显示成功');
 executionFails=false;
 await complete('NO_CHANGE').__memoStrictPersistence;

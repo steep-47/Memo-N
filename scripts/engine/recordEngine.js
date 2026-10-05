@@ -1,5 +1,5 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon90';
+import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon91';
 import {
     changesToStrictCalls,
     parseRecordEnvelope,
@@ -93,9 +93,8 @@ function recordContract(token) {
 统一调用格式（所有表的update/delete均使用完整参数，不在两套格式之间切换）：
 insertRow(tableIndex,{columnIndex:"value"})
 insertRow只有表号和数据两个参数，例如 insertRow(6,{0:"日期",1:"地点"})；禁止给insertRow添加rowIndex，历史新增自动追加。
-数字列键统一写成不带引号的形式，例如 {8:"健康",13:"气运常驻"}；不得写成 "13:"值" 这种缺少字段名结束引号的形式。
+数据列键使用数字索引，例如 {8:"健康",13:"气运常驻"}；每个值均使用完整双引号字符串。
 字符串内容需要引用词语时优先使用中文「」；英文双引号必须正确转义，禁止生成连续两个未转义双引号开头的值。
-新增操作固定2参数，不携带rowIndex或expected，也不要附加空字符串。
 updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
 deleteRow(tableIndex,rowIndex,"expected")
 表2/4/5的expected必须从下方本轮对象核对映射原样复制；其他表expected填写空字符串""。
@@ -390,11 +389,20 @@ async function unpack(chatId) {
         if (execution.corrections?.length) console.info('[Memo-N] 安全纠错', execution.corrections);
         chat.mes = isAppend ? `${job.baseMes}${envelope.reply}` : envelope.reply;
         syncSwipe(chat);
-        storeRecordBlock(chat, envelope);
+        storeRecordBlock(chat, { tableEdit: execution.recordBlock || envelope.tableEdit });
     } else {
-        // Keep malformed output intact for diagnosis; do not discard its contents.
+        // Preserve the exact command separately; keep it out of subsequent body context.
+        chat.mes = isAppend ? `${job.baseMes}${envelope.reply}` : envelope.reply;
+        syncSwipe(chat);
         if (!chat.extra || typeof chat.extra !== 'object') chat.extra = {};
         chat.extra.memo_n_record_failure = { raw: envelope.rawTableEdit || envelope.tableEdit, error: execution.error };
+        delete chat.extra.memo_n_record_block;
+        const currentSwipe = chat.swipe_info?.[Number(chat.swipe_id)];
+        if (currentSwipe?.extra) delete currentSwipe.extra.memo_n_record_block;
+        if (baseline.ok) {
+            try { saveMemoSnapshot(chat); }
+            catch (error) { execution.error += `；失败基线快照保存失败：${error?.message || error}`; }
+        }
     }
     handled.set(chat, chat.mes);
     setStatus(chat, envelope, execution);
@@ -416,6 +424,11 @@ async function unpack(chatId) {
             count: 0,
             error: `聊天保存失败：${error?.message || error}${rollback.ok ? '；表格已回滚' : `；表格回滚异常：${rollback.error}`}`,
         };
+        if (!chat.extra || typeof chat.extra !== 'object') chat.extra = {};
+        chat.extra.memo_n_record_failure = { raw: envelope.rawTableEdit || executionInput, error: failed.error };
+        delete chat.extra.memo_n_record_block;
+        const failedSwipe = chat.swipe_info?.[Number(chat.swipe_id)];
+        if (failedSwipe?.extra) delete failedSwipe.extra.memo_n_record_block;
         setStatus(chat, envelope, failed);
         EDITOR.error(`Memo-N保存失败：${failed.error}`);
         return false;
