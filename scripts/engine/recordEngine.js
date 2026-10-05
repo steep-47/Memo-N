@@ -7,8 +7,6 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js?v=memon84';
 
-import { notifyMemoRecordSaved } from '../runtime/singleApiFinish.js?v=memon89';
-
 const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
@@ -398,7 +396,6 @@ async function unpack(chatId) {
     }
     handled.set(chat, chat.mes);
     setStatus(chat, envelope, execution);
-    const savedStatus = { ...chat.__memoStrictExecution };
 
     try {
         await USER.saveChat();
@@ -422,10 +419,13 @@ async function unpack(chatId) {
         return false;
     }
 
-    // Use the saved transaction result before rendering can replace message state.
-    if (execution.ok) {
-        try { notifyMemoRecordSaved(chat, job.session, savedStatus); }
-        catch (error) { console.warn('[Memo-N] 表格已保存，但成功提示失败', error); }
+    // The transaction already established success. Report it here, immediately
+    // after persistence, without re-reading mutable settings or message status.
+    if (execution.ok && job.session === USER?.getContext?.()?.chat) {
+        try {
+            if (execution.noChange) EDITOR.info('Memo-N：七表检查完成，本轮无可写变化', '', 1800);
+            else if (execution.changed) EDITOR.success(`Memo-N：记录成功，已记录${execution.count}项变化`, '', 2500);
+        } catch (error) { console.warn('[Memo-N] 表格已保存，但提示显示失败', error); }
     }
 
     if (execution.ok && execution.changed) {

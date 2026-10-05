@@ -10,6 +10,7 @@ let releaseSave;
 let executionFails = false;
 let clearStatusOnSave = false;
 let blockView = false;
+let independent = false;
 const notices = [];
 const context = { get chat() { return session; }, updateMessageBlock() { throw Error('view failure'); } };
 const envelope = await import('../scripts/engine/recordEnvelope.js');
@@ -17,21 +18,28 @@ const mocks = {
     APP: { event_types: { GENERATION_STARTED:'start', CHAT_COMPLETION_SETTINGS_READY:'settings', CHARACTER_MESSAGE_RENDERED:'rendered', GENERATION_ENDED:'ended' },
         eventSource: { on(event, fn) { handlers.set(event, fn); }, makeLast() {} } },
     BASE: { getChatSheets:()=>[], copyHashSheets:structuredClone, getLastSheetsPiece:()=>({piece:session[0]}), refreshContextView:async()=>{if(blockView)await new Promise(()=>{});}, },
-    USER: { tableBaseSetting:{}, getSettings:()=>({}), getContext:()=>context,
-        saveChat:async()=>{ if(clearStatusOnSave) delete session.at(-1).__memoStrictExecution; if(saveMode==='fail')throw Error('save failure'); if(saveMode==='delay')await new Promise(resolve=>{releaseSave=resolve;}); } },
+    USER: { tableBaseSetting:{}, getSettings:()=>({memo_n_settings:{independent_record_api_enabled:independent}}), getContext:()=>context,
+        saveChat:async()=>{ if(clearStatusOnSave) { delete session.at(-1).__memoStrictExecution; independent=true; } if(saveMode==='fail')throw Error('save failure'); if(saveMode==='delay')await new Promise(resolve=>{releaseSave=resolve;}); } },
     EDITOR: { info:message=>notices.push(['info',message]), success:message=>notices.push(['success',message]), warning(){},error(){} },
     restoreMemoSnapshot:()=>({ok:true}), saveMemoSnapshot(){},
     executeMemoTableEdit(raw) { return executionFails ? {ok:false,error:'invalid update'} : {ok:true, changed:!raw.includes('NO_CHANGE'), noChange:raw.includes('NO_CHANGE'),count:1}; },
     ...envelope,
 };
 globalThis.__noticeMocks = mocks;
-let notifierSource = await fs.readFile(new URL('../scripts/runtime/singleApiFinish.js',import.meta.url),'utf8');
-notifierSource = notifierSource.replace(/import .*?from '..\/..\/core\/manager.js';/, 'const {EDITOR,USER}=globalThis.__noticeMocks;');
-const notifier = await import(`data:text/javascript;base64,${Buffer.from(notifierSource).toString('base64')}`);
-mocks.notifyMemoRecordSaved = notifier.notifyMemoRecordSaved;
+// Exercise the real Memo toast boundary, not a mocked success helper.
+globalThis.toastr = {
+    success(message, detail, options) { notices.push(['success', message, options]); },
+    info(message, detail, options) { notices.push(['info', message, options]); },
+};
+let toastSource = await fs.readFile(new URL('../scripts/settings/devConsole.js',import.meta.url),'utf8');
+toastSource = toastSource.replace(/^import[^\n]+\n/gm,'');
+toastSource = 'const {EDITOR,USER,BASE}=globalThis.__noticeMocks; const SYSTEM={};\n'+toastSource;
+const {consoleMessageToEditor} = await import(`data:text/javascript;base64,${Buffer.from(toastSource).toString('base64')}`);
+mocks.EDITOR.success = (message, detail='', timeout=500)=>consoleMessageToEditor.success(message,detail,timeout);
+mocks.EDITOR.info = (message, detail='', timeout=500)=>consoleMessageToEditor.info(message,detail,timeout);
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js',import.meta.url),'utf8');
 source = source.replace(/import[\s\S]*?from ['"][^'"]+['"];\s*/g, '');
-source = 'const {APP,BASE,EDITOR,USER,executeMemoTableEdit,restoreMemoSnapshot,saveMemoSnapshot,changesToStrictCalls,parseRecordEnvelope,parseRelayTableEditEnvelope,parseRelayTaggedEnvelope,notifyMemoRecordSaved}=globalThis.__noticeMocks;\n'+source;
+source = 'const {APP,BASE,EDITOR,USER,executeMemoTableEdit,restoreMemoSnapshot,saveMemoSnapshot,changesToStrictCalls,parseRecordEnvelope,parseRelayTableEditEnvelope,parseRelayTaggedEnvelope}=globalThis.__noticeMocks;\n'+source;
 await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 function complete(calls) {
     handlers.get('start')('normal',{},false);
@@ -51,7 +59,8 @@ releaseSave();
 assert.equal(await chat.__memoStrictPersistence,true);
 assert.equal(notices.length,1);
 assert.equal(notices[0][0],'success','视图失败不能吞掉保存成功提示');
-notifier.notifyMemoRecordSaved(chat,session);
+assert.equal(notices[0][2].timeOut,5000,'实际浮窗应停留5秒');
+handlers.get('ended')();
 assert.equal(notices.length,1,'同一次保存不能重复提示');
 saveMode='fail';
 await complete('insertRow(0,{0:"时间"})').__memoStrictPersistence;
@@ -79,7 +88,7 @@ assert.equal(await withoutRuntimeStatus.__memoStrictPersistence,true);
 assert.equal(withoutRuntimeStatus.__memoStrictExecution,undefined);
 assert.equal(notices.at(-1)[0],'success','临时状态消失不应吞掉已经确认的保存成功');
 const beforeView=notices.length;
-clearStatusOnSave=false; blockView=true;
+clearStatusOnSave=false; independent=false; blockView=true;
 complete('insertRow(0,{0:"时间"})');
 await new Promise(resolve=>setTimeout(resolve,0));
 assert.equal(notices.length,beforeView+1,'视图刷新未完成时也应提示已保存的结果');
