@@ -1,4 +1,4 @@
-import { APP, EDITOR, USER } from '../../core/manager.js';
+import { EDITOR, USER } from '../../core/manager.js';
 
 const PREF_KEY = 'independent_record_api_enabled';
 const handled = new WeakMap();
@@ -8,23 +8,10 @@ function tokenFor(chat,status){return`${Number(chat?.swipe_id??0)}\u241f${String
 function wasHandled(chat,token){return handled.get(chat)?.has(token)===true;}
 function markHandled(chat,token){let set=handled.get(chat);if(!set){set=new Set();handled.set(chat,set);}set.add(token);}
 
-function latestAssistant(){
-    const chat=USER?.getContext?.()?.chat;
-    if(!Array.isArray(chat))return null;
-    for(let i=chat.length-1;i>=0;i--)if(chat[i]?.is_user===false)return chat[i];
-    return null;
-}
-
-async function finishLatest(){
-    if(independentEnabled())return;
-    const chat=latestAssistant();
-    if(!chat)return;
-
-    const persistence=chat.__memoStrictPersistence;
-    if(persistence&&typeof persistence.then==='function'){
-        try{if(await persistence!==true)return;}catch(_){return;}
-    }
-
+// Called by the record engine only after its save promise has succeeded.
+// No GENERATION_ENDED listener: notification must not depend on listener order.
+export function notifyMemoRecordSaved(chat, session){
+    if(independentEnabled() || !chat || USER?.getContext?.()?.chat !== session)return;
     const status=chat.__memoStrictExecution;
     if(!status||status.ok!==true)return;
     if(Number(status.swipeId)!==Number(chat?.swipe_id??0))return;
@@ -43,12 +30,4 @@ async function finishLatest(){
     EDITOR.success(`Memo-N：七表检查完成，已记录${status.count||''}${status.count?'项变化':''}`,'',2500);
 }
 
-function scheduleFinish(){
-    void finishLatest().catch(error=>console.error('[Memo-N] 写入提示任务异常',error));
-}
-
-const endEvent=APP.event_types.GENERATION_ENDED;
-APP.eventSource.on(endEvent,scheduleFinish);
-APP.eventSource.makeLast?.(endEvent,scheduleFinish);
-
-console.log('[Memo-N] 写入提示已加载：绿色仅用于七表事务成功且实际发生写入');
+console.log('[Memo-N] 写入提示已加载：由保存完成直接触发');

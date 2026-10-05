@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.61-empty-object-recovery-1';
-const DISPLAY_VERSION = '0.61';
+const RUNTIME_VERSION = '0.62-persisted-success-notice-1';
+const DISPLAY_VERSION = '0.62';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -45,7 +45,6 @@ const runtimes = [
     ['DeepSeek旧解析器隔离', './scripts/runtime/directModeLegacyGuard.js'],
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
-    ['一次API成功提示', './scripts/runtime/singleApiFinish.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
@@ -69,5 +68,5 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.61 loaded: preset-compatible one-call record protocol');
+console.log('[Memo-N][loader] v0.62 loaded: preset-compatible one-call record protocol');
 

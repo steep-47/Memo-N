@@ -7,6 +7,8 @@ import {
     parseRelayTaggedEnvelope,
 } from './recordEnvelope.js?v=memon84';
 
+import { notifyMemoRecordSaved } from '../runtime/singleApiFinish.js?v=memon87';
+
 const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 const handled = new WeakMap();
@@ -423,8 +425,15 @@ async function unpack(chatId) {
         catch (error) { console.warn('[Memo-N] 表格已保存，但活动表格视图刷新失败', error); }
     }
 
-    if (job.session === USER?.getContext?.()?.chat) USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat);
+    if (job.session === USER?.getContext?.()?.chat) {
+        try { USER.getContext?.()?.updateMessageBlock?.(Number(chatId), chat); }
+        catch (error) { console.warn('[Memo-N] 表格已保存，但消息视图刷新失败', error); }
+    }
     if (!execution.ok) EDITOR.warning(`Memo-N记录失败：${execution.error}。正文已保留，表格未部分写入。`);
+    if (execution.ok) {
+        try { notifyMemoRecordSaved(chat, job.session); }
+        catch (error) { console.warn('[Memo-N] 表格已保存，但成功提示失败', error); }
+    }
     return execution.ok === true;
 }
 
