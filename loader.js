@@ -28,7 +28,7 @@ async function loadRuntime(label, path) {
 const runtimes = [
     ['表格视图单例与渲染稳定', './scripts/runtime/tableViewStabilityGuard.js'],
     ['设置归一', './scripts/runtime/settingsBootstrap.js'],
-    ['固定分块历史', './scripts/runtime/fixedBlockHistory.js'],
+    ['历史冻结', './scripts/runtime/fixedBlockHistory.js'],
     ['玩家身份与称号字段结构', './scripts/runtime/playerProfileSchema.js'],
     ['表格表达与能力字段规则', './scripts/runtime/denseExpressionRule.js'],
     ['独立操作七表结构前置修复', './scripts/runtime/worldTableStructurePreflight.js'],
