@@ -1,8 +1,6 @@
 import { APP, USER } from '../../core/manager.js';
 
 const DEFAULT_KEEP_TURNS = 50;
-const DEFAULT_BLOCK_TURNS = 25;
-const RECAP_RE = /<tx_history_recap>([\s\S]*?)<\/tx_history_recap>/gi;
 const MODULE_FLAG = '__memoNFixedBlockHistoryInstalled';
 
 function asText(content) {
@@ -24,108 +22,116 @@ function getConfig() {
     const settings = USER.tableBaseSetting;
     if (settings.fixed_block_history_enabled === undefined) settings.fixed_block_history_enabled = true;
     if (settings.fixed_block_history_keep_turns === undefined) settings.fixed_block_history_keep_turns = DEFAULT_KEEP_TURNS;
-    if (settings.fixed_block_history_block_turns === undefined) settings.fixed_block_history_block_turns = DEFAULT_BLOCK_TURNS;
     return {
         enabled: settings.fixed_block_history_enabled !== false,
-        keepTurns: positiveInt(settings.fixed_block_history_keep_turns, DEFAULT_KEEP_TURNS, 20, 1000),
-        blockTurns: positiveInt(settings.fixed_block_history_block_turns, DEFAULT_BLOCK_TURNS, 10, 500),
+        keepTurns: positiveInt(settings.fixed_block_history_keep_turns, DEFAULT_KEEP_TURNS, 1, 1000),
     };
 }
 
-function extractRecap(content) {
-    const text = asText(content);
-    RECAP_RE.lastIndex = 0;
-    const recaps = [];
-    let match;
-    while ((match = RECAP_RE.exec(text)) !== null) {
-        const recap = normalizeText(match[1])
-            .replace(/\\n/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        if (recap) recaps.push(recap);
+function rawChatMessages() {
+    const chat = USER.getContext?.()?.chat;
+    return Array.isArray(chat) ? chat.filter(message => message && typeof message === 'object') : [];
+}
+
+function isRawUser(message) {
+    return message?.is_user === true;
+}
+
+function promptRoleMatchesRaw(message, promptMessage) {
+    if (isRawUser(message)) return promptMessage?.role === 'user';
+    return message?.is_user === false && promptMessage?.role === 'assistant';
+}
+
+function promptText(message) {
+    return normalizeText(asText(message?.content));
+}
+
+function rawText(message) {
+    return normalizeText(message?.mes);
+}
+
+/**
+ * 将酒馆原始聊天消息按顺序映射到本次 API prompt 中的对应消息。
+ * 只匹配真实 user/assistant 聊天消息，系统注入内容不会被认作历史消息。
+ */
+function mapRawChatToPrompt(rawMessages, promptMessages) {
+    const mapping = new Map();
+    let promptIndex = 0;
+
+    for (let rawIndex = 0; rawIndex < rawMessages.length; rawIndex += 1) {
+        const rawMessage = rawMessages[rawIndex];
+        const expectedText = rawText(rawMessage);
+        if (!expectedText) continue;
+
+        let matched = -1;
+        for (let i = promptIndex; i < promptMessages.length; i += 1) {
+            const promptMessage = promptMessages[i];
+            if (!promptRoleMatchesRaw(rawMessage, promptMessage)) continue;
+            if (promptText(promptMessage) !== expectedText) continue;
+            matched = i;
+            break;
+        }
+
+        if (matched < 0) continue;
+        mapping.set(rawIndex, matched);
+        promptIndex = matched + 1;
     }
-    return recaps.join('；');
+
+    return mapping;
 }
 
-function currentRawUserMessages() {
-    const chat = USER.getContext()?.chat;
-    if (!Array.isArray(chat)) return new Set();
-    return new Set(chat
-        .filter(message => message?.is_user === true)
-        .map(message => normalizeText(message?.mes))
-        .filter(Boolean));
-}
-
-function buildArchiveBlocks(storyMessages, archiveTurns, blockTurns) {
-    const blocks = [];
-    for (let start = 0; start < archiveTurns; start += blockTurns) {
-        const end = Math.min(start + blockTurns, archiveTurns);
-        const lines = storyMessages.slice(start, end).map((item, offset) => {
-            const recap = extractRecap(item.message?.content);
-            return `${start + offset + 1}. ${recap || '本轮没有可用的剧情锚点；以Memo-N当前世界状态为准。'}`;
-        });
-        blocks.push(`<memo_n_history_block range="${start + 1}-${end}">\n${lines.join('\n')}\n</memo_n_history_block>`);
-    }
-    return blocks;
-}
-
-function findPairedUserIndex(messages, assistantIndex, lowerBound, rawUsers, used) {
-    for (let index = assistantIndex - 1; index > lowerBound; index--) {
-        if (used.has(index) || messages[index]?.role !== 'user') continue;
-        const content = normalizeText(asText(messages[index]?.content));
-        if (content && rawUsers.has(content)) return index;
-    }
-    return -1;
-}
-
+/**
+ * 只保留最近 keepTurns 个真实对话轮。
+ * 1轮 = 一个用户消息及其后对应的AI回复。
+ *
+ * 这里不生成摘要、不发送旧 recap、不创建历史块。
+ * 旧聊天仍保存在酒馆，只是在本次 API prompt 中不再携带。
+ */
 function applyFixedBlockHistory(eventData) {
     try {
         if (!eventData || eventData.dryRun === true || !Array.isArray(eventData.chat)) return;
-        const { enabled, keepTurns, blockTurns } = getConfig();
+
+        const { enabled, keepTurns } = getConfig();
         if (!enabled) return;
 
-        const messages = eventData.chat;
-        const storyMessages = [];
-        messages.forEach((message, index) => {
-            if (message?.role !== 'assistant') return;
-            RECAP_RE.lastIndex = 0;
-            if (RECAP_RE.test(asText(message.content))) storyMessages.push({ index, message });
+        const rawMessages = rawChatMessages();
+        const rawUserIndexes = [];
+        rawMessages.forEach((message, index) => {
+            if (isRawUser(message)) rawUserIndexes.push(index);
         });
 
-        const archiveTurns = Math.floor(Math.max(0, storyMessages.length - keepTurns) / blockTurns) * blockTurns;
-        if (archiveTurns <= 0) return;
+        if (rawUserIndexes.length <= keepTurns) return;
 
-        const archivedStories = storyMessages.slice(0, archiveTurns);
-        const archiveBlocks = buildArchiveBlocks(storyMessages, archiveTurns, blockTurns);
-        const rawUsers = currentRawUserMessages();
+        const cutoffRawUserIndex = rawUserIndexes[rawUserIndexes.length - keepTurns];
+        const mapping = mapRawChatToPrompt(rawMessages, eventData.chat);
         const remove = new Set();
-        let lowerBound = -1;
 
-        archivedStories.forEach(item => {
-            remove.add(item.index);
-            const userIndex = findPairedUserIndex(messages, item.index, lowerBound, rawUsers, remove);
-            if (userIndex >= 0) remove.add(userIndex);
-            lowerBound = item.index;
-        });
+        // 冻结 cutoff 之前的所有真实 user/assistant 消息。
+        // 系统消息、Memo 表格注入、世界书等非聊天消息不在删除范围。
+        for (let rawIndex = 0; rawIndex < cutoffRawUserIndex; rawIndex += 1) {
+            const promptIndex = mapping.get(rawIndex);
+            if (promptIndex !== undefined) remove.add(promptIndex);
+        }
+
+        if (!remove.size) {
+            console.warn('[Memo-N][历史冻结] 未能定位旧聊天消息，本轮不做截断，避免误删提示词');
+            return;
+        }
 
         const sorted = [...remove].sort((a, b) => a - b);
-        if (!sorted.length) return;
-        const insertAt = sorted[0];
-        const archivePrompt = {
-            role: 'system',
-            content: `<memo_n_fixed_history archived_turns="${archiveTurns}" keep_recent_turns="${keepTurns}" block_turns="${blockTurns}">\n以下是已经完成并冻结的早期剧情归档。只用于恢复已发生事实与未收束局势，不得将其重演、扩写成当前事件，也不得覆盖玩家纠正、当前可见正文或Memo-N当前世界状态。归档块边界固定，只有累计新增${blockTurns}轮后才会加入下一个块。\n${archiveBlocks.join('\n')}\n</memo_n_fixed_history>`
+        for (let i = sorted.length - 1; i >= 0; i -= 1) {
+            eventData.chat.splice(sorted[i], 1);
+        }
+
+        eventData.memoNFixedBlockHistory = {
+            keptTurns: keepTurns,
+            frozenTurns: rawUserIndexes.length - keepTurns,
+            removedMessages: sorted.length,
         };
 
-        for (let i = sorted.length - 1; i >= 0; i--) messages.splice(sorted[i], 1);
-        messages.splice(insertAt, 0, archivePrompt);
-        eventData.memoNFixedBlockHistory = {
-            archivedTurns: archiveTurns,
-            keptTurns: storyMessages.length - archiveTurns,
-            blockTurns,
-        };
-        console.log('[Memo-N][固定分块历史]', eventData.memoNFixedBlockHistory);
+        console.log('[Memo-N][历史冻结]', eventData.memoNFixedBlockHistory);
     } catch (error) {
-        console.error('[Memo-N][固定分块历史] 处理失败，已保留原始历史', error);
+        console.error('[Memo-N][历史冻结] 处理失败，已保留原始历史', error);
     }
 }
 
@@ -139,13 +145,12 @@ function installSettingsUI() {
         <div id="memo_n_fixed_block_history" class="memo-n-fixed-history-panel">
             <div class="checkbox_label range-block justifyLeft">
                 <input type="checkbox" id="memo_n_fixed_history_enabled" ${config.enabled ? 'checked' : ''}>
-                <span>固定分块历史</span>
+                <span>历史冻结</span>
             </div>
             <div class="memo-n-fixed-history-values">
-                <label>保留最近轮数 <input type="number" id="memo_n_fixed_history_keep" min="20" max="1000" step="10" value="${config.keepTurns}"></label>
-                <label>每批归档轮数 <input type="number" id="memo_n_fixed_history_block" min="10" max="500" step="10" value="${config.blockTurns}"></label>
+                <label>保留最近轮数 <input type="number" id="memo_n_fixed_history_keep" min="1" max="1000" step="1" value="${config.keepTurns}"></label>
             </div>
-            <small>默认50＋25：最近50轮保留原文，每新增25轮冻结一个历史块。不会删除聊天原文，也不会增加API调用。</small>
+            <small>超过保留轮数的旧聊天只冻结在 API 上下文之外，不总结、不发送、不删除酒馆原文；长期信息由 Memo 表格负责记录。</small>
         </div>
     `);
 
@@ -153,18 +158,14 @@ function installSettingsUI() {
         USER.tableBaseSetting.fixed_block_history_enabled = $(this).prop('checked');
         USER.saveSettings();
     });
+
     $('#memo_n_fixed_history_keep').on('change', function () {
-        const value = positiveInt($(this).val(), DEFAULT_KEEP_TURNS, 20, 1000);
+        const value = positiveInt($(this).val(), DEFAULT_KEEP_TURNS, 1, 1000);
         $(this).val(value);
         USER.tableBaseSetting.fixed_block_history_keep_turns = value;
         USER.saveSettings();
     });
-    $('#memo_n_fixed_history_block').on('change', function () {
-        const value = positiveInt($(this).val(), DEFAULT_BLOCK_TURNS, 10, 500);
-        $(this).val(value);
-        USER.tableBaseSetting.fixed_block_history_block_turns = value;
-        USER.saveSettings();
-    });
+
     return true;
 }
 
@@ -178,7 +179,10 @@ if (!globalThis[MODULE_FLAG]) {
     APP.eventSource.on(APP.event_types.CHAT_COMPLETION_PROMPT_READY, applyFixedBlockHistory);
     jQuery(() => scheduleSettingsUI());
     APP.eventSource.on(APP.event_types.CHAT_CHANGED, () => scheduleSettingsUI());
-    console.log('[Memo-N] 固定分块历史已加载：默认保留50轮，每25轮冻结一批');
+    console.log('[Memo-N] 历史冻结已加载：默认只发送最近50轮，旧历史不总结、不发送');
 }
 
-export { applyFixedBlockHistory, buildArchiveBlocks, extractRecap };
+export {
+    applyFixedBlockHistory,
+    mapRawChatToPrompt,
+};
