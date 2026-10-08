@@ -356,7 +356,9 @@ async function unpack(chatId) {
     if (job.session && USER?.getContext?.()?.chat !== job.session) { pending = null; return false; }
 
     const chat = USER?.getContext?.()?.chat?.[chatId];
-    if (!chat || chat.is_user || handled.get(chat) === chat.mes) return false;
+    if (!chat || chat.is_user) return false;
+    const currentHandledKey = `${Number(chat.swipe_id ?? -1)}\\u241f${String(chat.mes ?? '')}\\u241f${reasoningText(chat)}`;
+    if (handled.get(chat) === currentHandledKey) return false;
 
     let current = String(chat.mes ?? '');
     const isAppend = appendType(job.type) && job.base === chat && job.baseMes && current.startsWith(job.baseMes);
@@ -408,7 +410,7 @@ async function unpack(chatId) {
             catch (error) { execution.error += `；失败基线快照保存失败：${error?.message || error}`; }
         }
     }
-    handled.set(chat, chat.mes);
+    handled.set(chat, \`\${Number(chat.swipe_id ?? -1)}\\u241f\${String(chat.mes ?? '')}\\u241f\${reasoningText(chat)}\`);
     setStatus(chat, envelope, execution);
 
     try {
