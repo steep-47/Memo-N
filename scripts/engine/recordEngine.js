@@ -273,8 +273,12 @@ function selectEnvelope(chat, job, appendMode) {
     const contentTableEdit = parseRelayTableEditEnvelope(content, '', job.token);
     if (contentTableEdit.ok) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
 
-    // 部分兼容接口把机器块放入当前Swipe的思考区，但正文仍在content。
-    const reasoningTableEdit = !job.token && content && reasoning ? parseRelayTableEditEnvelope(reasoning, content) : null;
+    // 某些思考模型会把机器记录块放进 reasoning 区，即使提示要求放在正文。
+    // 只要本轮正文存在且 reasoning 中有带正确 memo-round 的记录块，也应接受；
+    // 记录块本身是机器数据，不应因为所在通道不同而导致整轮记录失败。
+    const reasoningTableEdit = content && reasoning
+        ? parseRelayTableEditEnvelope(reasoning, content, job.token)
+        : null;
     if (reasoningTableEdit?.ok) return { current, envelope: reasoningTableEdit, source: 'tableedit-reasoning', fingerprint };
 
     if (job.token) return { current, envelope: contentTableEdit, source: 'tableedit-content', fingerprint };
@@ -328,7 +332,7 @@ function selectEnvelope(chat, job, appendMode) {
 
 function incompleteEnvelope(envelope) {
     const error = String(envelope?.error || '');
-    return envelope?.ok === false && /Memo-N记录块尚未闭合|响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
+    return envelope?.ok === false && /未找到本轮正式Memo-N记录块|Memo-N记录块尚未闭合|响应不是合法JSON：Unexpected end of JSON input|生成在思考阶段结束/i.test(error);
 }
 
 async function waitForCompleteEnvelope(chat, job, appendMode) {
