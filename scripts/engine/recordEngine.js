@@ -410,7 +410,7 @@ async function unpack(chatId) {
             catch (error) { execution.error += `；失败基线快照保存失败：${error?.message || error}`; }
         }
     }
-    handled.set(chat, \`\${Number(chat.swipe_id ?? -1)}\\u241f\${String(chat.mes ?? '')}\\u241f\${reasoningText(chat)}\`);
+    handled.set(chat, `${Number(chat.swipe_id ?? -1)}\u241f${String(chat.mes ?? '')}\u241f${reasoningText(chat)}`);
     setStatus(chat, envelope, execution);
 
     try {
