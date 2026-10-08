@@ -357,7 +357,7 @@ async function unpack(chatId) {
 
     const chat = USER?.getContext?.()?.chat?.[chatId];
     if (!chat || chat.is_user) return false;
-    const currentHandledKey = `${Number(chat.swipe_id ?? -1)}\\u241f${String(chat.mes ?? '')}\\u241f${reasoningText(chat)}`;
+    const currentHandledKey = `${Number(chat.swipe_id ?? -1)}\u241f${String(chat.mes ?? '')}\u241f${reasoningText(chat)}`;
     if (handled.get(chat) === currentHandledKey) return false;
 
     let current = String(chat.mes ?? '');
