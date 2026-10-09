@@ -593,7 +593,8 @@ function validateAction(call) {
                 correction:`#${tableIndex} 空表首个对象“${identity}”：updateRow转换为insertRow` } };
         }
     }
-    if (rowIndex >= rowCount) return { ok:false, error:`updateRow(${tableIndex}) rowIndex=${rowIndex}无效或越界；当前数据行数=${rowCount}` };
+    if (rowCount === 0) return { ok:false, error:`updateRow(${tableIndex}) 当前表为空，没有可更新行；如确需新增请使用insertRow，插件不会擅自把updateRow改成新增` };
+    if (rowIndex >= rowCount) return { ok:false, error:`updateRow(${tableIndex}) rowIndex=${rowIndex}无效或越界；当前数据行数=${rowCount}，请按真实行号更新或用insertRow新增` };
     const checked = validateData(args[2], headers, `updateRow(${tableIndex},${rowIndex})`);
     if (!checked.ok) return checked;
 
