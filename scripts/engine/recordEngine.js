@@ -95,7 +95,7 @@ function recordContract(token) {
 新增：<insertRow tableIndex="6"><data columnIndex="0" value="日期"/><data columnIndex="1" value="地点"/></insertRow>
 更新：<updateRow tableIndex="1" rowIndex="0" expected=""><data columnIndex="14" value="外貌描述"/></updateRow>
 删除：<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>
-每个data必须同时有columnIndex与value；同一操作内columnIndex不得重复。所有属性值使用双引号。属性值中的英文双引号必须写成 &amp;quot;，& 符号写成 &amp;amp;，小于号写成 &amp;lt;，大于号写成 &amp;gt;；不要把未经转义的英文双引号放进value。普通中文引号「」可直接使用。不要使用注释、代码围栏或JSON包裹这些操作。
+每个data必须同时有columnIndex与value；同一操作内columnIndex不得重复。所有属性值使用双引号。属性值中的英文双引号必须写成 &quot;，& 符号写成 &amp;，小于号写成 &lt;，大于号写成 &gt;；不要把未经转义的英文双引号放进value。普通中文引号「」可直接使用。不要使用注释、代码围栏或JSON包裹这些操作。
 
 insertRow只有tableIndex属性，历史事件表自动追加；禁止给insertRow添加rowIndex。
 updateRow必须包含tableIndex、rowIndex、expected三个属性；deleteRow同样必须包含这三个属性。表2/4/5的expected必须从下方本轮对象核对映射原样复制，其他表expected填写空字符串。expected是修改前的对象名，不能填占位词或“当前行第一列原值”；人物改名时核对旧姓名，新姓名写入data。
@@ -142,7 +142,7 @@ ${liveColumnMap()}
 
 function reinforceLastUser(messages, token) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一tableEdit记录块，开始标签必须携带memo-round="${token}"。块内使用XML操作标签，不使用函数调用文本；data值中的英文双引号必须写成&amp;quot;。单XML根节点时放在根节点内部末尾；updateRow/deleteRow必须有tableIndex、rowIndex、expected属性，表2/4/5的expected抄本轮对象映射。]`;
+    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一tableEdit记录块，开始标签必须携带memo-round="${token}"。块内使用XML操作标签，不使用函数调用文本；data值中的英文双引号必须写成&quot;。单XML根节点时放在根节点内部末尾；updateRow/deleteRow必须有tableIndex、rowIndex、expected属性，表2/4/5的expected抄本轮对象映射。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
