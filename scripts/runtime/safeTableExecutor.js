@@ -185,22 +185,31 @@ function extractCalls(text) {
                 quote = ch;
                 continue;
             }
-            // A completed data object followed by a dangling comma and the next
-            // call can only omit the optional empty expected slot on these tables.
-            if (name === 'updateRow' && depth === 1 && ch === '\n' && /^\s*(?:insertRow|updateRow|deleteRow)\s*\(/.test(source.slice(cursor + 1))) {
-                const unfinished = source.slice(match.lastIndex, cursor).trimEnd();
-                if (/\},$/.test(unfinished)) {
-                    try {
-                        const candidate = JSON5.parse(`[${quoteNumericObjectKeys(unfinished.slice(0, -1))}]`);
-                        if (candidate.length === 3 && [0,1,3,6].includes(strictIndex(candidate[0]))
-                            && strictIndex(candidate[1]) !== null && candidate[2] && typeof candidate[2] === 'object' && !Array.isArray(candidate[2])) {
-                            completedArgs = [...candidate, ''];
-                            completionCorrection = '非身份保护表：补齐末尾空核对参数与右括号';
-                            depth = 0;
-                            break;
-                        }
-                    } catch (_) { /* Keep the original strict rejection. */ }
-                }
+            // If the model omitted only the final ')' before the next call,
+            // repair it only when the complete argument list already parses and
+            // its shape is valid. Never invent an expected identity or row index.
+            if (depth === 1 && ch === '\n' && /^\s*(?:insertRow|updateRow|deleteRow)\s*\(/.test(source.slice(cursor + 1))) {
+                const unfinished = source.slice(match.lastIndex, cursor).trimEnd().replace(/,\s*$/, '');
+                try {
+                    const candidate = JSON5.parse(`[${quoteNumericObjectKeys(unfinished)}]`);
+                    const tableIndex = strictIndex(candidate[0]);
+                    const rowIndex = strictIndex(candidate[1]);
+                    const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+                    const validShape = name === 'insertRow'
+                        ? (candidate.length === 2 && isObject(candidate[1]))
+                            || (candidate.length === 3 && isObject(candidate[1]) && candidate[2] === '')
+                        : name === 'updateRow'
+                            ? (candidate.length === 3 || candidate.length === 4)
+                                && rowIndex !== null && isObject(candidate[2])
+                                && (!([2,4,5].includes(tableIndex)) ? true : candidate.length === 4 && typeof candidate[3] === 'string' && candidate[3].trim() !== '')
+                            : candidate.length === 2 || (candidate.length === 3 && typeof candidate[2] === 'string');
+                    if (validShape && tableIndex !== null) {
+                        completedArgs = candidate;
+                        completionCorrection = '仅补齐明确缺失的右括号（参数完整且结构可解析）';
+                        depth = 0;
+                        break;
+                    }
+                } catch (_) { /* Ambiguous or malformed arguments remain rejected. */ }
             }
             if (ch === '(') depth++;
             else if (ch === ')') {
