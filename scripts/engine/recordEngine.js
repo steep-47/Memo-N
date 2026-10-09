@@ -89,17 +89,17 @@ function recordContract(token) {
     return `${MARKER}
 本轮仅使用当前一次API。完整正文、状态栏、选项保持原预设格式和顺序；正文生成后附带唯一正式记录块。若预设要求单个XML根节点，记录块放在该根节点结束标签前；不得放在思考区、代码围栏或引用示例中。记录块位置不要求在正文前。
 
-机器记录块的开始标签为<tableEdit memo-round="${token}">，结束标签为</tableEdit>。标签之间使用一个HTML注释，注释内部只能是实际函数调用或NO_CHANGE；不得写入“函数调用”等说明或占位文字。
-统一调用格式（所有表的update/delete均使用完整参数，不在两套格式之间切换）：
-insertRow(tableIndex,{columnIndex:"value"})
-insertRow只有表号和数据两个参数，例如 insertRow(6,{0:"日期",1:"地点"})；禁止给insertRow添加rowIndex，历史新增自动追加。
-数据列键使用数字索引，例如 {8:"健康",13:"气运常驻"}；每个值均使用完整双引号字符串。
-字符串内容需要引用词语时优先使用中文「」；英文双引号必须正确转义，禁止生成连续两个未转义双引号开头的值。
-updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
-deleteRow(tableIndex,rowIndex,"expected")
-表2/4/5的expected必须从下方本轮对象核对映射原样复制；其他表expected填写空字符串""。
-expected是修改前的对象名，不能填占位词expected或“当前行第一列原值”；人物改名时核对旧姓名，新姓名写入data。
-不得在函数调用前输出“表2/4/5：”等说明文字。
+机器记录块的开始标签为<tableEdit memo-round="${token}">，结束标签为</tableEdit>。为避免函数括号、对象逗号和引号导致整批记录损坏，记录块内部必须使用XML操作标签，不再使用insertRow()/updateRow()/deleteRow()函数文本，也不使用HTML注释包裹操作。
+
+仅允许以下XML格式：
+新增：<insertRow tableIndex="6"><data columnIndex="0" value="日期"/><data columnIndex="1" value="地点"/></insertRow>
+更新：<updateRow tableIndex="1" rowIndex="0" expected=""><data columnIndex="14" value="外貌描述"/></updateRow>
+删除：<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>
+每个data必须同时有columnIndex与value；同一操作内columnIndex不得重复。所有属性值使用双引号。属性值中的英文双引号必须写成 &amp;quot;，& 符号写成 &amp;amp;，小于号写成 &amp;lt;，大于号写成 &amp;gt;；不要把未经转义的英文双引号放进value。普通中文引号「」可直接使用。不要使用注释、代码围栏或JSON包裹这些操作。
+
+insertRow只有tableIndex属性，历史事件表自动追加；禁止给insertRow添加rowIndex。
+updateRow必须包含tableIndex、rowIndex、expected三个属性；deleteRow同样必须包含这三个属性。表2/4/5的expected必须从下方本轮对象核对映射原样复制，其他表expected填写空字符串。expected是修改前的对象名，不能填占位词或“当前行第一列原值”；人物改名时核对旧姓名，新姓名写入data。
+不得在操作标签前输出“表2/4/5：”等说明文字。无操作时仅输出<tableEdit memo-round="${token}"><!-- NO_CHANGE --></tableEdit>。
 
 [本轮对象核对映射｜rowIndex与expected必须来自同一条]
 ${liveIdentityMap()}
@@ -137,7 +137,7 @@ ${liveColumnMap()}
 - 表2/4/5执行updateRow或deleteRow时，必须同时原样抄该row当前第一列作为对象核对名；缺少核对名不得执行。
 - insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
 - 没有任何事实变化时使用NO_CHANGE。
-- 本轮标识必须原样填写：${token}。记录块仅附带记录，不改变预设正文结构。函数调用全部放在同一个HTML注释内，不使用Markdown代码围栏，不解释记录块。`;
+- 本轮标识必须原样填写：${token}。记录块仅附带记录，不改变预设正文结构。所有XML操作标签直接放在tableEdit内部，不使用HTML注释包裹，不使用Markdown代码围栏，不解释记录块。`;
 }
 
 function reinforceLastUser(messages, token) {
