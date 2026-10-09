@@ -131,18 +131,18 @@ ${liveColumnMap()}
 - 完成逐表检查后，再生成tableEdit；记录操作应覆盖本轮所有确定需要维护的字段，而不是只挑最显眼的几项。
 
 [操作规则]
-- insertRow仅用于当前表中没有该对象/事实且本轮首次明确确认。
-- updateRow用于当前表中已经存在的对象/事实；rowIndex必须抄当前表第一列真实存在的整数，只写本轮变化或新确认的字段。
-- deleteRow只用于当前表中真实存在且已明确失效/消失的记录。
-- 表2/4/5执行updateRow或deleteRow时，必须同时原样抄该row当前第一列作为对象核对名；缺少核对名不得执行。
-- insertRow/updateRow的数据对象只能使用上方当前真实列号映射中存在的columnIndex，不得创造列，不得越界。
+- <insertRow>仅用于当前表中没有该对象/事实且本轮首次明确确认；只含tableIndex属性，数据放入子<data>标签。
+- <updateRow>用于当前表中已经存在的对象/事实；rowIndex必须抄当前表真实存在的整数，只写本轮变化或新确认的字段。
+- <deleteRow>只用于当前表中真实存在且已明确失效/消失的记录。
+- 表2/4/5执行<updateRow>或<deleteRow>时，必须同时原样抄该row当前第一列作为expected属性；缺少核对名不得执行。
+- <data>的columnIndex只能使用上方当前真实列号映射中存在的值，不得创造列，不得越界；每个data的value必须正确进行XML属性转义。
 - 没有任何事实变化时使用NO_CHANGE。
 - 本轮标识必须原样填写：${token}。记录块仅附带记录，不改变预设正文结构。所有XML操作标签直接放在tableEdit内部，不使用HTML注释包裹，不使用Markdown代码围栏，不解释记录块。`;
 }
 
 function reinforceLastUser(messages, token) {
     if (!Array.isArray(messages)) return false;
-    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一tableEdit记录块，开始标签必须携带memo-round="${token}"。块内只能是实际操作或经逐表核对的NO_CHANGE，不得抄写格式说明。单XML根节点时放在根节点内部末尾；updateRow固定4参数、deleteRow固定3参数，表2/4/5的最后参数抄本轮对象映射。]`;
+    const reminder = `\n\n[Memo-N：保持预设正文格式；完成正文后在非思考区域附带唯一tableEdit记录块，开始标签必须携带memo-round="${token}"。块内使用XML操作标签，不使用函数调用文本；data值中的英文双引号必须写成&amp;quot;。单XML根节点时放在根节点内部末尾；updateRow/deleteRow必须有tableIndex、rowIndex、expected属性，表2/4/5的expected抄本轮对象映射。]`;
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role !== 'user' || typeof message.content !== 'string') continue;
