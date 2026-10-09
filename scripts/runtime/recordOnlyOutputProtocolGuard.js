@@ -33,7 +33,7 @@ ${TRANSPORT_MARK}
 - updateRow和deleteRow必须同时填写tableIndex、rowIndex、expected属性。
 - 表2背包、表4人物主表、表5人物发展表的expected必须原样抄写执行前当前目标行第一列；其他表expected使用空字符串。
 - 每个data标签必须同时有columnIndex和value属性；同一操作内列号不得重复。columnIndex必须使用当前表真实列号。
-- 属性值中的英文双引号写成 &amp;quot;，& 写成 &amp;amp;，小于号写成 &amp;lt;，大于号写成 &amp;gt;。不要把未转义的英文双引号放入value；普通中文引号「」可直接使用。
+- 属性值中的英文双引号写成 &quot;，& 写成 &amp;，小于号写成 &lt;，大于号写成 &gt;。不要把未转义的英文双引号放入value；普通中文引号「」可直接使用。
 - 背包数量归零或确认全部售出、耗尽、交付、不再持有时使用deleteRow；部分消耗只更新剩余数量。
 - 表2/4/5新增对象时，data的columnIndex="0"必须包含对象名。
 - 输出只包含XML操作标签，不用HTML注释包裹操作，不输出JSON、Markdown代码围栏或额外说明。`;
