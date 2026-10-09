@@ -8,40 +8,35 @@ const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当�
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
 ${TRANSPORT_MARK}
-这是记录专用请求的最终输出格式约束，优先于模板中其他格式示例。上面的协议标识同时用于插件识别这是一条Memo记录请求。
+这是Memo记录请求的唯一输出格式。必须使用XML操作标签，禁止生成insertRow()/updateRow()/deleteRow()函数调用文本，避免括号、逗号和字符串引号造成整批解析失败。
 
-输入中的 <当前七表>、<最近聊天>、<聊天记录>、<当前表格>、<表头信息> 等标签只用于分隔输入资料，不属于输出语法，也不要照它们的XML结构生成操作。
-
-最终回复只采用这一种结构：一个 <tableEdit> 外壳，内部一个HTML注释；注释中每个非空行是一条标准函数调用。
-
-标准成品示例：
-<tableEdit><!--
-insertRow(1,{"0":"示例角色","11":"青木诀"})
-updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"})
-updateRow(4,0,{"5":"练气士"},"老叔公")
-deleteRow(2,1,"蛐蛐罐")
---></tableEdit>
-
-允许的函数签名：
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
-
-表2背包、表4人物主表、表5人物发展表属于对象身份保护表，它们的update/delete必须使用带对象核对名的安全签名：
-updateRow(tableIndex,rowIndex,data,"当前目标行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前目标行第一列原值")
-对象核对名必须原样抄写执行前当前表目标row的第一列，不能写计划修改后的名称，也不能根据旧聊天猜。表2/4/5新增对象时，insertRow的data第0列必须写对象名。
-
-背包库存数量归零或确认全部售出、耗尽、全部交付、不再持有时使用deleteRow；不得只update数量0并保留旧库存。部分消耗保留剩余数量；可重复使用物品不因使用而删除；未知数量不猜删。
-
-字符串内容需要引用词语时优先使用中文「」；英文双引号必须正确转义，不得把内层引号直接嵌进双引号字符串。
-
-data直接写成函数的JSON对象参数，列键使用数字索引或当前表中完全一致的真实表头名。输出层不使用 <tableIndex>、<operation>、<action>、<data>、<col0> 等操作标签，也不把函数再改写成XML。
-
-没有任何操作时，完整输出：
+最终回复只包含一个<tableEdit>外壳。无操作时输出：
 <tableEdit><!-- NO_CHANGE --></tableEdit>
 
-最终回复只包含这一个完整tableEdit记录块，不附加解释、剧情、Markdown代码围栏或第二种表示法。`;
+新增示例：
+<tableEdit>
+<insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/><data columnIndex="11" value="青木诀"/></insertRow>
+</tableEdit>
+
+更新示例：
+<tableEdit>
+<updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>
+</tableEdit>
+
+删除示例：
+<tableEdit>
+<deleteRow tableIndex="2" rowIndex="1" expected="蛐蛐罐"/>
+</tableEdit>
+
+规则：
+- insertRow只允许tableIndex属性；历史表自动追加，不要填写rowIndex。
+- updateRow和deleteRow必须同时填写tableIndex、rowIndex、expected属性。
+- 表2背包、表4人物主表、表5人物发展表的expected必须原样抄写执行前当前目标行第一列；其他表expected使用空字符串。
+- 每个data标签必须同时有columnIndex和value属性；同一操作内列号不得重复。columnIndex必须使用当前表真实列号。
+- 属性值中的英文双引号写成 &amp;quot;，& 写成 &amp;amp;，小于号写成 &amp;lt;，大于号写成 &amp;gt;。不要把未转义的英文双引号放入value；普通中文引号「」可直接使用。
+- 背包数量归零或确认全部售出、耗尽、交付、不再持有时使用deleteRow；部分消耗只更新剩余数量。
+- 表2/4/5新增对象时，data的columnIndex="0"必须包含对象名。
+- 输出只包含XML操作标签，不用HTML注释包裹操作，不输出JSON、Markdown代码围栏或额外说明。`;
 
 function requestText(value) {
     if (Array.isArray(value)) return value.map(item => requestText(item)).join('\n');
