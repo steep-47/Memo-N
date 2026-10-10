@@ -814,17 +814,33 @@ export function parseMemoTableEdit(raw) {
 }
 
 function canonicalRecordBlock(parsed) {
-    // Encode HTML delimiters inside values so comment/tag parsing cannot consume data.
-    const json = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+    const xmlAttr = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\r/g, '&#13;')
+        .replace(/\n/g, '&#10;')
+        .replace(/\t/g, '&#9;');
     if (parsed.noChange) return '<tableEdit><!-- NO_CHANGE --></tableEdit>';
-    const calls = parsed.actions.map(action => {
+    const operations = parsed.actions.map(action => {
         const table = action.tableIndex;
-        if (action.type === 'insert') return `insertRow(${table},${json(action.data)})`;
-        const expected = json(action.expected ?? '');
-        if (action.type === 'delete') return `deleteRow(${table},${action.rowIndex},${expected})`;
-        return `updateRow(${table},${action.rowIndex},${json(action.data)},${expected})`;
+        if (action.type === 'insert') {
+            const data = Object.entries(action.data)
+                .map(([columnIndex, value]) => `<data columnIndex="${xmlAttr(columnIndex)}" value="${xmlAttr(value)}"/>`)
+                .join('');
+            return `<insertRow tableIndex="${table}">${data}</insertRow>`;
+        }
+        const expected = xmlAttr(action.expected ?? '');
+        if (action.type === 'delete') {
+            return `<deleteRow tableIndex="${table}" rowIndex="${action.rowIndex}" expected="${expected}"/>`;
+        }
+        const data = Object.entries(action.data)
+            .map(([columnIndex, value]) => `<data columnIndex="${xmlAttr(columnIndex)}" value="${xmlAttr(value)}"/>`)
+            .join('');
+        return `<updateRow tableIndex="${table}" rowIndex="${action.rowIndex}" expected="${expected}">${data}</updateRow>`;
     });
-    return `<tableEdit><!--\n${calls.join('\n')}\n--></tableEdit>`;
+    return `<tableEdit>\n${operations.join('\n')}\n</tableEdit>`;
 }
 
 export function executeMemoTableEdit(raw, piece = null) {
