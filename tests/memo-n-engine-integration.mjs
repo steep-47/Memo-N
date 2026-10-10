@@ -3,13 +3,13 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon92';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
     .replace(`import {
     changesToStrictCalls,
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
-} from './recordEnvelope.js';`, `const {
+} from './recordEnvelope.js?v=memon84';`, `const {
     changesToStrictCalls,
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
@@ -135,7 +135,7 @@ if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('
 if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
 if (request.messages.at(-1)?.role !== 'system') throw new Error('单次API记录协议没有位于请求末尾');
 const contract = request.messages.at(-1)?.content || '';
-if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
+if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('正文生成后附带唯一正式记录块')) {
     throw new Error('前置记录协议未正确注入');
 }
 if (!contract.includes('正文中明确成立的事实') || !contract.includes('外貌特征') || !contract.includes('未知信息留空')) {
@@ -146,7 +146,7 @@ if (!contract.includes('[当前真实列号映射｜column严格从0开始]')
     || !contract.includes('#6 历史事件表：0=时间')) {
     throw new Error('当前七表真实列号映射未注入');
 }
-if (!request.messages[0]?.content.includes('Memo-N本轮输出顺序') || !request.messages[0]?.content.includes('NO_CHANGE')) {
+if (!request.messages[0]?.content.includes('完成正文后在非思考区域附带唯一tableEdit记录块') || !request.messages[0]?.content.includes('NO_CHANGE')) {
     throw new Error('最后一条用户消息缺少单次记录顺序提醒');
 }
 
