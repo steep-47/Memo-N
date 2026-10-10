@@ -86,6 +86,14 @@ for (const [input, ok, noChange] of parserCases) {
     const result = parseMemoTableEdit(input);
     if (result.ok !== ok || result.noChange !== noChange) throw new Error(`解析断言失败：${input} ${JSON.stringify(result)}`);
 }
+
+const writeToFirstTable = 'updateRow(0,0,{0:"x"})';
+sheets[0].enable = false;
+if (parseMemoTableEdit(writeToFirstTable).ok) throw new Error('执行器错误接受了写入已禁用标准表的操作');
+sheets[0].enable = true;
+sheets[0].sendToContext = false;
+if (parseMemoTableEdit(writeToFirstTable).ok) throw new Error('执行器错误接受了写入不发送到上下文的标准表的操作');
+sheets[0].sendToContext = true;
 const extraRow = ['', 'second', 'row'];
 sheets[0].rows.push(extraRow);
 if (parseMemoTableEdit('updateRow(0,{"h1":"多行不得猜测"})').ok) throw new Error('多行表错误接受了省略rowIndex的updateRow');
