@@ -12,7 +12,7 @@ assert(engine.includes("const MARKER = '[Memo-N native tableEdit one-call v1]'")
 assert(engine.includes("console.log('[Memo-N] 单次API原生tableEdit记录引擎已加载')"), '缺少memon72稳定记录引擎标记');
 assert(engine.includes('reinforcePreviousAssistant'), '缺少跨轮记录格式锚定');
 assert(engine.includes('reinforceLastUser'), '缺少本轮输出格式锚定');
-assert(engine.includes('parseRelayTableEditEnvelope(content)'), '缺少原生tableEdit解析');
+assert(engine.includes('parseRelayTableEditEnvelope(content, \'\', job.token)'), '缺少带本轮token校验的原生tableEdit解析');
 assert(!engine.includes('DEEPSEEK_REPLY_PREFIX'), '稳定链不得重新加入DeepSeek prefix');
 assert(!engine.includes('isNativeDeepSeek'), '稳定链不得重新加入DeepSeek prefix路由');
 assert(!engine.includes("data.response_format = { type: 'json_object' }"), '稳定链不得重新加入JSON Output');
