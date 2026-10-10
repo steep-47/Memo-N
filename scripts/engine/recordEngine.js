@@ -77,6 +77,7 @@ function liveIdentityMap() {
     return [2, 4, 5].map(tableIndex => {
         const sheet = sheets.find(item => item?.name === WORLD_TABLE_NAMES[tableIndex]);
         if (!sheet) return `#${tableIndex}：表不可读取，不得写入`;
+        if (!sheet.enable || sheet.sendToContext === false) return `#${tableIndex}：当前未注入模型上下文，不得修改此表`;
         const count = Math.max(0, Number(sheet.getRowCount?.() ?? 0) - 1);
         const rows = [];
         for (let row = 0; row < count; row++) {
