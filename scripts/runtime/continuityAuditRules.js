@@ -52,12 +52,12 @@ NO_CHANGE只能在0～6七张表全部检查完成、确认每一张都无需修
 六、对象与rowIndex核对
 当前表格是rowIndex的唯一依据。每个操作在输出前重新核对目标行。
 表2/4/5使用额外对象核对参数：
-updateRow(tableIndex,rowIndex,{columnIndex:"value"},"当前行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前行第一列原值")
-最后一个字符串必须原样抄写执行前当前表该row的第一列对象名；它是安全校验，不代表要修改该名字。
-例如删除“蛐蛐罐”前，若当前背包row=2的第一列是“蛐蛐罐”，应写 deleteRow(2,2,"蛐蛐罐")；如果row=0是“夹袍”，就绝不能写deleteRow(2,0,"蛐蛐罐")。
-人物改名时，核对参数仍写更新前当前行的旧名称，新名称放进data的姓名列。
-表2/4/5新增对象必须在data第0列写对象名；执行层会拦截同名重复insert。
+<updateRow tableIndex="4" rowIndex="0" expected="当前行第一列原值"><data columnIndex="5" value="新值"/></updateRow>
+<deleteRow tableIndex="2" rowIndex="0" expected="当前行第一列原值"/>
+expected必须原样抄写执行前当前目标行第一列对象名；它是安全校验，不代表要修改该名字。
+例如删除“蛐蛐罐”前，若当前背包row=2的第一列是“蛐蛐罐”，应写 <deleteRow tableIndex="2" rowIndex="2" expected="蛐蛐罐"/>；如果row=0是“夹袍”，就绝不能把“蛐蛐罐”作为row=0的expected。
+人物改名时，expected仍写更新前当前行的旧名称，新名称放进<data>标签。
+表2/4/5新增对象必须在columnIndex="0"写对象名；执行层会拦截同名重复insert。所有操作必须使用本轮tableEdit协议规定的XML标签，不输出函数调用文本。
 
 七、完整输出
 同一轮影响几张表就同时写几张，不因为已经写了其中一张就停止。
