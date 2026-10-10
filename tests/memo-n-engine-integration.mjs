@@ -98,6 +98,9 @@ globalThis.__memoNMocks = {
             changed: !text.includes('NO_CHANGE'),
             noChange: text.includes('NO_CHANGE'),
             count: text.includes('NO_CHANGE') ? 0 : 1,
+            recordBlock: text.includes('NO_CHANGE')
+                ? '<tableEdit><!-- NO_CHANGE --></tableEdit>'
+                : '<tableEdit><updateRow tableIndex="0" rowIndex="0" expected=""><data columnIndex="1" value="mock"/></updateRow></tableEdit>',
             error: '',
         };
     },
@@ -132,7 +135,7 @@ const request = await armRequest();
 if (request.response_format || request.json_schema) throw new Error('一次API仍强制整篇JSON');
 if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
 if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
-if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
+if (!request.messages[0]?.content.includes('tableEdit记录块') || !request.messages[0]?.content.includes('memo-round=')) throw new Error('最后一条用户消息缺少本轮XML记录块协议锚点');
 if (request.messages.at(-1)?.role !== 'system') throw new Error('单次API记录协议没有位于请求末尾');
 const contract = request.messages.at(-1)?.content || '';
 if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('正文生成后附带唯一正式记录块')) {
@@ -161,7 +164,7 @@ currentChat.push(first);
 await complete(1);
 if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离记录块');
 if (executeCalls.length !== 1 || !String(executeCalls[0]).includes('updateRow(0,0,')) throw new Error('首轮tableEdit未进入严格事务');
-if (!first.extra?.memo_n_record_block?.includes('updateRow(0,0,')) throw new Error('首轮已执行记录块没有保存为下一轮历史范例');
+if (!first.extra?.memo_n_record_block?.includes('<updateRow tableIndex="0" rowIndex="0" expected="">')) throw new Error('首轮已执行XML记录块没有保存为下一轮历史范例');
 
 currentChat.push({ is_user: true, mes: '继续行动' });
 const secondRequest = await armRequest('normal', 'deepseek', [
@@ -173,7 +176,7 @@ if (secondRequest.response_format || secondRequest.json_schema
     || !secondRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) {
     throw new Error('第二轮请求协议发生漂移');
 }
-if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复已执行记录范例');
+if (!/^<tableEdit>\s*<updateRow tableIndex="0" rowIndex="0" expected="">/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复XML记录范例');
 if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
 const second = {
     is_user: false,
