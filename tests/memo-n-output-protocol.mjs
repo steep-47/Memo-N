@@ -25,6 +25,7 @@ const manualMessages = [
 if (!isMemoRecordOnlyRequest({ ordered_prompts: manualMessages })) throw new Error('未识别手动记录请求');
 const injectedMessages = injectProtocolIntoMessages(manualMessages);
 if (!injectedMessages[0].content.includes(PROTOCOL_MARK)) throw new Error('未把唯一输出协议注入system消息');
+if (!STRICT_OUTPUT_PROTOCOL.includes('不得省略memo-round') || !STRICT_OUTPUT_PROTOCOL.includes('不得覆盖主请求对正常正文')) throw new Error('协议守卫必须保留主请求正文并强制沿用本轮token');
 for (const token of [
     '<insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/>',
     '<updateRow tableIndex="4" rowIndex="0" expected="老叔公">',
