@@ -45,7 +45,7 @@ function sheetForIndex(tableIndex) {
     if (!Number.isInteger(index) || index < 0) return null;
     if (index < STANDARD_NAMES.length) {
         const tableName = STANDARD_NAMES[index];
-        return BASE.getChatSheets?.().find(sheet => sheet?.name === tableName) ?? null;
+        return BASE.getChatSheets?.().find(sheet => sheet?.name === tableName && sheet?.enable && sheet?.sendToContext !== false) ?? null;
     }
     return visibleCustomPromptSheets()[index - STANDARD_NAMES.length] ?? null;
 }
