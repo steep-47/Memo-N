@@ -26,17 +26,18 @@ function copyHash(value) {
     catch (_) { return copyValue(value); }
 }
 
-function visiblePromptSheets() {
+function visibleCustomPromptSheets() {
     return (BASE.getChatSheets?.() ?? [])
         .filter(sheet => sheet?.enable)
-        .filter(sheet => sheet?.sendToContext !== false);
+        .filter(sheet => sheet?.sendToContext !== false)
+        .filter(sheet => !STANDARD_NAMES.includes(sheet?.name));
 }
 
 function tableNameForIndex(tableIndex) {
     const index = Number(tableIndex);
     if (!Number.isInteger(index) || index < 0) return null;
     if (index < STANDARD_NAMES.length) return STANDARD_NAMES[index];
-    return norm(visiblePromptSheets()[index]?.name) || null;
+    return norm(visibleCustomPromptSheets()[index - STANDARD_NAMES.length]?.name) || null;
 }
 
 function sheetForIndex(tableIndex) {
@@ -46,7 +47,7 @@ function sheetForIndex(tableIndex) {
         const tableName = STANDARD_NAMES[index];
         return BASE.getChatSheets?.().find(sheet => sheet?.name === tableName) ?? null;
     }
-    return visiblePromptSheets()[index] ?? null;
+    return visibleCustomPromptSheets()[index - STANDARD_NAMES.length] ?? null;
 }
 
 function strictIndex(value) {
