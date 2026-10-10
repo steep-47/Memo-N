@@ -8,23 +8,24 @@ const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当�
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
 ${TRANSPORT_MARK}
-这是Memo记录请求的唯一输出格式。必须使用XML操作标签，禁止生成insertRow()/updateRow()/deleteRow()函数调用文本，避免括号、逗号和字符串引号造成整批解析失败。
+这是Memo记录请求中记录块的唯一操作格式。必须使用XML操作标签，禁止生成insertRow()/updateRow()/deleteRow()函数调用文本，避免括号、逗号和字符串引号造成整批解析失败。
+本规则只约束机器记录块，不得覆盖主请求对正常正文、状态栏、选项或单XML根节点结构的要求。先按原预设生成完整正文，再按主记录指令附加记录块。
 
-最终回复只包含一个<tableEdit>外壳。无操作时输出：
-<tableEdit><!-- NO_CHANGE --></tableEdit>
+记录块必须使用主记录指令提供的本轮memo-round值，开始标签格式为<tableEdit memo-round="本轮提供的实际token">；不得省略memo-round、不得把示例文字当成真实token。无操作时输出：
+<tableEdit memo-round="本轮提供的实际token"><!-- NO_CHANGE --></tableEdit>
 
-新增示例：
-<tableEdit>
+新增示例（将示例token替换为本轮实际token）：
+<tableEdit memo-round="本轮提供的实际token">
 <insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/><data columnIndex="11" value="青木诀"/></insertRow>
 </tableEdit>
 
-更新示例：
-<tableEdit>
+更新示例（将示例token替换为本轮实际token）：
+<tableEdit memo-round="本轮提供的实际token">
 <updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>
 </tableEdit>
 
-删除示例：
-<tableEdit>
+删除示例（将示例token替换为本轮实际token）：
+<tableEdit memo-round="本轮提供的实际token">
 <deleteRow tableIndex="2" rowIndex="1" expected="蛐蛐罐"/>
 </tableEdit>
 
