@@ -14,18 +14,14 @@ const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作协议
 背包表只保留实际持有库存：数量归零、全部售出、耗尽、全部交付或明确完全不再持有时必须deleteRow，不得update成数量0后继续保留；部分消耗只更新剩余数量；装备、工具、容器仅被使用仍持有时保留。表中明确数量0且已售出/耗尽的旧库存也应核对第一列物品名后删除；未知数量和不明去向不得猜删。
 表6除重大历史节点外，也承接0～5没有合适字段、但对后续剧情连续性有用的已发生事实；同一连续事件可更新已有记录，不必每轮机械新增。
 记录前先把正文拆成最小独立事实再逐项归位。“修炼体系/路径”只保存稳定的修行类别或专精路线标签，不写解释句。对人族先看灵根条件：无灵根并走一至九品等凡俗武道→“武夫”；有灵根、以灵气修行为根基并稳定专精体魄/肉身→“体修”；有灵根、走常规修仙且没有明确稳定专精→“练气士”。练气士是修仙统称，不随炼气/筑基/金丹等境界变化，会普通功法术法也仍只是练气士。若已经明确形成剑修、法修、魂修、丹师、器师、符师、阵师、御兽、旁门等稳定专精/职业，直接记录更具体标签并取代“练气士”，不得写“练气士／剑修”；多个具体专精只有在都明确时才用“／”连接。武夫≠体修；灵根未知时不得仅凭近战、肉身强或使用兵器强判武夫/体修。妖族实际修行记“妖修”，灵族达到自主修行并实际修炼记“灵修”。不得只凭种族、一次用剑、一次施法、一次炼丹等行为判定路线。“修为”只写当前境界/阶段；修炼经历、长期停滞、瓶颈、伤势或限制分别写人物主表重要信息或人物发展表当前重要状态，不塞进体系/路径或修为字段。
-只能使用：
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
-表2/4/5的update/delete必须额外携带当前目标行第一列原值作为对象核对名：
-updateRow(tableIndex,rowIndex,data,"当前行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前行第一列原值")
-对象核对名必须原样抄当前表格执行前该row的第一列；人物改名时仍写旧姓名作核对，新姓名放data里。表2/4/5新增对象必须在data第0列写对象名；同名已存在时优先update，不重复insert。
-data键优先使用数字列索引；也可使用当前表中完全一致的真实表头名，执行器会安全映射。禁止使用不存在、近似或自行编造的列名。
-updateRow只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须明确使用insertRow。当前表格是rowIndex和对象名的唯一依据，不按旧聊天猜行号。
-人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护，最后确认时间记录到世界日期即可。
-最终只能输出一个完整<tableEdit>...</tableEdit>，不得输出剧情、JSON、解释或Markdown。`;
+只能使用本轮唯一输出协议规定的XML操作标签，最终只输出一个完整<tableEdit>...</tableEdit>，不得输出函数调用文本、剧情、JSON、解释或Markdown。
+新增示例：<insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/><data columnIndex="11" value="青木诀"/></insertRow>
+更新示例：<updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>
+删除示例：<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>
+insertRow只允许tableIndex属性；updateRow/deleteRow必须包含tableIndex、rowIndex、expected。表2/4/5的expected必须原样抄当前表格执行前目标行第一列；其他表expected为空字符串。人物改名时expected写旧姓名，新姓名放入<data>标签。表2/4/5新增对象必须在columnIndex="0"写对象名；同名已存在时优先update，不重复insert。
+每个<data>同时包含columnIndex和value，列号只使用当前表真实列索引，不得重复或越界。属性值中的英文双引号、&、<、>分别写成&quot;、&amp;、&lt;、&gt;。
+updateRow只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须使用insertRow。当前表格是rowIndex和对象名的唯一依据，不按旧聊天猜行号。
+人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护，最后确认时间记录到世界日期即可。`;
 
 function isAppendGeneration(type){const value=String(type??'').toLowerCase();return value==='continue'||value==='append'||value==='appendfinal';}
 function stripMachine(text){return String(text??'').replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi,'').trim();}
