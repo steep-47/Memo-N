@@ -63,6 +63,8 @@ function liveColumnMap() {
     const sheets = BASE.getChatSheets?.() ?? [];
     return WORLD_TABLE_NAMES.map((name, tableIndex) => {
         const sheet = sheets.find(item => item?.name === name);
+        if (!sheet) return `#${tableIndex} ${name}：表不存在，本轮不得写此表`;
+        if (!sheet.enable || sheet.sendToContext === false) return `#${tableIndex} ${name}：当前未注入模型上下文，本轮不得写此表`;
         const headers = (sheet?.getHeader?.() ?? []).map(value => String(value ?? '').trim());
         if (!headers.length) return `#${tableIndex} ${name}：当前无法读取表头，本轮不得写此表`;
         const count = Math.max(0, Number(sheet.getRowCount?.() ?? 0) - 1);
