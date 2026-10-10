@@ -34,7 +34,7 @@ const SYSTEM_PROMPT=`你是Memo世界状态表格整理器。这个功能的第�
 - updateRow只能更新当前真实存在的rowIndex；不得把越界update当作新增。真正新增必须明确使用insertRow。
 - 表2/4/5的update/delete必须携带当前目标行第一列原值作为对象核对名；当前表格是rowIndex与对象名的唯一依据。
 - data键优先使用数字列索引；也可使用当前表中完全一致的真实表头名。禁止使用不存在、近似或自行编造的列名。
-- 函数调用必须放在同一个HTML注释中，例如<tableEdit><!-- updateRow(...); deleteRow(...); --></tableEdit>。`;
+- 只能使用本轮唯一输出协议规定的XML操作标签，不得输出函数调用文本。更新示例：<updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>。删除示例：<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>。每个data必须同时包含columnIndex和value，属性值中的英文双引号、&、<、>分别转义为&quot;、&amp;、&lt;、&gt;。`;
 function escapeHtml(text){return String(text??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function buildRecentChat(){const chat=Array.isArray(USER.getContext()?.chat)?USER.getContext().chat:[];const ignoreUser=USER.tableBaseSetting.ignore_user_sent===true;const filtered=ignoreUser?chat.filter(item=>item?.is_user===false):chat;const maxRows=Math.max(1,Number(USER.tableBaseSetting.clear_up_stairs)||9);const useTokenLimit=USER.tableBaseSetting.use_token_limit===true;const tokenLimit=Math.max(0,Number(USER.tableBaseSetting.rebuild_token_limit_value)||0);const collected=[];let totalTokens=0;for(let i=filtered.length-1;i>=0&&collected.length<maxRows;i--){const item=filtered[i];const line=`${item?.name||(item?.is_user?'user':'assistant')}: ${String(item?.mes??'')}`.replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi,'').trim();if(!line)continue;if(useTokenLimit&&tokenLimit>0){const tokens=await estimateTokenCount(line);if(collected.length>0&&totalTokens+tokens>tokenLimit)break;totalTokens+=tokens;}collected.push(line);}return collected.reverse().join('\n');}
 function captureCleanupState(piece) {
