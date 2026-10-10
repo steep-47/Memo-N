@@ -122,7 +122,7 @@ function patchGenerateRaw(target, key, channel) {
         if (!guarded) return await current.apply(this, args);
         const nextArgs = [...args];
         nextArgs[0] = injectProtocolIntoConfig(args?.[0]);
-        console.log(`[Memo-N][output-protocol] ${channel} 已强制注入唯一tableEdit函数格式`);
+        console.log(`[Memo-N][output-protocol] ${channel} 已强制注入唯一XML tableEdit格式`);
         return await current.apply(this, nextArgs);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
@@ -150,7 +150,7 @@ function patchCustomApi() {
         const originalSystem = config.system_prompt;
         config.system_prompt = appendProtocol(originalSystem);
         try {
-            console.log('[Memo-N][output-protocol] 自定义API 已强制注入唯一tableEdit函数格式');
+            console.log('[Memo-N][output-protocol] 自定义API 已强制注入唯一XML tableEdit格式');
             return await current.apply(this, args);
         } finally {
             config.system_prompt = originalSystem;
