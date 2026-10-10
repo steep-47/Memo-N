@@ -56,6 +56,6 @@ const protocolPos = loader.indexOf('./scripts/runtime/recordOnlyOutputProtocolGu
 const transportPos = loader.indexOf('./scripts/runtime/recordOnlyTransportGuard.js');
 if (protocolPos < 0 || transportPos < 0 || transportPos >= protocolPos) throw new Error('包装器安装顺序错误：格式锁应最后安装');
 if (!loader.includes('格式锁注入 -> API -> 兼容规范化 -> 严格执行器')) throw new Error('loader未声明实际记录链路顺序');
-if (!/const DISPLAY_VERSION = '0\\.75'/.test(loader)) throw new Error('loader显示版本与当前主分支不一致');
+if (!loader.includes("const DISPLAY_VERSION = '0.75'")) throw new Error('loader显示版本与当前主分支不一致');
 
 console.log('memo-n output protocol PASS: XML operations, no-change sentinel, idempotent injection, config isolation, wrapper order, current version');
