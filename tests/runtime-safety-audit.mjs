@@ -99,7 +99,7 @@ result = executeMemoTableEdit('updateRow(0,{"h1":"单行省略rowIndex"})', piec
 if (!result.ok || sheets[0].rows[1][2] !== '单行省略rowIndex') throw new Error('单行表两参数updateRow未安全对应第0行');
 const roleHeaders = ['姓名','性别','种族','年龄','修为','灵根/体质','灵力','神识','身体状态','灵石','钱财','技能/术法','擅长','其他状态','外貌特征'];
 sheets[1].rows = [['', ...roleHeaders], ['', '陈尘', ...new Array(roleHeaders.length - 1).fill('')]];
-result = executeMemoTableEdit('<tableEdit><!-- <updateRow tableIndex="1" rowIndex="0"><data columnIndex="14" value="眉眼清秀，一双眼睛黑亮，笑起来温和；佩戴&quot;旧簪&quot;。"/></updateRow> --></tableEdit>', piece);
+result = executeMemoTableEdit('<tableEdit><!-- <updateRow tableIndex="1" rowIndex="0" expected=""><data columnIndex="14" value="眉眼清秀，一双眼睛黑亮，笑起来温和；佩戴&quot;旧簪&quot;。"/></updateRow> --></tableEdit>', piece);
 if (!result.ok || sheets[1].rows[1][15] !== '眉眼清秀，一双眼睛黑亮，笑起来温和；佩戴"旧簪"。') throw new Error(`截图中的XML updateRow未安全写入外貌特征：${sheets[1].rows[1][15]}`);
 const beforeRows = structuredClone(sheets.map(sheet => sheet.rows));
 const beforePiece = structuredClone(piece);
