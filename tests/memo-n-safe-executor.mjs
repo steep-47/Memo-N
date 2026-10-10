@@ -208,13 +208,13 @@ console.log('history zero slot PASS: append preserves old rows, strict variants,
 
 for (const sheet of sheets) sheet.rows = [];
 result = executeMemoTableEdit('insertRow(6,0,{0:"NO_CHANGE是原文内容",1:"地点"})',{});
-if (!result.ok || !result.recordBlock.includes('insertRow(6,{') || result.recordBlock.includes('insertRow(6,0,')) throw Error('标准记录块或字面量NO_CHANGE处理失败');
+if (!result.ok || !result.recordBlock.includes('<insertRow tableIndex="6">') || result.recordBlock.includes('insertRow(6,0,')) throw Error('标准记录块或字面量NO_CHANGE处理失败');
 for (const sheet of sheets) sheet.rows = [];
 const canonicalReplay = executeMemoTableEdit(result.recordBlock,{});
 if (!canonicalReplay.ok || canonicalReplay.corrections?.length || sheets[6].rows[0][0] !== 'NO_CHANGE是原文内容') throw Error('标准记录块无法无纠错重放');
 for (const sheet of sheets) sheet.rows = [];
 result = executeMemoTableEdit('updateRow(4,0,{0:"新人物","1:"女"},"新人物")',{});
-if (!result.ok || !result.recordBlock.includes('insertRow(4,{') || result.recordBlock.includes('updateRow')) throw Error('空表纠错未标准化为真实执行操作');
+if (!result.ok || !result.recordBlock.includes('<insertRow tableIndex="4">') || result.recordBlock.includes('<updateRow')) throw Error('空表纠错未标准化为真实执行操作');
 for (const sheet of sheets) sheet.rows = [];
 if (!executeMemoTableEdit(result.recordBlock,{}).ok) throw Error('空表纠错标准记录无法重放');
 result = executeMemoTableEdit('NO_CHANGE',{});
@@ -232,7 +232,7 @@ console.log('canonical HTML value preservation PASS');
 for (const sheet of sheets) sheet.rows = [];
 sheets[1].rows = [['玩家','旧状态']];
 result = executeMemoTableEdit('updateRow(1,0,{1:"健康"},\ninsertRow(6,{0:"日期"})',{});
-if (!result.ok || result.count!==2 || sheets[1].rows[0][1]!=='健康' || !result.recordBlock.includes('updateRow(1,0,{"1":"健康"},"")')) throw Error('明确省略尾部参数的非身份保护表恢复失败');
+if (!result.ok || result.count!==2 || sheets[1].rows[0][1]!=='健康' || !result.recordBlock.includes('<updateRow tableIndex="1" rowIndex="0" expected="">') || !result.recordBlock.includes('columnIndex="1" value="健康"')) throw Error('明确省略尾部参数的非身份保护表恢复失败');
 for(const call of [
  'updateRow(4,0,{0:"人物"},\ninsertRow(6,{0:"日期"})',
  'updateRow(1,0,{1:"健康},\ninsertRow(6,{0:"日期"})',
