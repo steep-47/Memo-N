@@ -25,12 +25,12 @@ const manualMessages = [
 if (!isMemoRecordOnlyRequest({ ordered_prompts: manualMessages })) throw new Error('未识别手动记录请求');
 const injectedMessages = injectProtocolIntoMessages(manualMessages);
 if (!injectedMessages[0].content.includes(PROTOCOL_MARK)) throw new Error('未把唯一输出协议注入system消息');
-if (!STRICT_OUTPUT_PROTOCOL.includes('不得省略memo-round') || !STRICT_OUTPUT_PROTOCOL.includes('不得覆盖主请求对正常正文')) throw new Error('协议守卫必须保留主请求正文并强制沿用本轮token');
+if (!STRICT_OUTPUT_PROTOCOL.includes('不得省略') || !STRICT_OUTPUT_PROTOCOL.includes('不得覆盖主请求对正常正文') || !STRICT_OUTPUT_PROTOCOL.includes('NO_CHANGE') || STRICT_OUTPUT_PROTOCOL.includes('memo-round="本轮提供的实际token"')) throw new Error('协议守卫必须保留主请求正文并强制沿用本轮token');
 for (const token of [
     '<insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/>',
     '<updateRow tableIndex="4" rowIndex="0" expected="老叔公">',
     '<deleteRow tableIndex="2" rowIndex="1" expected="蛐蛐罐"/>',
-    '<tableEdit><!-- NO_CHANGE --></tableEdit>',
+    '无操作时，在正确的本轮tableEdit外壳内部仅放置NO_CHANGE标记',
     '禁止生成insertRow()/updateRow()/deleteRow()函数调用文本',
 ]) if (!STRICT_OUTPUT_PROTOCOL.includes(token)) throw new Error(`XML协议缺少或偏离标准输出要素：${token}`);
 if (injectedMessages[1].content !== manualMessages[1].content) throw new Error('注入协议时不应改写用户输入资料');
