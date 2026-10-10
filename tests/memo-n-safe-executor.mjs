@@ -229,6 +229,17 @@ for (const sheet of sheets) sheet.rows = [];
 if (!executeMemoTableEdit(result.recordBlock,{}).ok || sheets[0].rows[0][0] !== markupValue) throw Error('HTML字面量标准记录重放丢失');
 console.log('canonical HTML value preservation PASS');
 
+for (const malformed of [
+    '<tableEdit><updateRow tableIndex="1" rowIndex="0"><data columnIndex="1" value="健康"/></updateRow></tableEdit>',
+    '<tableEdit><deleteRow tableIndex="2" rowIndex="0"/></tableEdit>',
+]) {
+    const rejected = executeMemoTableEdit(malformed, {});
+    if (rejected.ok || !String(rejected.error).includes('expected')) {
+        throw Error('XML update/delete 缺少expected属性时必须拒绝');
+    }
+}
+console.log('XML identity contract PASS: update/delete require explicit expected attribute');
+
 for (const sheet of sheets) sheet.rows = [];
 sheets[1].rows = [['玩家','旧状态']];
 result = executeMemoTableEdit('updateRow(1,0,{1:"健康"},\ninsertRow(6,{0:"日期"})',{});
