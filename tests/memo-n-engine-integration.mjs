@@ -145,11 +145,11 @@ if (!contract.includes('正文中明确成立的事实') || !contract.includes('
     throw new Error('最终落点或角色状态漏记修复规则未注入');
 }
 if (!contract.includes('[当前真实列号映射｜column严格从0开始]')
-    || !contract.includes('#0 当前状态表：0=日期，1=时间，2=地点，3=当前场景人物')
-    || !contract.includes('#6 历史事件表：0=时间')) {
+    || !contract.includes('#0 当前状态表：当前数据行数=')
+    || !contract.includes('#6 历史事件表：当前数据行数=')) {
     throw new Error('当前七表真实列号映射未注入');
 }
-if (!request.messages[0]?.content.includes('完成正文后在非思考区域附带唯一tableEdit记录块') || !request.messages[0]?.content.includes('NO_CHANGE')) {
+if (!request.messages[0]?.content.includes('完成正文后在非思考区域附带唯一tableEdit记录块') || !request.messages[0]?.content.includes('updateRow/deleteRow必须有tableIndex、rowIndex、expected属性')) {
     throw new Error('最后一条用户消息缺少单次记录顺序提醒');
 }
 
