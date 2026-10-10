@@ -11,23 +11,17 @@ ${TRANSPORT_MARK}
 这是Memo记录请求中记录块的唯一操作格式。必须使用XML操作标签，禁止生成insertRow()/updateRow()/deleteRow()函数调用文本，避免括号、逗号和字符串引号造成整批解析失败。
 本规则只约束机器记录块，不得覆盖主请求对正常正文、状态栏、选项或单XML根节点结构的要求。先按原预设生成完整正文，再按主记录指令附加记录块。
 
-记录块必须使用主记录指令提供的本轮memo-round值，开始标签格式为<tableEdit memo-round="本轮提供的实际token">；不得省略memo-round、不得把示例文字当成真实token。无操作时输出：
-<tableEdit memo-round="本轮提供的实际token"><!-- NO_CHANGE --></tableEdit>
+记录块必须使用主记录指令提供的本轮memo-round值，开始标签必须带有该属性；不得省略、不得生成占位token。具体token只从本轮主记录指令复制，不从本协议猜测。
+无操作时，在正确的本轮tableEdit外壳内部仅放置NO_CHANGE标记。以下示例仅展示外壳内部的操作，不是完整记录块：
 
-新增示例（将示例token替换为本轮实际token）：
-<tableEdit memo-round="本轮提供的实际token">
+新增示例：
 <insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/><data columnIndex="11" value="青木诀"/></insertRow>
-</tableEdit>
 
-更新示例（将示例token替换为本轮实际token）：
-<tableEdit memo-round="本轮提供的实际token">
+更新示例：
 <updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>
-</tableEdit>
 
-删除示例（将示例token替换为本轮实际token）：
-<tableEdit memo-round="本轮提供的实际token">
+删除示例：
 <deleteRow tableIndex="2" rowIndex="1" expected="蛐蛐罐"/>
-</tableEdit>
 
 规则：
 - insertRow只允许tableIndex属性；历史表自动追加，不要填写rowIndex。
