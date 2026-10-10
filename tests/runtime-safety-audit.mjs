@@ -163,15 +163,15 @@ if (!modeControlText.includes('repairMissingColumnsBeforeCleanup({notify:false,p
 if (!editorText.includes('await BASE.applyJsonToChatSheets(tables, type)') || !editorText.includes('repairMissingColumnsBeforeCleanup({ notify: false, syncSnapshot: true })')) throw new Error('导入/粘贴表格仍可能绕过表头修复或当前Swipe同步');
 if (!editorText.includes('purgeMemoTableState(piece)') || !userSettingsText.includes('purgeMemoTableState(msg)')) throw new Error('清空表格或替换模板仍会遗留可复活旧结构的Swipe快照');
 const cacheChainText = [indexText, editorText, userSettingsText, absoluteRefreshText, cleanupBridgeText, swipeRestoreText, modeControlText].join('\n');
-if (/\?v=memon(?:5|6|80|81)\b/.test(cacheChainText) || !loaderText.includes('0.54-adjacent-comment-guard-1')) throw new Error('关键入口仍可能命中旧版浏览器模块缓存');
+if (/\?v=memon(?:5|6|80|81)\b/.test(cacheChainText) || !loaderText.includes('0.75-current-table-render-1')) throw new Error('关键入口仍可能命中旧版浏览器模块缓存');
 const roleGroupBlock = pinchZoomText.match(/const firstGroups = \[[\s\S]*?const secondGroups = \[([\s\S]*?)\];/)?.[0] ?? '';
 const secondRoleGroup = pinchZoomText.match(/const secondGroups = \[([\s\S]*?)\];/)?.[1] ?? '';
 if (!roleGroupBlock.includes("['外貌特征','外貌','容貌']") || secondRoleGroup.includes('外貌特征')) throw new Error('角色外貌特征没有进入基本信息展示分组或仍在状态分组重复显示');
 if (!engineText.includes('[Memo-N native tableEdit one-call v1]') || !engineText.includes('executeMemoTableEdit(executionInput, chat)')) throw new Error('Memo-N缺少原生tableEdit前置协议或严格事务入口');
 if (!engineText.includes('其他状态、外貌特征等本轮新确认或变化内容') || !engineText.includes('已确认的稳定外观与持久变化')) throw new Error('一次API逐表审计仍遗漏玩家外貌特征');
-if (!engineText.includes('reinforceLastUser(data.messages)') || !engineText.includes('Memo-N本轮输出顺序')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点');
+if (!engineText.includes('reinforceLastUser(data.messages, pending.token)') || !engineText.includes('完成正文后在非思考区域附带唯一tableEdit记录块')) throw new Error('Memo-N连续轮次缺少最后用户消息协议锚点或原生记录块提醒');
 if (!engineText.includes('reinforcePreviousAssistant(data.messages') || !engineText.includes('memo_n_record_block')) throw new Error('Memo-N没有在下一轮历史副本恢复已执行记录范例');
-if (!engineText.includes('data.messages.push({ role: \'system\', content: recordContract() })')) throw new Error('单次API请求末尾缺少唯一记录协议');
+if (!engineText.includes("data.messages.push({ role: 'system', content: recordContract(pending.token) })")) throw new Error('单次API请求末尾缺少携带本轮token的唯一记录协议');
 if (!engineText.includes('delete data.response_format') || !engineText.includes('delete data.json_schema') || engineText.includes('type: json_object')) throw new Error('Memo-N仍可能强制整篇正文进入JSON模式');
 if (engineText.includes('delete data.stop')) throw new Error('正文恢复为正常生成后仍错误删除酒馆停止词');
 if (!engineText.includes('job.session') || !engineText.includes('preserveFailureBaseline')) throw new Error('Memo-N缺少会话隔离或失败基线保护');
