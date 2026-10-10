@@ -104,7 +104,7 @@ updateRow必须包含tableIndex、rowIndex、expected三个属性；deleteRow同
 [本轮对象核对映射｜rowIndex与expected必须来自同一条]
 ${liveIdentityMap()}
 
-记录块中只放本轮所需的insertRow、updateRow、deleteRow函数调用；正文不进入记录块，也不包进JSON。只有逐表核对已输出正文与现有表格后确认全部无变化，才使用：
+记录块中只放本轮所需的<insertRow>、<updateRow>、<deleteRow> XML操作标签；正文保留在tableEdit外部，不包进JSON。只有逐表核对已输出正文与现有表格后确认全部无变化，才使用：
 <tableEdit memo-round="${token}"><!-- NO_CHANGE --></tableEdit>
 
 tableEdit是同一轮回复的记忆维护结果，必须以本轮实际输出的正文中明确成立的事实为准，结合当前已有七表逐表核对，尽量完整维护所有应变化的字段。
