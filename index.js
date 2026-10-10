@@ -223,8 +223,15 @@ export function getTablePromptByPiece(piece, isPureData = false) {
         .filter(sheet => sheet.enable)
         .filter(sheet => sheet.sendToContext !== false);
     console.log("构建提示词时的信息 (已过滤)", memo_n_hash_sheets, sheets)
+    const standardNames = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
+    const customSheets = sheets.filter(sheet => !standardNames.includes(sheet.name));
     const customParts = isPureData ? ['title', 'headers', 'rows'] : ['title', 'node', 'headers', 'rows', 'editRules'];
-    const sheetDataPrompt = sheets.map((sheet, index) => sheet.getTableText(index, customParts, piece)).join('\n')
+    // 七张标准表始终使用稳定的0–6编号，即使其中某张被隐藏；自定义表从7开始编号。
+    const sheetDataPrompt = sheets.map(sheet => {
+        const standardIndex = standardNames.indexOf(sheet.name);
+        const tableIndex = standardIndex >= 0 ? standardIndex : 7 + customSheets.indexOf(sheet);
+        return sheet.getTableText(tableIndex, customParts, piece);
+    }).join('\n')
     return sheetDataPrompt
 }
 
