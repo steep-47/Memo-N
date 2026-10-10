@@ -29,9 +29,11 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
 ## 表格：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件
 {{tableData}}
 # 操作
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
+唯一记录格式为XML标签，不输出函数调用文本：
+<insertRow tableIndex="1"><data columnIndex="0" value="示例角色"/></insertRow>
+<updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>
+<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>
+data的columnIndex使用当前表真实列号；value中的英文双引号、&、<、>分别转义为&quot;、&amp;、&lt;、&gt;。
 # 总原则
 - 七张表维护当前事实状态，不是关键词出现日志。先在内部确定完整本轮回复和玩家下次输入前的最终落点，再按0→1→2→3→4→5→6逐表检查应记录的明确事实。
 - 写入前必须先检查现有行：首次确认/真正新增用insert；已有事实变化用update；明确消失/结束用delete；只是查看、复述、再次提及且事实未变则不操作。
