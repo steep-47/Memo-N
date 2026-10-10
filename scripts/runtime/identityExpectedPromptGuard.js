@@ -16,10 +16,12 @@ function inject(data) {
     data.messages.push({
         role: 'system',
         content: `${MARK}
-本轮updateRow统一4参数：updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")。
-本轮deleteRow统一3参数：deleteRow(tableIndex,rowIndex,"expected")。
-表2/4/5：expected原样抄本轮对象核对映射中同一tableIndex、rowIndex的修改前名称；其他表填空字符串""。不能把占位词expected写入结果。
-生成正式记录前检查每条update/delete的最后参数；表2/4/5名称缺失或无法确认时，不得猜测，也不得输出缺参调用。保持本轮memo-round标识及原预设正文结构。`,
+本轮记录块必须遵守主记录引擎的XML协议，不得输出insertRow()/updateRow()/deleteRow()函数调用文本。
+updateRow必须写成：<updateRow tableIndex="4" rowIndex="0" expected="老叔公"><data columnIndex="5" value="练气士"/></updateRow>。
+deleteRow必须写成：<deleteRow tableIndex="2" rowIndex="0" expected="肉饼"/>。
+表2/4/5：expected原样抄本轮对象核对映射中同一tableIndex、rowIndex的修改前名称；其他表expected填写空字符串。不能把占位词expected写入结果。
+每个data必须同时填写columnIndex与value；value中的英文双引号、&、<、>分别转义为&quot;、&amp;、&lt;、&gt;。
+生成正式记录前检查每条update/delete的expected属性；表2/4/5名称缺失或无法确认时，不得猜测，不得输出该操作。保持本轮memo-round标识、tableEdit外壳及原预设正文结构。`,
     });
 }
 const settingsReady = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
