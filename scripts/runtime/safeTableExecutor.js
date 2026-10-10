@@ -357,6 +357,9 @@ function extractXmlCalls(text) {
         if (name !== 'insertRow' && !Object.prototype.hasOwnProperty.call(open.attrs, 'rowIndex')) {
             return { recognized:true, ok:false, error:`<${open.name}> 缺少属性：rowIndex`, calls:[], residue:'' };
         }
+        if (name !== 'insertRow' && !Object.prototype.hasOwnProperty.call(open.attrs, 'expected')) {
+            return { recognized:true, ok:false, error:`<${open.name}> 缺少属性：expected`, calls:[], residue:'' };
+        }
 
         cursor = open.end;
         if (name === 'deleteRow') {
