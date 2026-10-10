@@ -63,9 +63,9 @@ const parserCases = [
     ['updateRow(0,{"h1":"单行省略rowIndex"})', true, false],
     ['<tableEdit><!-- updateRow(0,0,{0:"相邻注释甲"}) --><!----><!-- updateRow(0,0,{1:"相邻注释乙"}) --></tableEdit>', true, false],
     ['<tableEdit><!-- updateRow(0,0,{0:"合法操作"}) --><!-- 非法说明 --></tableEdit>', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="1" value="XML更新"/></updateRow>', true, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected=""><data columnIndex="1" value="XML更新"/></updateRow>', true, false],
     ['<insertRow tableIndex="2"><data columnIndex="0" value="黄芪"></data><data columnIndex="1" value="药材"/></insertRow>', true, false],
-    ['<deleteRow tableIndex="3" rowIndex="0"/>', true, false],
+    ['<deleteRow tableIndex="3" rowIndex="0" expected=""/>', true, false],
     ['updateRow(0,0,{"不存在":"x"})', false, false],
     ['updateRow(0,0,{0:"x","h0":"y"})', false, false],
     ['updateRow(0,9,{0:"x"})', false, false],
@@ -76,11 +76,11 @@ const parserCases = [
     ['INSERTINTO1VALUES({0:"x"})', false, false],
     ['INSERT INTO 1 VALUES ({0:"x"})', false, false],
     ['insertRow(7,{0:"x"})', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0" mode="unsafe"><data columnIndex="0" value="x"/></updateRow>', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="0" value="x"/><data columnIndex="0" value="y"/></updateRow>', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="9" value="越界"/></updateRow>', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0"><data columnIndex="0" value="x"/></updateRow>updateRow(0,0,{1:"混合"})', false, false],
-    ['<updateRow tableIndex="0" rowIndex="0"><script value="x"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected="" mode="unsafe"><data columnIndex="0" value="x"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected=""><data columnIndex="0" value="x"/><data columnIndex="0" value="y"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected=""><data columnIndex="9" value="越界"/></updateRow>', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected=""><data columnIndex="0" value="x"/></updateRow>updateRow(0,0,{1:"混合"})', false, false],
+    ['<updateRow tableIndex="0" rowIndex="0" expected=""><script value="x"/></updateRow>', false, false],
 ];
 for (const [input, ok, noChange] of parserCases) {
     const result = parseMemoTableEdit(input);
