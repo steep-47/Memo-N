@@ -37,7 +37,7 @@ if (!window[INSTALL_FLAG]) {
         const button = document.createElement('button');
         button.id = 'memo_redundancy_cleanup';
         button.type = 'button';
-        button.className = anchor.className;
+        button.className = 'menu_button';
         const icon = document.createElement('i');
         icon.className = 'fa-solid fa-compress';
         const caption = document.createElement('span');
@@ -49,6 +49,8 @@ if (!window[INSTALL_FLAG]) {
         button.style.fontFamily = nativeFont.fontFamily;
         button.style.fontSize = nativeFont.fontSize;
         button.style.fontWeight = nativeFont.fontWeight;
+        button.style.color = nativeFont.color;
+        button.style.background = getComputedStyle(anchor).backgroundColor;
         group.appendChild(button);
 
         for (const [id, icon, direction, title] of [
@@ -58,7 +60,7 @@ if (!window[INSTALL_FLAG]) {
             const control = document.createElement('button');
             control.id = id;
             control.type = 'button';
-            control.className = anchor.className;
+            control.className = 'menu_button';
             control.title = title;
             control.setAttribute('aria-label', title);
             control.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;min-width:34px;padding:4px 0;';
