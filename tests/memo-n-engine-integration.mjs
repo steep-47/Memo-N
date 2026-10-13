@@ -285,6 +285,19 @@ if (!proxiedDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native ta
 const toolDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { tools: [{ type: 'function', function: { name: 'x' } }] });
 if (!toolDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('带工具请求没有使用统一记录协议');
 
+// Starting an ineligible generation must invalidate any older pending round.
+currentChat = [previous];
+await armRequest();
+const callsBeforeQuiet = executeCalls.length;
+await run(events.GENERATION_STARTED, 'quiet', {}, false);
+const quietRequest = { messages: [{ role: 'user', content: 'quiet' }] };
+await run(events.CHAT_COMPLETION_SETTINGS_READY, quietRequest);
+if (quietRequest.messages.length !== 1) throw Error('quiet generation unexpectedly injected a record contract');
+const quietMessage = { is_user: false, mes: '静默生成正文', swipe_id: 0, swipes: ['静默生成正文'], swipe_info: [{}] };
+currentChat.push(quietMessage);
+await complete(1);
+if (executeCalls.length !== callsBeforeQuiet || quietMessage.__memoStrictPersistence) throw Error('quiet generation consumed a stale pending record round');
+
 // Reject a previous round's block without executing it or losing body text.
 currentChat = [previous];
 await armRequest();
