@@ -19,7 +19,6 @@ label[for="fill_table_time"],
 #step_by_step_options > .checkbox_label:first-child > #separateReadLorebook,
 #step_by_step_options > .checkbox_label:first-child > small,
 .checkbox_label:has(> #confirm_before_execution),
-.inline-drawer:has(#custom_api_url),
 #step_by_step_user_prompt,
 label[for="step_by_step_user_prompt"],
 label[for="step_by_step_user_prompt"] ~ .toggle-description,
@@ -334,66 +333,4 @@ label[for="step_by_step_user_prompt"] ~ .toggle-description,
 }
 @media screen and (max-width: 768px) {
     .memo-n-fixed-history-values { grid-template-columns: 1fr; }
-}
-
-/* 新增操作与现有 Memo 控件使用同一字体、字重和主题颜色。 */
-#memo_cleanup_actions { gap: 6px; }
-#memo_cleanup_actions .menu_button {
-    font-family: inherit;
-    font-weight: 600;
-    color: var(--SmartThemeBodyColor) !important;
-    background: var(--SmartThemeBlurTintColor) !important;
-    border: 1px solid var(--memo-n-line, var(--SmartThemeBorderColor)) !important;
-    border-radius: 10px !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-    min-height: 32px !important;
-}
-#memo_cleanup_actions .menu_button i { font-size: .9em; opacity: .82; }
-#memo_cleanup_actions #memo_cleanup_undo,
-#memo_cleanup_actions #memo_cleanup_redo { font-size: .88em !important; }
-
-.memo-n-root #memo-record-provider-choice {
-    display: flex !important;
-    align-items: center;
-    gap: 10px;
-    margin: 8px 0 6px !important;
-    font-size: .88em;
-    font-weight: 600;
-    color: var(--SmartThemeBodyColor);
-}
-.memo-n-root #memo-record-provider-choice select {
-    flex: 1;
-    min-width: 0;
-    width: auto !important;
-    margin: 0 !important;
-    font-size: .95em !important;
-}
-.memo-n-root #memo-record-custom-panel {
-    padding: 10px 12px 12px !important;
-    margin: 4px 0 12px !important;
-    border: 1px solid var(--memo-n-line) !important;
-    border-radius: 11px;
-    background: var(--memo-n-soft);
-    gap: 9px 12px !important;
-}
-.memo-n-root #memo-record-custom-panel label {
-    font-size: .84em !important;
-    font-weight: 500 !important;
-    color: color-mix(in srgb, var(--SmartThemeBodyColor) 82%, transparent);
-}
-.memo-n-root #memo-record-custom-panel input {
-    margin: 4px 0 0 !important;
-    padding: 7px 9px !important;
-    min-height: 34px !important;
-    font-size: .96em !important;
-    color: var(--SmartThemeBodyColor) !important;
-}
-.memo-n-root #memo-record-custom-panel .menu_button {
-    font-size: .84em !important;
-    font-weight: 600 !important;
-}
-@media(max-width: 500px) {
-    .memo-n-root #memo-record-provider-choice { flex-wrap: wrap; }
-    .memo-n-root #memo-record-provider-choice select { flex-basis: 100%; }
 }
