@@ -2,6 +2,7 @@
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
 import LLMApiService from "../../services/llmApi.js";
 import {PopupConfirm} from "../../components/popupConfirm.js";
+import { discoverChatModels } from "./recordApiModels.js";
 
 let loadingToast = null;
 let currentApiKeyIndex = 0;// 用于记录当前使用的API Key的索引
@@ -100,6 +101,61 @@ async function decryptXor(encrypted, deviceId) {
     } catch(e) {
         console.error('解密失败:', e);
         return null;
+    }
+}
+
+// The nickname of a saved API profile is not the provider's model ID.
+let discoveryCache = null;
+function apiIdentity() {
+    const data = USER.IMPORTANT_USER_PRIVACY_DATA;
+    return JSON.stringify([String(data.custom_api_url || '').trim(), String(data.custom_api_key || '')]);
+}
+function showModelStatus(message) {
+    const output = document.getElementById('memo-record-model-status');
+    if (output) output.textContent = message;
+}
+function saveResolvedModel(model, verified = false) {
+    const data = USER.IMPORTANT_USER_PRIVACY_DATA;
+    data.custom_model_name = model;
+    const field = document.getElementById('custom_model_name');
+    if (field) field.value = model;
+    if (verified) {
+        data.memo_record_verified_identity = apiIdentity();
+        data.memo_record_verified_model = model;
+    }
+    showModelStatus('当前记录模型：' + model);
+}
+export async function resolveRecordApiModel({ refresh = false } = {}) {
+    const data = USER.IMPORTANT_USER_PRIVACY_DATA;
+    const url = String(data.custom_api_url || '').trim();
+    if (!url || !data.custom_api_key) throw new Error('请先填写 API 地址和 API Key');
+    const saved = String(data.custom_model_name || '').trim();
+    if (USER.tableBaseSetting.memo_record_model_mode === 'manual' && saved) {
+        showModelStatus('手动指定模型：' + saved);
+        return { model: saved, candidates: [saved], manual: true };
+    }
+    const identity = apiIdentity();
+    if (!refresh && data.memo_record_verified_identity === identity && data.memo_record_verified_model) {
+        const model = String(data.memo_record_verified_model);
+        saveResolvedModel(model);
+        return { model, candidates: [model], manual: false };
+    }
+    if (!refresh && discoveryCache?.identity === identity && Date.now() - discoveryCache.timestamp < 5 * 60_000) {
+        const candidates = discoveryCache.models;
+        saveResolvedModel(candidates[0]);
+        return { model: candidates[0], candidates, manual: false };
+    }
+    showModelStatus('正在自动获取可用模型…');
+    const keys = await getDecryptedApiKey();
+    if (!keys?.trim()) throw new Error('API Key 不可用，请重新填写');
+    try {
+        const models = await discoverChatModels(url, keys.split(',').map(x => x.trim()).find(Boolean));
+        discoveryCache = { identity, models, timestamp: Date.now() };
+        saveResolvedModel(models[0]);
+        return { model: models[0], candidates: models, manual: false };
+    } catch (error) {
+        showModelStatus('无法自动获取模型；请在高级设置填写服务商提供的模型 ID');
+        throw new Error('无法自动识别模型：' + (error?.message || error) + '。可在高级设置手动填写模型 ID');
     }
 }
 
@@ -204,82 +260,52 @@ export async function handleMainAPIRequest(systemPrompt, userPrompt, isSilent = 
  * @returns {Promise<Array<{keyIndex: number, success: boolean, error?: string}>>} 测试结果数组.
  */
 export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) {
-    if (!String(apiUrl ?? '').trim() || !encryptedApiKeys || !String(modelName ?? '').trim()) {
-        EDITOR.error('请先填写 API 地址、API Key 和模型名称。');
-        return []; // 初始验证失败时返回空数组
+    if (!String(apiUrl ?? '').trim() || !encryptedApiKeys) {
+        EDITOR.warning('请先填写 API 地址和 API Key');
+        return [];
     }
+    const rawKeys = await getDecryptedApiKey();
+    const key = rawKeys?.split(',').map(x => x.trim()).find(Boolean);
+    if (!key) {
+        EDITOR.warning('API Key 不可用，请重新填写');
+        return [];
+    }
+    const confirmed = await EDITOR.callGenericPopup(
+        '测试连接会发送少量文本，可能产生少量费用。是否继续？',
+        EDITOR.POPUP_TYPE.CONFIRM, '测试独立记录 API',
+        { okButton: '测试', cancelButton: '取消' }
+    );
+    if (!confirmed) return [];
 
-    const decryptedApiKeysString = await getDecryptedApiKey(); // Use imported function
-    if (!decryptedApiKeysString) {
-        EDITOR.error('API Key 解密失败或未设置！');
-        return []; // 解密失败时返回空数组
-    }
-
-    const apiKeys = decryptedApiKeysString.split(',').map(k => k.trim()).filter(k => k.length > 0);
-    if (apiKeys.length === 0) {
-        EDITOR.error('未找到有效的 API Key。');
-        return []; // 如果找不到有效的密钥则返回空数组
-    }
-    const testAll = await EDITOR.callGenericPopup(`检测到 ${apiKeys.length} 个 API Key。\n注意：测试方式和酒馆自带的相同，将会发送一次消息（token数量很少），但如果使用的是按次计费的API请注意消费情况。`, EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: "测试第一个key", cancelButton: "取消" });
-    let keysToTest = [];
-    if (testAll === null) return []; // 用户取消弹窗，返回空数组
-
-    if (testAll) {
-        keysToTest = [apiKeys[0]];
-        EDITOR.info(`开始测试第 ${keysToTest.length} 个 API Key...`);
-    } else {
-        return []; // 用户点击取消，返回空数组
-    }
-    //！！~~~保留测试多个key的功能，暂时只测试第一个key~~~！！
+    let resolved;
     try {
-        // 调用测试函数
-        const results = await testApiConnection(apiUrl, keysToTest, modelName);
-
-        // 处理结果并显示提示消息
-        if (results && results.length > 0) {
-            EDITOR.clear(); // 清除之前显示的'开始测试第x个API Key...'提示
-            let successCount = 0;
-            let failureCount = 0;
-            results.forEach(result => {
-                if (result.success) {
-                    successCount++;
-                } else {
-                    failureCount++;
-                    // 记录详细错误，如果可用则使用原始密钥索引
-                    console.error(`Key ${result.keyIndex !== undefined ? result.keyIndex + 1 : '?'} 测试失败: ${result.error}`);
-                }
-            });
-
-            if (failureCount > 0) {
-                const detail = String(results.find(item => !item.success)?.error || '未知错误');
-                if (/未知或不可用模型|模型.{0,12}(?:不存在|不可用|无效)|unknown.{0,15}model|model.{0,15}(?:not found|unavailable|invalid)/i.test(detail)) {
-                    EDITOR.error('模型不可用：' + modelName + '。请点击「获取模型列表」选择接口返回的模型 ID，或核对服务商文档。');
-                } else if (/\b404\b/.test(detail)) {
-                    EDITOR.error('API 返回 404：请检查地址路径和模型 ID（' + modelName + '），不代表 Key 一定错误。');
-                } else if (/\b401\b|\b403\b|unauthorized|invalid.{0,15}(?:api.?key|token)|鉴权失败|密钥.{0,10}无效/i.test(detail)) {
-                    EDITOR.error('API 鉴权失败：请检查 Key 是否有效、是否有模型权限。');
-                } else {
-                    EDITOR.error('API 连接测试失败：' + detail.slice(0, 240));
-                }
-            }
-            if (successCount > 0) {
-                EDITOR.success(`${successCount} 个 Key 测试成功！`);
-            }
-        } else if (results) {
-            // 处理testApiConnection可能返回空数组的情况(例如用户取消)
-        }
-
-        return results; // 返回结果数组
+        resolved = await resolveRecordApiModel({ refresh: true });
     } catch (error) {
-        EDITOR.error(`API 测试过程中发生错误`, error.message, error);
-        console.error("API Test Error:", error);
-        // 发生一般错误时返回一个表示所有测试密钥失败的数组
-        return keysToTest.map((_, index) => ({
-            keyIndex: apiKeys.indexOf(keysToTest[index]), // 如果需要则查找原始索引
-            success: false,
-            error: `测试过程中发生错误: ${error.message}`
-        }));
+        EDITOR.warning(String(error?.message || error));
+        return [];
     }
+    // Automatic choice probes at most 3 chat models; manual mode tests only the chosen ID.
+    const candidates = resolved.manual ? [resolved.model] : resolved.candidates.slice(0, 3);
+    let last = null;
+    for (const model of candidates) {
+        const result = (await testApiConnection(apiUrl, [key], model))[0];
+        if (result?.success) {
+            saveResolvedModel(model, true);
+            EDITOR.success('连接成功，记录模型：' + model);
+            return [{ ...result, model }];
+        }
+        last = result;
+        if (/401|403|unauthorized|鉴权|invalid.{0,15}(api.?key|token)/i.test(String(result?.error || ''))) break;
+    }
+    const errorText = String(last?.error || '未知错误');
+    if (/401|403|unauthorized|鉴权/i.test(errorText)) {
+        EDITOR.error('连接失败：API Key 无效或没有访问权限');
+    } else if (/404|model|模型/i.test(errorText)) {
+        EDITOR.error('连接失败：当前服务不支持测试的模型。请在高级设置手动填写服务商提供的准确模型 ID。');
+    } else {
+        EDITOR.error('连接失败：' + errorText.slice(0, 180));
+    }
+    return last ? [last] : [];
 }
 
 /**
@@ -341,7 +367,14 @@ export async function testApiConnection(apiUrl, apiKeys, modelName) {
 export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByStepSummary = false, isSilent = false) {
     const USER_API_URL = USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url;
     const decryptedApiKeysString = await getDecryptedApiKey(); // 获取逗号分隔的密钥字符串
-    const USER_API_MODEL = USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name;
+    let resolvedModel;
+    try {
+        resolvedModel = await resolveRecordApiModel();
+    } catch (error) {
+        EDITOR.error(String(error?.message || error));
+        return;
+    }
+    const USER_API_MODEL = resolvedModel.model;
     // const MAX_RETRIES = USER.tableBaseSetting.custom_api_retries ?? 0; // 从设置中获取重试次数，默认为 0
     const MAX_RETRIES = 0; // 从设置中获取重试次数，默认为 0
 
