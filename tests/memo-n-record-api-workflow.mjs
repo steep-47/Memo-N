@@ -82,10 +82,17 @@ settings.memo_record_model_mode = 'auto';
 const absent = await api.handleApiTestRequest(privateData.custom_api_url, privateData.custom_api_key, '');
 assert.equal(absent.length, 0, 'No model must be invented when /models is unavailable');
 
+privateData.memo_api_profile_id = 'manual-profile';
+privateData.memo_api_profiles.push({
+    id:'manual-profile', name:'手动服务', url:privateData.custom_api_url,
+    key:privateData.custom_api_key, model:'', modelMode:'auto',
+});
 settings.memo_record_model_mode = 'manual';
 privateData.custom_model_name = 'manual-id';
 const manual = await api.handleApiTestRequest(privateData.custom_api_url, privateData.custom_api_key, 'manual-id');
 assert.equal(manual[0]?.success, true);
 assert.equal(manual[0]?.model, 'manual-id');
+assert.equal(privateData.memo_api_profiles[1].model, 'manual-id');
+assert.equal(privateData.memo_api_profiles[1].modelMode, 'manual');
 
 console.log('memo-n-record-api-workflow PASS: nickname ignored, failover, tested model reused, /models fallback');
