@@ -84,6 +84,7 @@ deleteRow(tableIndex:number,rowIndex:number)
     confirm_before_execution: true,
     use_main_api: true,
     custom_temperature: 1.0,
+    memo_record_model_mode: 'auto', // 自动获取模型；只有用户明确输入真实ID才切换手动
     custom_max_tokens: 2048,
     custom_top_p: 1,
     bool_ignore_del: true,
