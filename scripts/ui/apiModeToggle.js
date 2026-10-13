@@ -65,6 +65,29 @@ function createToggle() {
     return label;
 }
 
+function createProviderChoice() {
+    const wrap = document.createElement('label');
+    wrap.id = 'memo-record-provider-choice';
+    wrap.style.display = 'block';
+    wrap.style.margin = '6px 0 10px';
+    wrap.textContent = '独立填表使用：';
+    const select = document.createElement('select');
+    select.style.marginLeft = '8px';
+    for (const [value, label] of [['main', '主聊天 API'], ['custom', '自定义 API（使用下方 URL / Key / 模型）']]) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+    }
+    select.value = USER.tableBaseSetting.step_by_step_use_main_api === false ? 'custom' : 'main';
+    select.addEventListener('change', () => {
+        USER.tableBaseSetting.step_by_step_use_main_api = select.value !== 'custom';
+        USER.saveSettings?.();
+    });
+    wrap.appendChild(select);
+    return wrap;
+}
+
 function mount() {
     const fillTime = document.querySelector('#fill_table_time');
     if (!fillTime) return false;
@@ -73,6 +96,10 @@ function mount() {
         const host = fillTime.parentElement;
         if (!host) return false;
         host.insertBefore(createToggle(), fillTime.nextSibling);
+    }
+
+    if (!document.getElementById('memo-record-provider-choice')) {
+        document.getElementById(TOGGLE_ID)?.insertAdjacentElement('afterend', createProviderChoice());
     }
 
     // 加载时只恢复我们自己的开关；旧 step_by_step 仍保持关闭。
