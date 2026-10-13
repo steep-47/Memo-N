@@ -206,7 +206,7 @@ async function runStableCleanup(mode = 'repair') {
         const recentChat = await buildRecentChat();
         if (!currentState()) return EDITOR.info('表格整理已作废：准备期间记录发生变化，请重新整理');
         const userPrompt = `<当前七表>\n${tableText}\n</当前七表>\n<最近聊天>\n${recentChat}\n</最近聊天>\n\n这是“表格整理”，请以当前七表整体最终状态为中心做全局检查，而不是只记录最近一轮。按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件逐表检查：重复与可合并行、已经过期/失效的行、错表或错位内容、字段混写、旧值与已确认新事实冲突，以及最近聊天能够直接证明的明确漏项。人物主表的“种族/血脉”“修炼体系/路径”按根基条件→大路线→稳定专精判断，只保留已确认事实：武夫=无灵根凡俗武道，体修=有灵根且稳定专精体魄，常规有灵根修仙无专精=练气士，明确专精后用具体专精标签；人物发展表“修为”只保留原生体系境界，“年龄”和“最后确认时间”分别维护，最后确认时间只到世界日期。历史表既整理重大节点，也保留0～5无法承接但后续需要的连续性事实，同一连续事件优先合并/更新。按现有rowIndex生成必要的tableEdit操作，不要为了“更完整”编造未知信息。`;
-        const redundancySystemPrompt = `${SYSTEM_PROMPT.replace('Memo世界状态表格整理器', 'Memo冗余合并专用整理器')}\n\n【本次仅执行冗余整理】只处理已有记录中可明确证明的重复、同一实体的重复行及同一历史事件的连续上下篇。不得执行补漏、纠错、过期清理、跨表迁移或新增事实；不得为缩短文本而丢失人物、线索、承诺、转折、时间顺序、因果与结果。无法确认同一事件时保持原状；没有安全可合并的行时输出NO_CHANGE。`; 
+        const redundancySystemPrompt = `你是Memo冗余合并专用整理器。只处理现有七表中明确重复的记录，或确认属于同一事件链的上下篇。只允许updateRow和deleteRow；不得补漏、纠错、清理过期数据、迁移字段、编造事实或修改表头。合并时保留全部关键人物、行动、线索、承诺、异常、转折、先后顺序、因果和结果；不确定是否重复就保持原样。先更新保留行，再删除重复行。必须且只能输出一个<tableEdit><!-- 操作 --></tableEdit>；无需改动时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。所有行号、列名与对象核对名必须来自当前表格。`;
         const redundancyUserPrompt = `<当前七表>\n${tableText}\n</当前七表>\n请仅识别现有七表的冗余记录：完全重复的行、明确属于同一实体的重复行，以及可确认属于同一事件链的历史事件上下篇。合并后保留全部有意义的旧细节和顺序。只使用updateRow/deleteRow，不要insertRow，不补漏、不纠错、不清理过期状态。无法确认时不操作。`; 
         const effectiveSystemPrompt = redundancyOnly ? redundancySystemPrompt : SYSTEM_PROMPT;
         const effectiveUserPrompt = redundancyOnly ? redundancyUserPrompt : userPrompt;
