@@ -69,11 +69,23 @@ assert.equal(first[0]?.model, 'actual-mini');
 assert.deepEqual(requestedModels, ['unavailable-model', 'actual-mini']);
 assert.equal(privateData.memo_api_profiles[0].name, '大锅饭');
 assert.equal(privateData.memo_api_profiles[0].model, 'actual-mini');
+assert.equal(privateData.memo_api_profiles[0].verified, true);
 assert.equal(privateData.memo_record_verified_model, 'actual-mini');
 assert.equal(privateData.custom_model_name, 'actual-mini');
 
 const response = await api.handleCustomAPIRequest([{ role:'user', content:'记录' }], null, true, true);
 assert.equal(response, '<tableEdit><!-- NO_CHANGE --></tableEdit>');
+assert.equal(requestedModels.at(-1), 'actual-mini');
+
+// Re-selecting a previously verified profile must work without refetching /models.
+modelsAvailable = false;
+privateData.memo_api_profile_id = 'nickname';
+privateData.custom_api_url = privateData.memo_api_profiles[0].url;
+privateData.custom_api_key = privateData.memo_api_profiles[0].key;
+privateData.custom_model_name = privateData.memo_api_profiles[0].model;
+settings.memo_record_model_mode = 'auto';
+const reused = await api.handleCustomAPIRequest([{ role:'user', content:'继续记录' }], null, true, true);
+assert.equal(reused, '<tableEdit><!-- NO_CHANGE --></tableEdit>');
 assert.equal(requestedModels.at(-1), 'actual-mini');
 
 modelsAvailable = false;
