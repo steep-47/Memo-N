@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/runtime/customDeepSeekJsonBridge.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP } from '../../core/manager.js';", 'const { APP } = globalThis.__memoJsonBridgeMocks;')
-    .replace("import { isOfficialCustomDeepSeek } from './providerRoute.js?v=memon-json37';", 'const { isOfficialCustomDeepSeek } = globalThis.__memoJsonBridgeMocks;');
+    .replace(/import \{ isOfficialCustomDeepSeek \} from '\.\/providerRoute\.js(?:\?[^']*)?';/, 'const { isOfficialCustomDeepSeek } = globalThis.__memoJsonBridgeMocks;');
 
 const handlers = [];
 globalThis.__memoJsonBridgeMocks = {

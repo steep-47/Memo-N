@@ -65,6 +65,48 @@ function restoreCleanupState(piece, backup) {
         else delete piece[key];
     }
 }
+
+const history = { chat: null, piece: null, entries: [], index: -1, busy: false };
+function snapshotKey() { return JSON.stringify((BASE.getChatSheets?.() ?? []).map(x => x.filterSavingData())); }
+function rememberCleanup(piece, before) {
+    const chat = USER.getContext?.()?.chat;
+    const beforeKey = JSON.stringify(before.sheets.map(x => x.data));
+    const afterKey = snapshotKey();
+    if (beforeKey === afterKey) return;
+    if (history.chat !== chat || history.piece !== piece || history.entries[history.index]?.key !== beforeKey) {
+        history.entries = [{ state: before, key: beforeKey }];
+        history.index = 0;
+    }
+    history.chat = chat;
+    history.piece = piece;
+    history.entries.splice(history.index + 1);
+    history.entries.push({ state: captureCleanupState(piece), key: afterKey });
+    history.index++;
+    if (history.entries.length > 11) { history.entries.shift(); history.index--; }
+}
+async function stepCleanupHistory(delta) {
+    if (running || history.busy) return EDITOR.warning('整理进行中');
+    const chat = USER.getContext?.()?.chat;
+    const piece = BASE.getLastSheetsPiece()?.piece;
+    if (history.chat !== chat || history.piece !== piece) return EDITOR.info('当前聊天没有整理历史');
+    const next = history.index + delta;
+    if (next < 0 || next >= history.entries.length) return EDITOR.info('没有更多操作');
+    if (snapshotKey() !== history.entries[history.index].key) return EDITOR.warning('表格已有其他修改，无法安全恢复');
+    history.busy = true;
+    const backup = captureCleanupState(piece);
+    try {
+        restoreCleanupState(piece, history.entries[next].state);
+        await USER.saveChat();
+        history.index = next;
+        BASE.refreshContextView();
+        updateSystemMessageTableStatus();
+        EDITOR.success(delta < 0 ? '已撤回' : '已前进');
+    } catch (error) {
+        if (USER.getContext?.()?.chat === chat && BASE.getLastSheetsPiece()?.piece === piece) restoreCleanupState(piece, backup);
+        EDITOR.error('恢复失败：' + String(error?.message || error));
+    } finally { history.busy = false; }
+}
+
 function depletedInventoryOperations(sheets) {
     const inventory = sheets.filter(sheet => sheet?.name === '背包表');
     if (inventory.length !== 1) return null;
@@ -118,6 +160,7 @@ async function commitCleanup(matches, piece, sessionActive) {
         EDITOR.info('表格整理已保存，期间记录发生变化，停止后续整理');
         return false;
     }
+    rememberCleanup(piece, backup);
     EDITOR.success(`表格整理完成（${result.count}项）`);
     try {
         BASE.refreshContextView();
@@ -128,7 +171,8 @@ async function commitCleanup(matches, piece, sessionActive) {
     return true;
 }
 
-async function runStableCleanup() {
+async function runStableCleanup(mode = 'repair') {
+    const redundancyOnly = mode === 'redundancy';
     if (running) return EDITOR.warning('表格整理正在进行中');
     running = true;
     const sessionChat = USER.getContext?.()?.chat;
@@ -140,7 +184,7 @@ async function runStableCleanup() {
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
         let tableText = getTablePromptByPiece(piece);
         if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
-        const localOperations = depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
+        const localOperations = redundancyOnly ? null : depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
         if (localOperations) {
             if (USER.tableBaseSetting.bool_silent_refresh !== true) {
                 const key = cleanupStateKey(piece);
@@ -162,12 +206,16 @@ async function runStableCleanup() {
         const recentChat = await buildRecentChat();
         if (!currentState()) return EDITOR.info('表格整理已作废：准备期间记录发生变化，请重新整理');
         const userPrompt = `<当前七表>\n${tableText}\n</当前七表>\n<最近聊天>\n${recentChat}\n</最近聊天>\n\n这是“表格整理”，请以当前七表整体最终状态为中心做全局检查，而不是只记录最近一轮。按0当前状态→1角色状态→2背包→3任务约定→4人物主表→5人物发展表→6历史事件逐表检查：重复与可合并行、已经过期/失效的行、错表或错位内容、字段混写、旧值与已确认新事实冲突，以及最近聊天能够直接证明的明确漏项。人物主表的“种族/血脉”“修炼体系/路径”按根基条件→大路线→稳定专精判断，只保留已确认事实：武夫=无灵根凡俗武道，体修=有灵根且稳定专精体魄，常规有灵根修仙无专精=练气士，明确专精后用具体专精标签；人物发展表“修为”只保留原生体系境界，“年龄”和“最后确认时间”分别维护，最后确认时间只到世界日期。历史表既整理重大节点，也保留0～5无法承接但后续需要的连续性事实，同一连续事件优先合并/更新。按现有rowIndex生成必要的tableEdit操作，不要为了“更完整”编造未知信息。`;
+        const redundancySystemPrompt = `你是Memo冗余合并专用整理器。只处理现有七表中明确重复的记录，或确认属于同一事件链的上下篇。只允许updateRow和deleteRow；不得补漏、纠错、清理过期数据、迁移字段、编造事实或修改表头。合并时保留全部关键人物、行动、线索、承诺、异常、转折、先后顺序、因果和结果；不确定是否重复就保持原样。先更新保留行，再删除重复行。必须且只能输出一个<tableEdit><!-- 操作 --></tableEdit>；无需改动时输出<tableEdit><!-- NO_CHANGE --></tableEdit>。所有行号、列名与对象核对名必须来自当前表格。`;
+        const redundancyUserPrompt = `<当前七表>\n${tableText}\n</当前七表>\n请仅识别现有七表的冗余记录：完全重复的行、明确属于同一实体的重复行，以及可确认属于同一事件链的历史事件上下篇。合并后保留全部有意义的旧细节和顺序。只使用updateRow/deleteRow，不要insertRow，不补漏、不纠错、不清理过期状态。无法确认时不操作。`; 
+        const effectiveSystemPrompt = redundancyOnly ? redundancySystemPrompt : SYSTEM_PROMPT;
+        const effectiveUserPrompt = redundancyOnly ? redundancyUserPrompt : userPrompt;
         const useMainApi = USER.tableBaseSetting.use_main_api !== false;
         let rawContent;
         try {
             rawContent = useMainApi
-                ? await handleMainAPIRequest(SYSTEM_PROMPT,userPrompt)
-                : await handleCustomAPIRequest(SYSTEM_PROMPT,userPrompt);
+                ? await handleMainAPIRequest(effectiveSystemPrompt,effectiveUserPrompt)
+                : await handleCustomAPIRequest(effectiveSystemPrompt,effectiveUserPrompt);
         } catch (error) {
             return EDITOR.error('表格整理API请求失败', error?.message || String(error), error);
         }
@@ -186,6 +234,7 @@ async function runStableCleanup() {
         const parsed = parseMemoTableEdit(matches);
         if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，其余表格未修改`);
         if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需进一步整理');
+        if (redundancyOnly && parsed.actions.some(x => x.type === 'insert')) return EDITOR.error('冗余整理不允许新增行');
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
             const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(matches[0])}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
@@ -201,4 +250,4 @@ async function runStableCleanup() {
     }
 }
 function install(){if(window[INSTALL_FLAG])return;window[INSTALL_FLAG]=true;console.log('[Memo] 七表严格tableEdit整理器已加载：字段语义、人物归属与连续性规则已对齐');}
-install();export{runStableCleanup, depletedInventoryOperations};
+install();export{runStableCleanup, depletedInventoryOperations, stepCleanupHistory};

@@ -3,7 +3,6 @@ import fs from 'node:fs/promises';
 const dense = await fs.readFile(new URL('../scripts/runtime/denseExpressionRule.js', import.meta.url), 'utf8');
 const contentRules = await fs.readFile(new URL('../scripts/runtime/memoryContentRules.js', import.meta.url), 'utf8');
 const engine = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
-const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
 
 for (const token of ['可观察性→持续性→辨识度→信息压缩', '按事实性质判断主位置', '一段话中同时包含多类信息时应拆分判断']) {
     if (!dense.includes(token)) throw new Error(`字段判断方法缺少：${token}`);
@@ -27,9 +26,6 @@ for (const token of ['七岁时与沈六', '爬城墙摔伤', '眉不浓不淡']
 
 if (!contentRules.includes('使用同一外貌判断方法维护') || !engine.includes('外貌特征只维护已确认的稳定外观与持久变化')) {
     throw new Error('精简的正常记录与详细外貌判断没有保持同一语义');
-}
-if (!loader.includes("const DISPLAY_VERSION = '0.54'")) {
-    throw new Error('loader版本未升级到0.54');
 }
 
 console.log('memo-n field judgment PASS: detailed method retained for manual/cleanup, compact stable-appearance rule retained for normal story');

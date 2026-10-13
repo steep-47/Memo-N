@@ -285,7 +285,7 @@ export function parseRecordEnvelope(raw) {
  */
 export function parseRelayTableEditEnvelope(raw, fallbackReply = '', expectedToken = '') {
     const text = String(raw ?? '');
-    const fallback = String(fallbackReply ?? '').trim();
+    const fallback = String(fallbackReply ?? '');
     // Mask excluded regions without changing offsets; preserve their original text.
     const excluded = /<(think|thinking|analysis|reasoning)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)|<｜begin▁of▁thinking｜>[\s\S]*?(?:<｜end▁of▁thinking｜>|$)|```[^\n]*\n[\s\S]*?(?:```|$)|`[^`\n]*`|<!--(?!\s*(?:insertRow|updateRow|deleteRow|NO_CHANGE)\b)[\s\S]*?-->/gi;
     const masked = text.replace(excluded, value => ' '.repeat(value.length))

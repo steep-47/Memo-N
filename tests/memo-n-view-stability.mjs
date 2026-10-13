@@ -32,6 +32,14 @@ for (const required of [
     if (!guard.includes(required)) throw new Error(`视图稳定守卫缺少关键机制：${required}`);
 }
 
-if (manifest.version !== '0.54') throw new Error(`manifest 版本应为0.54，实际=${manifest.version}`);
+// Compare release identifiers instead of pinning an obsolete release number.
+const index = await fs.readFile(new URL('index.js', root), 'utf8');
+const readme = await fs.readFile(new URL('README.md', root), 'utf8');
+const displayVersion = loader.match(/const DISPLAY_VERSION = '([^']+)'/)?.[1];
+const entryVersion = index.match(/const VERSION = '([^']+)'/)?.[1];
+if (!manifest.version || displayVersion !== manifest.version || entryVersion !== manifest.version) {
+    throw new Error(`版本不一致：manifest=${manifest.version}, loader=${displayVersion}, index=${entryVersion}`);
+}
+if (!readme.includes('当前版本：`' + manifest.version + '`')) throw new Error('README 当前版本与 manifest 不一致');
 
-console.log('memo-n view stability PASS: canonical-index=1, runtime-order=1, refresh-queue=1, drawer-dedupe=1, sheet-uid-dedupe=1, version=0.54');
+console.log('memo-n view stability PASS: canonical-index=1, runtime-order=1, refresh-queue=1, drawer-dedupe=1, sheet-uid-dedupe=1, version-consistency=1');

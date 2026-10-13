@@ -92,7 +92,7 @@ if (parsed.ok || !parsed.error.includes('当前数据行数=1')) {
 
 taskSheet.rows = [];
 parsed = parseMemoTableEdit('updateRow(3,0,{1:"完成"})');
-if (parsed.ok || !parsed.error.includes('当前数据行数=0')) {
+if (parsed.ok || !/(当前表为空|当前数据行数=0)/.test(parsed.error)) {
     throw new Error('空表越界更新被错误放宽');
 }
 
@@ -233,10 +233,13 @@ for (const sheet of sheets) sheet.rows = [];
 sheets[1].rows = [['玩家','旧状态']];
 result = executeMemoTableEdit('updateRow(1,0,{1:"健康"},\ninsertRow(6,{0:"日期"})',{});
 if (!result.ok || result.count!==2 || sheets[1].rows[0][1]!=='健康' || !result.recordBlock.includes('updateRow(1,0,{"1":"健康"},"")')) throw Error('明确省略尾部参数的非身份保护表恢复失败');
+// A complete argument list with only ')' missing is also unambiguous.
+result = executeMemoTableEdit('updateRow(1,0,{1:"恢复"}\ninsertRow(6,{0:"另一日期"})',{});
+if (!result.ok || result.count !== 2 || sheets[1].rows[0][1] !== '恢复' || result.corrections?.length !== 1) throw Error('完整参数缺少右括号未按边界恢复');
 for(const call of [
  'updateRow(4,0,{0:"人物"},\ninsertRow(6,{0:"日期"})',
  'updateRow(1,0,{1:"健康},\ninsertRow(6,{0:"日期"})',
- 'updateRow(1,0,{1:"健康"}\ninsertRow(6,{0:"日期"})',
+ 'updateRow(1,0,{1:"健康"\ninsertRow(6,{0:"日期"})',
  'updateRow(1,0,{2:"越界"},\ninsertRow(6,{0:"日期"})',
  'updateRow(1,99,{1:"健康"},\ninsertRow(6,{0:"日期"})',
 ]) {
