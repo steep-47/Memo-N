@@ -302,7 +302,8 @@ export async function testApiConnection(apiUrl, apiKeys, modelName) {
                 api_key: apiKey,
                 model_name: modelName, // 必须使用用户实际指定的模型，不静默回退默认模型
                 system_prompt: 'You are a test assistant.',
-                temperature: 0.1 // 使用用户设置的温度
+                temperature: 0.1,
+                max_tokens: 32 // 连接测试只需极少输出，避免默认大上限被模型拒绝
             });
 
             // 调用API
