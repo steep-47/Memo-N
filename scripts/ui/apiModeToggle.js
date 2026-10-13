@@ -94,34 +94,36 @@ function createProviderChoice() {
 function syncCustomPanel() {
     const panel = document.getElementById('memo-record-custom-panel');
     const select = document.querySelector('#memo-record-provider-choice select');
-    if (panel && select) panel.hidden = select.value !== 'custom';
+    if (panel && select) panel.style.display = select.value === 'custom' ? 'grid' : 'none';
 }
 
 function createCustomPanel() {
     const panel = document.createElement('div');
     panel.id = 'memo-record-custom-panel';
-    panel.style.cssText = 'margin:8px 0 14px;padding:10px;border:1px solid var(--SmartThemeBorderColor);border-radius:6px;';
+    panel.style.cssText = 'margin:4px 0 12px;padding:8px 0 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;';
     const field = (label, type, placeholder, value, change) => {
         const row = document.createElement('label');
-        row.style.cssText = 'display:block;margin:0 0 10px;';
+        row.style.cssText = 'display:block;margin:0;min-width:0;';
         const heading = document.createElement('span');
         heading.textContent = label;
-        heading.style.cssText = 'display:block;margin-bottom:4px;';
+        heading.style.cssText = 'display:block;margin-bottom:3px;font-size:0.9em;';
         const input = document.createElement('input');
         input.type = type;
         input.placeholder = placeholder;
         input.value = value ?? '';
-        input.style.width = '100%';
+        input.className = 'text_pole';
+        input.style.cssText = 'width:100%;box-sizing:border-box;min-width:0;';
         input.addEventListener('change', () => change(input.value));
         row.append(heading, input);
         panel.appendChild(row);
         return input;
     };
     const privacy = USER.IMPORTANT_USER_PRIVACY_DATA;
-    field('API URL', 'url', 'https://example.com/v1', privacy.custom_api_url, value => {
+    const urlInput = field('API URL', 'url', 'https://example.com/v1', privacy.custom_api_url, value => {
         privacy.custom_api_url = value.trim();
         USER.saveSettings?.();
     });
+    urlInput.parentElement.style.gridColumn = '1 / -1';
     const key = field('API Key', 'password', privacy.custom_api_key ? '已保存密钥；留空不修改' : '填写 API Key', '', value => {
         if (!value.trim()) return;
         const result = processApiKey(value, generateDeviceId());
@@ -130,6 +132,7 @@ function createCustomPanel() {
         key.placeholder = '已保存密钥；留空不修改';
         USER.saveSettings?.();
     });
+    key.parentElement.style.gridColumn = '1 / -1';
     field('模型 ID', 'text', '例如 gpt-4.1-mini', privacy.custom_model_name, value => {
         privacy.custom_model_name = value.trim();
         USER.saveSettings?.();
@@ -151,6 +154,7 @@ function createCustomPanel() {
             await handleApiTestRequest(privacy.custom_api_url, privacy.custom_api_key, privacy.custom_model_name);
         } finally { test.disabled = false; }
     });
+    test.style.cssText = 'grid-column:1 / -1;justify-self:start;margin-top:4px;';
     panel.appendChild(test);
     return panel;
 }
