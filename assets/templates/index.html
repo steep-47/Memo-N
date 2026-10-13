@@ -56,22 +56,22 @@
                                                 <label style="display:flex;flex-direction:column;gap:4px;">API Key
                                                     <input type="password" id="custom_api_key" class="text_pole wide100p" placeholder="输入服务商提供的 API Key" autocomplete="new-password">
                                                 </label>
-                                                <label style="display:flex;flex-direction:column;gap:4px;">模型名称
-                                                    <input type="text" id="custom_model_name" class="text_pole wide100p" placeholder="输入服务商的模型 ID" autocomplete="off">
-                                                </label>
-                                                <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                                    <select id="model_selector" class="text_pole" style="flex:1;min-width:120px;"><option value="">可选：读取接口可用模型</option></select>
-                                                    <div class="menu_button menu_button_icon" id="fetch_models_button" role="button" tabindex="0"><i class="fa-solid fa-list"></i><a>获取模型列表</a></div>
-                                                </div>
+                                                <small id="memo-record-model-status" class="toggle-description">自动识别可用模型；你只需填写地址和 Key</small>
                                                 <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:8px;">
                                                     <div class="menu_button menu_button_icon" id="table_test_api_button" role="button" tabindex="0"><i class="fa-solid fa-plug"></i><a>测试连接</a></div>
-                                                    <small class="toggle-description">只需填写上面三项</small>
+                                                    <small class="toggle-description">填写地址和 Key 后测试，自动选择模型</small>
                                                 </div>
                                             </div>
                                             <div class="inline-drawer wide100p" style="margin-top:10px;">
                                                 <div class="inline-drawer-toggle inline-drawer-header"><b>高级设置（可不管）</b><div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div></div>
                                                 <div class="inline-drawer-content" style="display:none;padding:8px 0;">
-                                                    
+                                                    <label style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">手动模型 ID（自动识别失败时才需要）
+                                                        <input type="text" id="custom_model_name" class="text_pole wide100p" placeholder="服务商提供的准确模型 ID" autocomplete="off">
+                                                    </label>
+                                                    <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                                        <select id="model_selector" class="text_pole" style="flex:1;min-width:120px;"><option value="">可选：读取接口可用模型</option></select>
+                                                        <div class="menu_button menu_button_icon" id="fetch_models_button" role="button" tabindex="0"><i class="fa-solid fa-list"></i><a>获取模型列表</a></div>
+                                                    </div>
                                                     <div class="flex-container slider-container" style="display:flex;align-items:center;gap:10px;margin:10px 0;">
                                                         <label style="min-width:90px;flex-shrink:0;">温度 <span id="custom_temperature_value">1.0</span></label>
                                                         <input type="range" id="custom_temperature" min="0" max="2" step="0.1" value="1" style="flex:1;min-width:100px;">
