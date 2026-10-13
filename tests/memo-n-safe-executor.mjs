@@ -92,7 +92,7 @@ if (parsed.ok || !parsed.error.includes('当前数据行数=1')) {
 
 taskSheet.rows = [];
 parsed = parseMemoTableEdit('updateRow(3,0,{1:"完成"})');
-if (parsed.ok || !parsed.error.includes('当前数据行数=0')) {
+if (parsed.ok || !/(当前表为空|当前数据行数=0)/.test(parsed.error)) {
     throw new Error('空表越界更新被错误放宽');
 }
 
