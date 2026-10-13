@@ -589,7 +589,9 @@ function maskApiKey(key) {
  */
 export async function updateModelList() {
     const url = String(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url || '').trim();
+    const identity = apiIdentity();
     const keys = await getDecryptedApiKey();
+    if (apiIdentity() !== identity) return [];
     const key = keys?.split(',').map(x => x.trim()).find(Boolean);
     if (!url || !key) {
         EDITOR.warning('请先填写 API 地址和 API Key');
@@ -597,6 +599,7 @@ export async function updateModelList() {
     }
     try {
         const models = await discoverChatModels(url, key);
+        if (apiIdentity() !== identity) return [];
         const select = $('#model_selector');
         select.empty();
         select.append($('<option>', { value:'', text:'请选择一个模型' }));
@@ -610,6 +613,7 @@ export async function updateModelList() {
         EDITOR.success('已获取 ' + models.length + ' 个可选模型，可直接测试连接或手动选择');
         return models;
     } catch (error) {
+        if (apiIdentity() !== identity) return [];
         EDITOR.warning('无法读取模型列表：' + String(error?.message || error).slice(0, 120) + '。若服务商不开放 /models，请在高级设置填写真实模型 ID。');
         return [];
     }
