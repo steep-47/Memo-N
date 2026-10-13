@@ -15,8 +15,8 @@ export class LLMApiService {
             api_key: config.api_key || "",
             model_name: config.model_name || "gpt-3.5-turbo",
             system_prompt: config.system_prompt || "You are a helpful assistant.",
-            temperature: config.temperature || 1.0,
-            max_tokens: config.max_tokens || 63000, // 将默认值从 20000 修改为 63000
+            temperature: config.temperature ?? 1.0,
+            max_tokens: config.max_tokens ?? 63000, // 将默认值从 20000 修改为 63000
             stream: config.stream || false
         };
     }
