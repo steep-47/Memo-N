@@ -136,9 +136,9 @@ function saveResolvedModel(model, verified = false, expectedIdentity = apiIdenti
             const selectedMode = USER.tableBaseSetting.memo_record_model_mode === 'manual' ? 'manual' : 'auto';
             if (pos >= 0 && profile.url === String(data.custom_api_url || '').trim()
                 && profile.key === data.custom_api_key
-                && (profile.model !== model || profile.modelMode !== selectedMode)) {
+                && (profile.model !== model || profile.modelMode !== selectedMode || profile.verified !== true)) {
                 const updated = profiles.slice();
-                updated[pos] = { ...profile, model, modelMode: selectedMode };
+                updated[pos] = { ...profile, model, modelMode: selectedMode, verified: true };
                 data.memo_api_profiles = updated;
             }
         }
@@ -156,6 +156,17 @@ export async function resolveRecordApiModel({ refresh = false } = {}) {
         return { model: saved, candidates: [saved], manual: true };
     }
     const identity = apiIdentity();
+    // A verified model belongs to its saved provider profile, not the most recently tested global URL.
+    if (!refresh && USER.tableBaseSetting.memo_record_model_mode !== 'manual') {
+        const profiles = data.memo_api_profiles;
+        const chosen = Array.isArray(profiles)
+            ? profiles.find(item => item?.id === data.memo_api_profile_id) : null;
+        if (chosen?.verified === true && chosen.url === url && chosen.key === data.custom_api_key
+            && chosen.modelMode !== 'manual' && String(chosen.model || '').trim()) {
+            saveResolvedModel(chosen.model, true, identity);
+            return { model: chosen.model, candidates: [chosen.model], manual: false };
+        }
+    }
     if (!refresh && data.memo_record_verified_identity === identity && data.memo_record_verified_model) {
         const model = String(data.memo_record_verified_model);
         saveResolvedModel(model);
