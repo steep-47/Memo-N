@@ -39,6 +39,16 @@
                                             <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
                                         </div>
                                         <div class="inline-drawer-content" style="display:none;padding:8px 10px;">
+                                            <div id="memo-api-profile-manager" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
+                                                <label for="memo-api-profile-select">已保存的 API 方案</label>
+                                                <select id="memo-api-profile-select" class="text_pole wide100p"><option value="">临时配置（未保存）</option></select>
+                                                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                                                    <input id="memo-api-profile-name" type="text" class="text_pole" placeholder="方案名称，例如：记录小模型" style="flex:1;min-width:120px;" maxlength="60">
+                                                    <div class="menu_button menu_button_icon" id="memo-api-profile-save" role="button" tabindex="0"><i class="fa-solid fa-floppy-disk"></i><a>保存方案</a></div>
+                                                    <div class="menu_button menu_button_icon" id="memo-api-profile-new" role="button" tabindex="0"><i class="fa-solid fa-plus"></i><a>新建</a></div>
+                                                    <div class="menu_button menu_button_icon" id="memo-api-profile-delete" role="button" tabindex="0"><i class="fa-solid fa-trash-can"></i><a>删除</a></div>
+                                                </div>
+                                            </div>
                                             <div style="display:flex;flex-direction:column;gap:8px;">
                                                 <label style="display:flex;flex-direction:column;gap:4px;">API 地址
                                                     <input type="text" id="custom_api_url" class="text_pole wide100p" placeholder="例如 https://api.example.com/v1" autocomplete="off">
@@ -49,6 +59,10 @@
                                                 <label style="display:flex;flex-direction:column;gap:4px;">模型名称
                                                     <input type="text" id="custom_model_name" class="text_pole wide100p" placeholder="输入服务商的模型 ID" autocomplete="off">
                                                 </label>
+                                                <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                                    <select id="model_selector" class="text_pole" style="flex:1;min-width:120px;"><option value="">可选：读取接口可用模型</option></select>
+                                                    <div class="menu_button menu_button_icon" id="fetch_models_button" role="button" tabindex="0"><i class="fa-solid fa-list"></i><a>获取模型列表</a></div>
+                                                </div>
                                                 <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:8px;">
                                                     <div class="menu_button menu_button_icon" id="table_test_api_button" role="button" tabindex="0"><i class="fa-solid fa-plug"></i><a>测试连接</a></div>
                                                     <small class="toggle-description">只需填写上面三项</small>
@@ -57,10 +71,7 @@
                                             <div class="inline-drawer wide100p" style="margin-top:10px;">
                                                 <div class="inline-drawer-toggle inline-drawer-header"><b>高级设置（可不管）</b><div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div></div>
                                                 <div class="inline-drawer-content" style="display:none;padding:8px 0;">
-                                                    <div class="range-block justifyLeft" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                                        <select id="model_selector" class="text_pole" style="flex:1;min-width:100px;"><option value="">可选：获取模型列表</option></select>
-                                                        <div class="menu_button menu_button_icon" id="fetch_models_button"><a>获取模型列表</a></div>
-                                                    </div>
+                                                    
                                                     <div class="flex-container slider-container" style="display:flex;align-items:center;gap:10px;margin:10px 0;">
                                                         <label style="min-width:90px;flex-shrink:0;">温度 <span id="custom_temperature_value">1.0</span></label>
                                                         <input type="range" id="custom_temperature" min="0" max="2" step="0.1" value="1" style="flex:1;min-width:100px;">
