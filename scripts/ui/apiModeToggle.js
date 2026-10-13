@@ -1,4 +1,6 @@
 import { USER } from '../../core/manager.js';
+import { processApiKey, handleApiTestRequest } from '../settings/standaloneAPI.js';
+import { generateDeviceId } from '../../utils/utility.js';
 
 const TOGGLE_ID = 'memory-independent-record-api';
 const PREF_KEY = 'independent_record_api_enabled';
@@ -83,9 +85,74 @@ function createProviderChoice() {
     select.addEventListener('change', () => {
         USER.tableBaseSetting.step_by_step_use_main_api = select.value !== 'custom';
         USER.saveSettings?.();
+        syncCustomPanel();
     });
     wrap.appendChild(select);
     return wrap;
+}
+
+function syncCustomPanel() {
+    const panel = document.getElementById('memo-record-custom-panel');
+    const select = document.querySelector('#memo-record-provider-choice select');
+    if (panel && select) panel.hidden = select.value !== 'custom';
+}
+
+function createCustomPanel() {
+    const panel = document.createElement('div');
+    panel.id = 'memo-record-custom-panel';
+    panel.style.cssText = 'margin:8px 0 14px;padding:10px;border:1px solid var(--SmartThemeBorderColor);border-radius:6px;';
+    const field = (label, type, placeholder, value, change) => {
+        const row = document.createElement('label');
+        row.style.cssText = 'display:block;margin:0 0 10px;';
+        const heading = document.createElement('span');
+        heading.textContent = label;
+        heading.style.cssText = 'display:block;margin-bottom:4px;';
+        const input = document.createElement('input');
+        input.type = type;
+        input.placeholder = placeholder;
+        input.value = value ?? '';
+        input.style.width = '100%';
+        input.addEventListener('change', () => change(input.value));
+        row.append(heading, input);
+        panel.appendChild(row);
+        return input;
+    };
+    const privacy = USER.IMPORTANT_USER_PRIVACY_DATA;
+    field('API URL', 'url', 'https://example.com/v1', privacy.custom_api_url, value => {
+        privacy.custom_api_url = value.trim();
+        USER.saveSettings?.();
+    });
+    const key = field('API Key', 'password', privacy.custom_api_key ? '已保存密钥；留空不修改' : '填写 API Key', '', value => {
+        if (!value.trim()) return;
+        const result = processApiKey(value, generateDeviceId());
+        privacy.custom_api_key = result.encryptedResult.encrypted || result.encryptedResult;
+        key.value = '';
+        key.placeholder = '已保存密钥；留空不修改';
+        USER.saveSettings?.();
+    });
+    field('模型 ID', 'text', '例如 gpt-4.1-mini', privacy.custom_model_name, value => {
+        privacy.custom_model_name = value.trim();
+        USER.saveSettings?.();
+    });
+    const temp = field('Temperature', 'number', '0.3', USER.tableBaseSetting.custom_temperature ?? 0.3, value => {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 0 || n > 2) return;
+        USER.tableBaseSetting.custom_temperature = n;
+        USER.saveSettings?.();
+    });
+    temp.min = '0'; temp.max = '2'; temp.step = '0.1';
+    const test = document.createElement('button');
+    test.type = 'button';
+    test.className = 'menu_button';
+    test.textContent = '测试 API 连接';
+    test.addEventListener('click', async () => {
+        test.disabled = true;
+        try {
+            await handleApiTestRequest(privacy.custom_api_url, privacy.custom_api_key, privacy.custom_model_name);
+        } finally { test.disabled = false; }
+    });
+    panel.appendChild(test);
+    return panel;
 }
 
 function mount() {
@@ -101,6 +168,11 @@ function mount() {
     if (!document.getElementById('memo-record-provider-choice')) {
         document.getElementById(TOGGLE_ID)?.insertAdjacentElement('afterend', createProviderChoice());
     }
+
+    if (!document.getElementById('memo-record-custom-panel')) {
+        document.getElementById('memo-record-provider-choice')?.insertAdjacentElement('afterend', createCustomPanel());
+    }
+    syncCustomPanel();
 
     // 加载时只恢复我们自己的开关；旧 step_by_step 仍保持关闭。
     applyMode(readEnabled(), false);
