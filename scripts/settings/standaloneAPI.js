@@ -108,7 +108,11 @@ async function decryptXor(encrypted, deviceId) {
 let discoveryCache = null;
 function apiIdentity() {
     const data = USER.IMPORTANT_USER_PRIVACY_DATA;
-    return JSON.stringify([String(data.custom_api_url || '').trim(), String(data.custom_api_key || '')]);
+    const text = JSON.stringify([String(data.custom_api_url || '').trim(), String(data.custom_api_key || '')]);
+    // Do not persist another copy of the stored credential, even its obfuscated form.
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+    return 'v1:' + (hash >>> 0).toString(16);
 }
 function showModelStatus(message) {
     const output = document.getElementById('memo-record-model-status');
@@ -116,7 +120,7 @@ function showModelStatus(message) {
 }
 function saveResolvedModel(model, verified = false) {
     const data = USER.IMPORTANT_USER_PRIVACY_DATA;
-    data.custom_model_name = model;
+    if (data.custom_model_name !== model) data.custom_model_name = model;
     const field = document.getElementById('custom_model_name');
     if (field) field.value = model;
     if (verified) {
