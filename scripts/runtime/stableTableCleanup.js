@@ -65,6 +65,48 @@ function restoreCleanupState(piece, backup) {
         else delete piece[key];
     }
 }
+
+const history = { chat: null, piece: null, entries: [], index: -1, busy: false };
+function snapshotKey() { return JSON.stringify((BASE.getChatSheets?.() ?? []).map(x => x.filterSavingData())); }
+function rememberCleanup(piece, before) {
+    const chat = USER.getContext?.()?.chat;
+    const beforeKey = JSON.stringify(before.sheets.map(x => x.data));
+    const afterKey = snapshotKey();
+    if (beforeKey === afterKey) return;
+    if (history.chat !== chat || history.piece !== piece || history.entries[history.index]?.key !== beforeKey) {
+        history.entries = [{ state: before, key: beforeKey }];
+        history.index = 0;
+    }
+    history.chat = chat;
+    history.piece = piece;
+    history.entries.splice(history.index + 1);
+    history.entries.push({ state: captureCleanupState(piece), key: afterKey });
+    history.index++;
+    if (history.entries.length > 11) { history.entries.shift(); history.index--; }
+}
+async function stepCleanupHistory(delta) {
+    if (running || history.busy) return EDITOR.warning('整理进行中');
+    const chat = USER.getContext?.()?.chat;
+    const piece = BASE.getLastSheetsPiece()?.piece;
+    if (history.chat !== chat || history.piece !== piece) return EDITOR.info('当前聊天没有整理历史');
+    const next = history.index + delta;
+    if (next < 0 || next >= history.entries.length) return EDITOR.info('没有更多操作');
+    if (snapshotKey() !== history.entries[history.index].key) return EDITOR.warning('表格已有其他修改，无法安全恢复');
+    history.busy = true;
+    const backup = captureCleanupState(piece);
+    try {
+        restoreCleanupState(piece, history.entries[next].state);
+        await USER.saveChat();
+        history.index = next;
+        BASE.refreshContextView();
+        updateSystemMessageTableStatus();
+        EDITOR.success(delta < 0 ? '已撤回' : '已前进');
+    } catch (error) {
+        if (USER.getContext?.()?.chat === chat && BASE.getLastSheetsPiece()?.piece === piece) restoreCleanupState(piece, backup);
+        EDITOR.error('恢复失败：' + String(error?.message || error));
+    } finally { history.busy = false; }
+}
+
 function depletedInventoryOperations(sheets) {
     const inventory = sheets.filter(sheet => sheet?.name === '背包表');
     if (inventory.length !== 1) return null;
@@ -118,6 +160,7 @@ async function commitCleanup(matches, piece, sessionActive) {
         EDITOR.info('表格整理已保存，期间记录发生变化，停止后续整理');
         return false;
     }
+    rememberCleanup(piece, backup);
     EDITOR.success(`表格整理完成（${result.count}项）`);
     try {
         BASE.refreshContextView();
@@ -206,4 +249,4 @@ async function runStableCleanup(mode = 'repair') {
     }
 }
 function install(){if(window[INSTALL_FLAG])return;window[INSTALL_FLAG]=true;console.log('[Memo] 七表严格tableEdit整理器已加载：字段语义、人物归属与连续性规则已对齐');}
-install();export{runStableCleanup, depletedInventoryOperations};
+install();export{runStableCleanup, depletedInventoryOperations, stepCleanupHistory};
