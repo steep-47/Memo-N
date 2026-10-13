@@ -247,8 +247,11 @@ function initBindings() {
     });
 
     $('#model_selector').change(function () {
+        if (!this.value) return;
         $('#custom_model_name').val(this.value);
         USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name = this.value;
+        USER.tableBaseSetting.memo_record_model_mode = 'manual';
+        $('#memo-record-model-status').text('已手动选择模型：' + this.value);
         USER.saveSettings?.();
     });
     $('#table_to_chat').change(function () {
@@ -279,6 +282,8 @@ function initBindings() {
 
     $('#custom_api_url').on('input', function () {
         USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url = $(this).val();
+        USER.tableBaseSetting.memo_record_model_mode = 'auto';
+        $('#memo-record-model-status').text('地址已更改；测试连接时将自动识别模型');
         USER.saveSettings?.();
     });
 
@@ -301,7 +306,9 @@ function initBindings() {
     });
 
     $('#custom_model_name').on('input', function () {
-        USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name = $(this).val();
+        USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name = $(this).val().trim();
+        USER.tableBaseSetting.memo_record_model_mode = this.value.trim() ? 'manual' : 'auto';
+        $('#memo-record-model-status').text(this.value.trim() ? '手动指定模型：' + this.value.trim() : '自动识别可用模型');
         USER.saveSettings?.();
     });
     $('#dataTable_message_template').on('input', function () {
