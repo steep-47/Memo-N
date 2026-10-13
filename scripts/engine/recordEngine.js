@@ -56,7 +56,9 @@ function recentAssistant() {
 function arm(type, _options, dryRun) {
     armed = validGeneration(type, dryRun) ? { type: String(type ?? 'normal'), at: Date.now() } : null;
     lastRenderedChatId = null;
-    if (armed) pending = null;
+    // Any new generation supersedes the previous pending round, including quiet,
+    // dry-run and disabled generations. Never let an old round consume its end event.
+    pending = null;
 }
 
 function liveColumnMap() {
