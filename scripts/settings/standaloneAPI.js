@@ -393,6 +393,7 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByS
                 // Pass empty system_prompt if promptData is array, otherwise pass the original systemPrompt string
                 system_prompt: Array.isArray(promptData) ? "" : systemPrompt,
                 temperature: USER.tableBaseSetting.custom_temperature,
+                max_tokens: USER.tableBaseSetting.custom_max_tokens ?? 8192,
                 table_proxy_address: USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_address,
                 table_proxy_key: USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_key
             });
