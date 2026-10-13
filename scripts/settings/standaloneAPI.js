@@ -133,11 +133,12 @@ function saveResolvedModel(model, verified = false, expectedIdentity = apiIdenti
         if (Array.isArray(profiles) && selected) {
             const pos = profiles.findIndex(x => x?.id === selected);
             const profile = profiles[pos];
+            const selectedMode = USER.tableBaseSetting.memo_record_model_mode === 'manual' ? 'manual' : 'auto';
             if (pos >= 0 && profile.url === String(data.custom_api_url || '').trim()
                 && profile.key === data.custom_api_key
-                && profile.modelMode !== 'manual' && profile.model !== model) {
+                && (profile.model !== model || profile.modelMode !== selectedMode)) {
                 const updated = profiles.slice();
-                updated[pos] = { ...profile, model };
+                updated[pos] = { ...profile, model, modelMode: selectedMode };
                 data.memo_api_profiles = updated;
             }
         }
