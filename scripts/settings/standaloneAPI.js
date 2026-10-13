@@ -557,118 +557,33 @@ function maskApiKey(key) {
  * @returns {Promise<void>}
  */
 export async function updateModelList() {
-    const apiUrl = $('#custom_api_url').val().trim();
-    const decryptedApiKeysString = await getDecryptedApiKey(); // 使用 getDecryptedApiKey 函数解密
-
-    if (!decryptedApiKeysString) {
-        EDITOR.error('API key解密失败或未设置，请检查API key设置！');
-        return;
+    const url = String(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url || '').trim();
+    const keys = await getDecryptedApiKey();
+    const key = keys?.split(',').map(x => x.trim()).find(Boolean);
+    if (!url || !key) {
+        EDITOR.warning('请先填写 API 地址和 API Key');
+        return [];
     }
-    if (!apiUrl) {
-        EDITOR.error('请输入API URL');
-        return;
-    }
-
-    const apiKeys = decryptedApiKeysString.split(',').map(k => k.trim()).filter(k => k.length > 0);
-
-    if (apiKeys.length === 0) {
-        EDITOR.error('未找到有效的API Key，请检查输入。');
-        return;
-    }
-
-    let foundValidKey = false;
-    const invalidKeysInfo = [];
-    let modelCount = 0; // 用于记录获取到的模型数量
-    const $selector = $('#model_selector');
-
-    // 规范化URL路径
-    let modelsUrl;
     try {
-        const normalizedUrl = new URL(apiUrl);
-        normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/$/, '').replace(/\/chat\/completions$/i, '') + '/models';
-        modelsUrl = normalizedUrl.href;
-    } catch (e) {
-        EDITOR.error(`无效的API URL: ${apiUrl}`, "", e);
-        console.error('URL解析失败:', e);
-        return;
-    }
-
-    for (let i = 0; i < apiKeys.length; i++) {
-        const currentApiKey = apiKeys[i];
-        try {
-            const response = await fetch(modelsUrl, {
-                headers: {
-                    'Authorization': `Bearer ${currentApiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                let errorMsg = `请求失败: ${response.status}`;
-                try {
-                    const errorBody = await response.text();
-                    errorMsg += ` - ${errorBody}`;
-                } catch {}
-                throw new Error(errorMsg);
-            }
-
-            const data = await response.json();
-
-            // 只有在第一次成功获取时才更新下拉框
-            if (!foundValidKey && data?.data?.length > 0) {
-                $selector.empty(); // 清空现有选项
-                const customModelName = USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name;
-                let hasMatchedModel = false;
-
-                data.data.forEach(model => {
-                    $selector.append($('<option>', {
-                        value: model.id,
-                        text: model.id
-                    }));
-
-                    // 检查是否有模型名称与custom_model_name匹配
-                    if (model.id === customModelName) {
-                        hasMatchedModel = true;
-                    }
-                });
-
-                // 如果有匹配的模型，则选中它
-                if (hasMatchedModel) {
-                    $selector.val(customModelName);
-                } else {
-                    $selector.prepend($('<option>', { value: '', text: '选择一个有效模型 ID' }));
-                    $selector.val('');
-                }
-
-                foundValidKey = true;
-                modelCount = data.data.length; // 记录模型数量
-                // 不在此处显示成功消息，统一在最后处理
-            } else if (!foundValidKey && (!data?.data || data.data.length === 0)) {
-                 // 即使请求成功，但没有模型数据，也视为一种失败情况，记录下来
-                 throw new Error('请求成功但未返回有效模型列表');
-            }
-            // 如果已经找到有效key并更新了列表，后续的key只做有效性检查，不再更新UI
-
-        } catch (error) {
-            console.error(`使用第 ${i + 1} 个 Key 获取模型失败:`, error);
-            invalidKeysInfo.push({ index: i + 1, key: currentApiKey, error: error.message });
+        const models = await discoverChatModels(url, key);
+        const select = $('#model_selector');
+        select.empty();
+        select.append($('<option>', { value:'', text:'请选择一个模型' }));
+        for (const model of models) {
+            select.append($('<option>', { value:model, text:model }));
         }
-    }
-
-    // /models 可能被服务商禁用或浏览器跨域拦截；不能据此断定 Key 无效。
-    if (foundValidKey) {
-        EDITOR.success('已获取 ' + modelCount + ' 个模型；请在列表中选中要使用的模型。');
-    } else {
-        $selector.empty();
-        $selector.append($('<option>', { value:'', text:'模型列表不可用，可手动输入模型 ID' }));
-        const detail = String(invalidKeysInfo[0]?.error || '');
-        if (/\b401\b|\b403\b/.test(detail)) {
-            EDITOR.warning('无法读取模型列表：请检查 API Key 和模型列表访问权限。');
-        } else {
-            EDITOR.warning('无法获取模型列表（接口可能未提供 /models 或浏览器拦截）。请使用服务商提供的准确模型 ID。');
-        }
+        const manual = USER.tableBaseSetting.memo_record_model_mode === 'manual';
+        const selected = String(USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name || '').trim();
+        if (manual && models.includes(selected)) select.val(selected);
+        else if (!manual) saveResolvedModel(models[0]);
+        EDITOR.success('已获取 ' + models.length + ' 个可选模型，可直接测试连接或手动选择');
+        return models;
+    } catch (error) {
+        EDITOR.warning('无法读取模型列表：' + String(error?.message || error).slice(0, 120) + '。若服务商不开放 /models，请在高级设置填写真实模型 ID。');
+        return [];
     }
 }
+
 /**
  * 估算 Token 数量
  * @param {string} text - 要估算 token 数量的文本
