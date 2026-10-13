@@ -5,7 +5,7 @@ import {
     parseRecordEnvelope,
     parseRelayTableEditEnvelope,
     parseRelayTaggedEnvelope,
-} from './recordEnvelope.js?v=memon84';
+} from './recordEnvelope.js?v=memon85';
 
 const MARKER = '[Memo-N native tableEdit one-call v1]';
 const WORLD_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
@@ -266,7 +266,8 @@ function legacyEnvelopeCandidate(raw) {
 
 function selectEnvelope(chat, job, appendMode) {
     const current = String(chat?.mes ?? '');
-    const content = (appendMode ? current.slice(job.baseMes.length) : current).trim();
+    // Preserve separators in Continue and whitespace required by the preset.
+    const content = appendMode ? current.slice(job.baseMes.length) : current;
     const reasoning = reasoningText(chat);
     const fingerprint = `${current}\u241f${reasoning}`;
 

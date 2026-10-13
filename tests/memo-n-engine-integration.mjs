@@ -3,22 +3,14 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
 source = source
     .replace("import { APP, BASE, EDITOR, USER } from '../../core/manager.js';", 'const { APP, BASE, EDITOR, USER } = globalThis.__memoNMocks;')
-    .replace("import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from '../runtime/safeTableExecutor.js?v=memon72';", 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
-    .replace(`import {
-    changesToStrictCalls,
-    parseRecordEnvelope,
-    parseRelayTableEditEnvelope,
-    parseRelayTaggedEnvelope,
-} from './recordEnvelope.js';`, `const {
-    changesToStrictCalls,
-    parseRecordEnvelope,
-    parseRelayTableEditEnvelope,
-    parseRelayTaggedEnvelope,
-} = globalThis.__memoNMocks;`);
-source = source.replace("import { isNativeDeepSeek } from '../runtime/providerRoute.js?v=memon73';", 'const { isNativeDeepSeek } = globalThis.__memoNMocks;');
+    .replace(/import \{ executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot \} from '\.\.\/runtime\/safeTableExecutor\.js(?:\?[^']*)?';/, 'const { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } = globalThis.__memoNMocks;')
+    .replace(/import \{[\s\S]*?\} from '\.\/recordEnvelope\.js(?:\?[^']*)?';/, `const {
+        changesToStrictCalls, parseRecordEnvelope, parseRelayTableEditEnvelope, parseRelayTaggedEnvelope,
+    } = globalThis.__memoNMocks;`);
 
 const envelopeModule = await import('../scripts/engine/recordEnvelope.js');
-const tableEdit = (reply, calls = 'NO_CHANGE') => `<tableEdit><!-- ${calls} --></tableEdit>\n\n${reply}`;
+let roundToken;
+const tableEdit = (reply, calls = 'NO_CHANGE', token = roundToken) => `${reply}<tableEdit memo-round="${token}"><!-- ${calls} --></tableEdit>`;
 
 const handlers = new Map();
 const on = (event, handler) => {
@@ -69,6 +61,7 @@ globalThis.__memoNMocks = {
         refreshContextView: async () => { viewRefreshCalls++; },
     },
     EDITOR: {
+        info() {}, success() {},
         warning: message => warnings.push(String(message)),
         error: message => errors.push(String(message)),
     },
@@ -125,29 +118,19 @@ const armRequest = async (type = 'normal', sourceName = 'deepseek', messages = [
         ...extras,
     };
     await run(events.CHAT_COMPLETION_SETTINGS_READY, request);
+    roundToken = request.messages.at(-1)?.content.match(/memo-round="([^"]+)"/)?.[1];
     return request;
 };
 
 const request = await armRequest();
-if (request.response_format || request.json_schema) throw new Error('一次API仍强制整篇JSON');
-if (/response_format/.test(request.custom_include_body) || !/seed:\s*1/.test(request.custom_include_body)) throw new Error('CUSTOM响应格式清理破坏其他请求字段');
-if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('正常正文模式错误删除了酒馆停止词');
-if (!request.messages[0]?.content.includes('<tableEdit>') || !request.messages[0]?.content.includes('完整正常正文')) throw new Error('最后一条用户消息缺少本轮tableEdit协议锚点');
+if (request.response_format?.type !== 'json_object' || !request.json_schema?.stale) throw new Error('预设结构化输出参数被改写');
+if (request.custom_include_body !== 'seed: 1\nresponse_format:\n  type: json_object') throw new Error('CUSTOM请求字段被改写');
+if (!Array.isArray(request.stop) || request.stop.length !== 2) throw new Error('酒馆停止词被改写');
+if (!roundToken || !request.messages[0]?.content.includes(`memo-round="${roundToken}"`)) throw new Error('最后用户消息缺少本轮标识');
 if (request.messages.at(-1)?.role !== 'system') throw new Error('单次API记录协议没有位于请求末尾');
 const contract = request.messages.at(-1)?.content || '';
-if (!contract.includes('[Memo-N native tableEdit one-call v1]') || !contract.includes('<tableEdit><!--') || !contract.includes('实际输出的第一段先给出一个完整的Memo-N')) {
-    throw new Error('前置记录协议未正确注入');
-}
-if (!contract.includes('正文中明确成立的事实') || !contract.includes('外貌特征') || !contract.includes('未知信息留空')) {
-    throw new Error('最终落点或角色状态漏记修复规则未注入');
-}
-if (!contract.includes('[当前真实列号映射｜column严格从0开始]')
-    || !contract.includes('#0 当前状态表：0=日期，1=时间，2=地点，3=当前场景人物')
-    || !contract.includes('#6 历史事件表：0=时间')) {
-    throw new Error('当前七表真实列号映射未注入');
-}
-if (!request.messages[0]?.content.includes('Memo-N本轮输出顺序') || !request.messages[0]?.content.includes('NO_CHANGE')) {
-    throw new Error('最后一条用户消息缺少单次记录顺序提醒');
+for (const required of ['[Memo-N native tableEdit one-call v1]', '正文生成后附带唯一正式记录块', '根节点结束标签前', '正文中明确成立的事实', '外貌特征', '未知信息留空', '当前数据行数=1', '0=日期，1=时间，2=地点，3=当前场景人物', '#6 历史事件表：当前数据行数=0', 'NO_CHANGE']) {
+    if (!contract.includes(required)) throw new Error('当前记录协议缺少：' + required);
 }
 
 const first = {
@@ -161,20 +144,20 @@ currentChat.push(first);
 await complete(1);
 if (first.mes !== '第一轮正常正文' || first.swipes[0] !== first.mes) throw new Error('首轮正文或Swipe未剥离记录块');
 if (executeCalls.length !== 1 || !String(executeCalls[0]).includes('updateRow(0,0,')) throw new Error('首轮tableEdit未进入严格事务');
-if (!first.extra?.memo_n_record_block?.includes('updateRow(0,0,')) throw new Error('首轮已执行记录块没有保存为下一轮历史范例');
+if (!first.extra?.memo_n_record_block?.includes('updateRow(0,0,')) throw new Error('首轮已执行记录块没有保存为执行记录');
 
 currentChat.push({ is_user: true, mes: '继续行动' });
 const secondRequest = await armRequest('normal', 'deepseek', [
     { role: 'assistant', content: first.mes },
     { role: 'user', content: '继续行动' },
 ]);
-if (secondRequest.response_format || secondRequest.json_schema
+if (secondRequest.response_format?.type !== 'json_object' || !secondRequest.json_schema?.stale
     || secondRequest.messages.at(-1)?.role !== 'system'
     || !secondRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) {
     throw new Error('第二轮请求协议发生漂移');
 }
-if (!/^<tableEdit><!--\s*updateRow\(0,0,/.test(secondRequest.messages[0]?.content || '')) throw new Error('第二轮历史副本没有恢复已执行记录范例');
-if (first.mes.includes('<tableEdit>')) throw new Error('历史范例恢复错误污染了手机聊天正文');
+if (secondRequest.messages[0]?.content !== first.mes || first.mes.includes('<tableEdit')) throw new Error('历史正文被记录范例污染');
+if (roundToken === contract.match(/memo-round="([^"]+)"/)?.[1]) throw new Error('跨轮标识未更新');
 const second = {
     is_user: false,
     mes: tableEdit('第二轮正常正文', 'insertRow(4,{0:"赶驴老汉"})'),
@@ -188,7 +171,7 @@ if (second.mes !== '第二轮正常正文' || executeCalls.length !== 2) throw n
 
 currentChat = [previous];
 await armRequest();
-const reasoningBlock = '<tableEdit><!-- updateRow(0,0,{1:"08:15"}) --></tableEdit>';
+const reasoningBlock = tableEdit('', 'updateRow(0,0,{1:"08:15"})');
 const splitChannels = {
     is_user: false,
     mes: '正文来自content',
@@ -204,7 +187,7 @@ currentChat = [previous];
 await armRequest();
 const delayed = {
     is_user: false,
-    mes: '<tableEdit><!-- updateRow(0,0,',
+    mes: `<tableEdit memo-round="${roundToken}"><!-- updateRow(0,0,`,
     swipe_id: 0,
     swipes: [''],
     swipe_info: [{}],
@@ -222,7 +205,7 @@ const plain = { is_user: false, mes: '模型漏写记录块但正文正常', swi
 currentChat.push(plain);
 await complete(1);
 if (plain.mes !== '模型漏写记录块但正文正常' || executeCalls.length !== 4) throw new Error('漏写记录块时未保留正常正文或错误执行表格');
-if (!warnings.some(message => message.includes('未找到Memo-N记录块'))) throw new Error('漏写记录块缺少明确提示');
+if (!warnings.some(message => message.includes('未找到本轮正式Memo-N记录块'))) throw new Error('漏写记录块缺少明确提示');
 
 currentChat = [{ ...previous, memo_n_hash_sheets: { state: 'continue' } }];
 const continuing = currentChat[0];
@@ -302,4 +285,35 @@ if (!proxiedDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native ta
 const toolDeepSeekRequest = await armRequest('normal', 'deepseek', [{ role: 'user', content: '行动' }], { tools: [{ type: 'function', function: { name: 'x' } }] });
 if (!toolDeepSeekRequest.messages.at(-1)?.content.includes('[Memo-N native tableEdit one-call v1]')) throw new Error('带工具请求没有使用统一记录协议');
 
-console.log('memo-n-engine-integration PASS: independent-main-request-untouched=1, final-contract=3, native-tableedit=1, normal-content=1, json-mode-removed=1, stop-preserved=1, last-user-anchor=1, multi-turn=2, reasoning-machine-channel=1, delayed-close=1, plain-reply-fallback=1, continue=1, invalid-change=1, aborted-generation-isolation=1, save-rollback=1, status-continuity=1, provider-neutral=1');
+// Reject a previous round's block without executing it or losing body text.
+currentChat = [previous];
+await armRequest();
+const staleBody = tableEdit('错轮正文', 'updateRow(0,0,{1:"10:00"})', 'previous-round');
+const stale = { is_user: false, mes: staleBody, swipe_id: 0, swipes: [staleBody], swipe_info: [{}] };
+currentChat.push(stale);
+const beforeStale = executeCalls.length;
+await complete(1);
+if (executeCalls.length !== beforeStale || stale.mes !== staleBody || stale.__memoStrictExecution?.ok !== false) throw Error('错轮记录被执行或正文被改写');
+
+// Exact whitespace is part of the preset, including inside a single XML root.
+currentChat = [previous];
+await armRequest();
+const xmlBody = '  <reply>\n正文\n' + tableEdit('') + '</reply>  ';
+const xmlMessage = { is_user: false, mes: xmlBody, swipe_id: 0, swipes: [xmlBody], swipe_info: [{}] };
+currentChat.push(xmlMessage);
+await complete(1);
+if (xmlMessage.mes !== '  <reply>\n正文\n</reply>  ') throw Error('XML正文或首尾空白未保留');
+
+// A chat switch while waiting for a streamed record must never write old data.
+currentChat = [previous];
+await armRequest();
+const detached = { is_user: false, mes: `<tableEdit memo-round="${roundToken}"><!--`, swipe_id: 0, swipes: [''], swipe_info: [{}] };
+currentChat.push(detached);
+const beforeDetach = executeCalls.length;
+const completion = complete(1);
+await new Promise(resolve => setTimeout(resolve, 20));
+currentChat = [];
+await completion;
+if (executeCalls.length !== beforeDetach) throw Error('切换聊天后仍写入旧会话');
+
+console.log('memo-n-engine-integration PASS: preset parameters, token isolation, two turns, reasoning fallback, delayed stream, plain body, Continue separators, invalid operations, aborted generation, save rollback, status continuity, independent mode, provider neutrality, XML whitespace, chat switch');

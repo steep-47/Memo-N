@@ -52,7 +52,7 @@ const brokenStructure = parseRecordEnvelope(`{"reply":"正文
 if (brokenStructure.ok) throw new Error('控制字符规范化错误修复了残缺JSON结构');
 
 const native = parseRelayTableEditEnvelope('<tableEdit><!-- updateRow(0,0,{1:"08:25"}) --></tableEdit>\n\n正常正文\n\n1. 继续前进。');
-if (!native.ok || native.reply !== '正常正文\n\n1. 继续前进。' || !native.tableEdit.includes('updateRow(0,0,')) {
+if (!native.ok || native.reply !== '\n\n正常正文\n\n1. 继续前进。' || !native.tableEdit.includes('updateRow(0,0,')) {
     throw new Error(`原生tableEdit解析失败：${native.error}`);
 }
 const nativeReasoning = parseRelayTableEditEnvelope('<tableEdit><!-- NO_CHANGE --></tableEdit>', '正文来自content');
@@ -60,7 +60,7 @@ if (!nativeReasoning.ok || nativeReasoning.reply !== '正文来自content' || !n
 const nativeIncomplete = parseRelayTableEditEnvelope('<tableEdit><!-- updateRow(0,0,');
 if (nativeIncomplete.ok || !/尚未闭合/.test(nativeIncomplete.error)) throw new Error('未闭合原生tableEdit没有进入等待状态');
 const nativeDuplicate = parseRelayTableEditEnvelope('<tableEdit><!-- NO_CHANGE --></tableEdit>正文<tableEdit><!-- NO_CHANGE --></tableEdit>');
-if (nativeDuplicate.ok || !/重复/.test(nativeDuplicate.error) || nativeDuplicate.reply !== '正文') throw new Error('重复原生tableEdit没有安全拒绝或保留正文');
+if (nativeDuplicate.ok || !/重复/.test(nativeDuplicate.error) || nativeDuplicate.reply !== '<tableEdit><!-- NO_CHANGE --></tableEdit>正文<tableEdit><!-- NO_CHANGE --></tableEdit>') throw new Error('重复原生tableEdit没有安全拒绝或保留正文');
 
 const relayChanges = [
     { op: 'update', table: 0, row: 0, cells: [{ column: 1, value: '08:25' }] },
@@ -107,3 +107,21 @@ const badRelay = parseRelayTaggedEnvelope(`正文\n${RELAY_TAG_START}\n[{"op":"I
 if (badRelay.ok || badRelay.reply !== '正文') throw new Error('非法中转站变更被接受或正文未保留');
 
 console.log('memo-n-envelope PASS: native tableEdit + JSON identity guard + tagged compatibility, no-change, reasoning fallback, incomplete wait, invalid changes rejected');
+
+// Current protocol: token-bound records, excluded examples, exact body preservation.
+const block = '<tableEdit memo-round="round-1"><!-- NO_CHANGE --></tableEdit>';
+const xml = '  <reply>\n正文\n' + block + '</reply>  ';
+const parsedXml = parseRelayTableEditEnvelope(xml, '', 'round-1');
+if (!parsedXml.ok || parsedXml.reply !== '  <reply>\n正文\n</reply>  ') throw Error('单根XML或正文空白被改写');
+for (const input of [block.replace('round-1', 'round-0'), '<tableEdit><!-- NO_CHANGE --></tableEdit>']) {
+    const rejected = parseRelayTableEditEnvelope(input, '', 'round-1');
+    if (rejected.ok || rejected.reply !== input || !/本轮标识/.test(rejected.error)) throw Error('错轮或缺失标识未拒绝并保留原文');
+}
+for (const sample of ['```xml\n' + block + '\n```', '<think>' + block + '</think>', '> ' + block, '`' + block + '`']) {
+    if (parseRelayTableEditEnvelope(sample, '', 'round-1').ok) throw Error('示例或思考标签中的记录被执行');
+    const actual = parseRelayTableEditEnvelope(sample + '\n' + block, '', 'round-1');
+    if (!actual.ok || actual.reply !== sample + '\n') throw Error('真实记录与示例未正确区分');
+}
+const reasoningWhitespace = parseRelayTableEditEnvelope(block, '  正文\n\n', 'round-1');
+if (!reasoningWhitespace.ok || reasoningWhitespace.reply !== '  正文\n\n') throw Error('跨通道正文空白丢失');
+console.log('current envelope PASS: token isolation, XML/whitespace preservation, excluded examples');
