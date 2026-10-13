@@ -42,11 +42,14 @@ function syncModelList() {
 }
 
 function fillFields(profile) {
-    const defaults = { url:'', model:'', key:'', temperature:1, maxTokens:8192 };
+    const defaults = { url:'', model:'', key:'', modelMode:'auto', temperature:1, maxTokens:8192 };
     const value = profile || defaults;
     PRIVATE.custom_api_url = String(value.url || '');
     PRIVATE.custom_api_key = String(value.key || '');
     PRIVATE.custom_model_name = String(value.model || '');
+    USER.tableBaseSetting.memo_record_model_mode = value.modelMode === 'manual' ? 'manual' : 'auto';
+    const status = $id('memo-record-model-status');
+    if (status) status.textContent = value.modelMode === 'manual' && value.model ? '手动指定模型：' + value.model : value.model ? '已保存的模型：' + value.model + '（连接时自动验证）' : '自动识别可用模型；你只需填写地址和 Key';
     const temperature = Number(value.temperature);
     USER.tableBaseSetting.custom_temperature = Number.isFinite(temperature) ? temperature : 1;
     const maxTokens = Number(value.maxTokens);
@@ -73,8 +76,8 @@ function captureFields() {
         key = result.encryptedResult?.encrypted || result.encryptedResult;
     }
     if (typeof key !== 'string') key = '';
-    if (!url || !model || !key) {
-        notify('warning', '请先填写 API 地址、API Key 和模型名称，再保存方案');
+    if (!url || !key) {
+        notify('warning', '请先填写 API 地址和 API Key，再保存方案');
         return null;
     }
     if (!/^https?:\/\//i.test(url)) {
@@ -85,6 +88,7 @@ function captureFields() {
     const maxTokens = Number($id('memo-record-max-tokens')?.value);
     return {
         url, key, model,
+        modelMode: USER.tableBaseSetting.memo_record_model_mode === 'manual' ? 'manual' : 'auto',
         temperature: Number.isFinite(temperature) && temperature >= 0 && temperature <= 2 ? temperature : 1,
         maxTokens: Number.isSafeInteger(maxTokens) && maxTokens >= 256 && maxTokens <= 65536 ? maxTokens : 8192
     };
@@ -110,6 +114,7 @@ function saveProfile() {
     PRIVATE.custom_api_url = fields.url;
     PRIVATE.custom_api_key = fields.key;
     PRIVATE.custom_model_name = fields.model;
+    USER.tableBaseSetting.memo_record_model_mode = fields.modelMode;
     USER.tableBaseSetting.custom_temperature = fields.temperature;
     USER.tableBaseSetting.custom_max_tokens = fields.maxTokens;
     PRIVATE[LIST_KEY] = profiles;
