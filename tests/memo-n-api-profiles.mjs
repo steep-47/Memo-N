@@ -43,6 +43,7 @@ const context = {
     USER: user,
     processApiKey(key) { return { encryptedResult: 'ENC:' + key }; },
     generateDeviceId() { return 'device-test'; },
+    apiIdentity() { return 'verified-profile-test'; },
     document: {
         getElementById(id) { return nodes[id] || null; },
         documentElement: {},
@@ -112,6 +113,12 @@ assert.equal(named.model, '');
 assert.equal(named.modelMode, 'auto');
 assert.equal(privacy.custom_model_name, '');
 assert.equal(privacy.custom_api_key, 'ENC:key-c');
+privacy.memo_record_verified_identity = 'verified-profile-test';
+privacy.memo_record_verified_model = 'checked-model';
+nodes['custom_model_name'].value = 'checked-model';
+nodes['memo-api-profile-save'].click();
+assert.equal(privacy.memo_api_profiles.find(p => p.name === '大锅饭').verified, true);
+
 
 assert.ok(saveCount === 0, 'privacy proxy handles setting persistence in production');
 console.log('memo-n-api-profiles PASS: create, save, switch, rename, delete, profile nickname without model ID, encrypted key only');
