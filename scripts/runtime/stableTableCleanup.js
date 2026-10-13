@@ -141,7 +141,7 @@ async function runStableCleanup(mode = 'repair') {
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
         let tableText = getTablePromptByPiece(piece);
         if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
-        const localOperations = depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
+        const localOperations = redundancyOnly ? null : depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
         if (localOperations) {
             if (USER.tableBaseSetting.bool_silent_refresh !== true) {
                 const key = cleanupStateKey(piece);
