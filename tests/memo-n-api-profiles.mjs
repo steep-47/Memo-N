@@ -101,5 +101,17 @@ nodes['memo-api-profile-delete'].click();
 assert.equal(privacy.memo_api_profiles.length, 1);
 assert.equal(privacy.memo_api_profile_id, '');
 assert.equal(privacy.custom_api_key, '');
+// Display names are arbitrary; a profile must be savable before any provider model ID is known.
+nodes['memo-api-profile-new'].click();
+setConfig('大锅饭', 'https://c.example/v1', '', 'key-c');
+nodes['memo-api-profile-save'].click();
+assert.equal(privacy.memo_api_profiles.length, 2);
+const named = privacy.memo_api_profiles.find(p => p.name === '大锅饭');
+assert.ok(named);
+assert.equal(named.model, '');
+assert.equal(named.modelMode, 'auto');
+assert.equal(privacy.custom_model_name, '');
+assert.equal(privacy.custom_api_key, 'ENC:key-c');
+
 assert.ok(saveCount === 0, 'privacy proxy handles setting persistence in production');
-console.log('memo-n-api-profiles PASS: create, save, switch, rename, delete, encrypted key only');
+console.log('memo-n-api-profiles PASS: create, save, switch, rename, delete, profile nickname without model ID, encrypted key only');
