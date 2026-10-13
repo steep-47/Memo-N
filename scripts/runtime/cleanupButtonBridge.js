@@ -37,10 +37,18 @@ if (!window[INSTALL_FLAG]) {
         const button = document.createElement('button');
         button.id = 'memo_redundancy_cleanup';
         button.type = 'button';
-        button.className = 'menu_button';
-        button.textContent = '冗余整理';
+        button.className = anchor.className;
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-compress';
+        const caption = document.createElement('span');
+        caption.textContent = '冗余整理';
+        button.append(icon, caption);
         button.title = '合并重复记录与连续事件，保留细节';
-        button.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:none;white-space:nowrap;width:auto;min-width:0;padding:4px 10px;';
+        button.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;white-space:nowrap;width:auto;min-width:0;padding:4px 10px;';
+        const nativeFont = getComputedStyle(anchor);
+        button.style.fontFamily = nativeFont.fontFamily;
+        button.style.fontSize = nativeFont.fontSize;
+        button.style.fontWeight = nativeFont.fontWeight;
         group.appendChild(button);
 
         for (const [id, icon, direction, title] of [
@@ -50,7 +58,7 @@ if (!window[INSTALL_FLAG]) {
             const control = document.createElement('button');
             control.id = id;
             control.type = 'button';
-            control.className = 'menu_button';
+            control.className = anchor.className;
             control.title = title;
             control.setAttribute('aria-label', title);
             control.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;min-width:34px;padding:4px 0;';
