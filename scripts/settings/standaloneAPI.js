@@ -551,7 +551,7 @@ export async function updateModelList() {
     let modelsUrl;
     try {
         const normalizedUrl = new URL(apiUrl);
-        normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/$/, '') + '/models';
+        normalizedUrl.pathname = normalizedUrl.pathname.replace(/\/$/, '').replace(/\/chat\/completions$/i, '') + '/models';
         modelsUrl = normalizedUrl.href;
     } catch (e) {
         EDITOR.error(`无效的API URL: ${apiUrl}`, "", e);
@@ -601,6 +601,9 @@ export async function updateModelList() {
                 // 如果有匹配的模型，则选中它
                 if (hasMatchedModel) {
                     $selector.val(customModelName);
+                } else {
+                    $selector.prepend($('<option>', { value: '', text: '选择一个有效模型 ID' }));
+                    $selector.val('');
                 }
 
                 foundValidKey = true;
@@ -618,20 +621,18 @@ export async function updateModelList() {
         }
     }
 
-    // 处理最终结果和错误提示
+    // /models 可能被服务商禁用或浏览器跨域拦截；不能据此断定 Key 无效。
     if (foundValidKey) {
-        EDITOR.success(`成功获取 ${modelCount} 个模型并更新列表 (共检查 ${apiKeys.length} 个Key)`);
+        EDITOR.success('已获取 ' + modelCount + ' 个模型；请在列表中选中要使用的模型。');
     } else {
-        EDITOR.error('未能使用任何提供的API Key获取模型列表');
-        $selector.empty(); // 确保在所有key都无效时清空列表
-        $selector.append($('<option>', { value: '', text: '未能获取模型列表' }));
-    }
-
-    if (invalidKeysInfo.length > 0) {
-        const errorDetails = invalidKeysInfo.map(item =>
-            `第${item.index}个Key (${maskApiKey(item.key)}) 无效: ${item.error}`
-        ).join('\n');
-        EDITOR.error(`以下API Key无效:\n${errorDetails}`);
+        $selector.empty();
+        $selector.append($('<option>', { value:'', text:'模型列表不可用，可手动输入模型 ID' }));
+        const detail = String(invalidKeysInfo[0]?.error || '');
+        if (/\b401\b|\b403\b/.test(detail)) {
+            EDITOR.warning('无法读取模型列表：请检查 API Key 和模型列表访问权限。');
+        } else {
+            EDITOR.warning('无法获取模型列表（接口可能未提供 /models 或浏览器拦截）。请使用服务商提供的准确模型 ID。');
+        }
     }
 }
 /**
