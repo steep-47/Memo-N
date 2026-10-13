@@ -234,6 +234,7 @@ async function runStableCleanup(mode = 'repair') {
         const parsed = parseMemoTableEdit(matches);
         if (!parsed.ok) return EDITOR.error(`表格整理失败：${parsed.error}，其余表格未修改`);
         if (parsed.noChange) return EDITOR.success('表格检查完成：当前无需进一步整理');
+        if (redundancyOnly && parsed.actions.some(x => x.name === 'insertRow')) return EDITOR.error('冗余整理不允许新增行');
         if (USER.tableBaseSetting.bool_silent_refresh !== true) {
             const preview = `<div style="max-height:55vh;overflow:auto"><p>AI准备执行以下表格整理操作：</p><pre style="white-space:pre-wrap">${escapeHtml(matches[0])}</pre><p>确认后才会修改当前表格。</p></div>`;
             const confirmed = await EDITOR.callGenericPopup(preview, EDITOR.POPUP_TYPE.CONFIRM, '表格整理确认', { okButton: '执行', cancelButton: '取消' });
