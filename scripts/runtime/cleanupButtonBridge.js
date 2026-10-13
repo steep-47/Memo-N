@@ -30,17 +30,21 @@ if (!window[INSTALL_FLAG]) {
         button.id = 'memo_redundancy_cleanup';
         button.type = 'button';
         button.className = anchor.className;
+        button.style.cssText = 'display:inline-flex!important;align-items:center;justify-content:center;width:auto!important;min-width:0!important;height:36px!important;min-height:0!important;padding:0 10px!important;margin:0!important;white-space:nowrap;flex:0 0 auto!important;vertical-align:middle;';
         button.textContent = '冗余整理';
         button.title = '仅合并重复记录和明确连续的历史事件，保留关键细节';
         anchor.insertAdjacentElement('afterend', button);
+        let previous = button;
         for (const [id, glyph, direction, title] of [['memo_cleanup_undo', '↶', -1, '撤回整理'], ['memo_cleanup_redo', '↷', 1, '前进整理']]) {
             const control = document.createElement('button');
             control.id = id;
             control.type = 'button';
             control.className = anchor.className;
+            control.style.cssText = 'display:inline-flex!important;align-items:center;justify-content:center;width:36px!important;min-width:36px!important;height:36px!important;min-height:0!important;padding:0!important;margin:0!important;flex:0 0 36px!important;vertical-align:middle;';
             control.textContent = glyph;
             control.title = title;
-            button.insertAdjacentElement('afterend', control);
+            previous.insertAdjacentElement('afterend', control);
+            previous = control;
             control.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); stepCleanupHistory(direction); });
         }
         return true;
