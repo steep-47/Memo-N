@@ -315,7 +315,7 @@ export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) 
     let last = null;
     for (const model of candidates) {
         if (apiIdentity() !== testIdentity) return [];
-        const result = (await testApiConnection(apiUrl, [key], model))[0];
+        const result = (await testApiConnection(String(apiUrl).trim(), [key], model))[0];
         if (apiIdentity() !== testIdentity) return [];
         if (result?.success) {
             saveResolvedModel(model, true, testIdentity);
@@ -393,7 +393,7 @@ export async function testApiConnection(apiUrl, apiKeys, modelName) {
  * @returns {Promise<string>} 生成的响应内容
  */
 export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByStepSummary = false, isSilent = false) {
-    const USER_API_URL = USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url;
+    const USER_API_URL = String(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url || '').trim();
     const decryptedApiKeysString = await getDecryptedApiKey(); // 获取逗号分隔的密钥字符串
     let resolvedModel;
     try {
