@@ -127,13 +127,14 @@ function saveResolvedModel(model, verified = false, expectedIdentity = apiIdenti
     if (verified) {
         if (data.memo_record_verified_identity !== expectedIdentity) data.memo_record_verified_identity = expectedIdentity;
         if (data.memo_record_verified_model !== model) data.memo_record_verified_model = model;
+        const selectedMode = USER.tableBaseSetting.memo_record_model_mode === 'manual' ? 'manual' : 'auto';
+        if (data.memo_record_verified_mode !== selectedMode) data.memo_record_verified_mode = selectedMode;
         // Keep the selected named profile in sync with the model that actually passed.
         const profiles = data.memo_api_profiles;
         const selected = data.memo_api_profile_id;
         if (Array.isArray(profiles) && selected) {
             const pos = profiles.findIndex(x => x?.id === selected);
             const profile = profiles[pos];
-            const selectedMode = USER.tableBaseSetting.memo_record_model_mode === 'manual' ? 'manual' : 'auto';
             if (pos >= 0 && profile.url === String(data.custom_api_url || '').trim()
                 && profile.key === data.custom_api_key
                 && (profile.model !== model || profile.modelMode !== selectedMode || profile.verified !== true)) {
@@ -167,7 +168,8 @@ export async function resolveRecordApiModel({ refresh = false } = {}) {
             return { model: chosen.model, candidates: [chosen.model], manual: false };
         }
     }
-    if (!refresh && data.memo_record_verified_identity === identity && data.memo_record_verified_model) {
+    if (!refresh && data.memo_record_verified_identity === identity && data.memo_record_verified_model
+        && (data.memo_record_verified_mode === undefined || data.memo_record_verified_mode === 'auto')) {
         const model = String(data.memo_record_verified_model);
         saveResolvedModel(model);
         return { model, candidates: [model], manual: false };
