@@ -47,7 +47,7 @@ function captureCleanupState(piece) {
     for (const key of ['memo_n_hash_sheets', 'extra', 'swipe_info']) {
         fields[key] = { exists: Object.prototype.hasOwnProperty.call(piece, key), value: structuredClone(piece[key]) };
     }
-    return { sheets, fields, contextSheets: structuredClone(BASE.sheetsData?.context) };
+    return { sheets, fields, contextSheets: structuredClone(BASE.sheetsData?.context), guard: cleanupStateKey(piece) };
 }
 function cleanupStateKey(piece) {
     return JSON.stringify({
@@ -67,44 +67,68 @@ function restoreCleanupState(piece, backup) {
 }
 
 const history = { chat: null, piece: null, entries: [], index: -1, busy: false };
-function snapshotKey() { return JSON.stringify((BASE.getChatSheets?.() ?? []).map(x => x.filterSavingData())); }
+function snapshotKey() {
+    return JSON.stringify((BASE.getChatSheets?.() ?? []).map(sheet => sheet.filterSavingData()));
+}
 function rememberCleanup(piece, before) {
     const chat = USER.getContext?.()?.chat;
-    const beforeKey = JSON.stringify(before.sheets.map(x => x.data));
+    const beforeKey = JSON.stringify(before.sheets.map(sheet => sheet.data));
     const afterKey = snapshotKey();
     if (beforeKey === afterKey) return;
-    if (history.chat !== chat || history.piece !== piece || history.entries[history.index]?.key !== beforeKey) {
-        history.entries = [{ state: before, key: beforeKey }];
+    if (history.chat !== chat || history.piece !== piece
+        || history.entries[history.index]?.guard !== before.guard) {
+        history.entries = [{ state: before, guard: before.guard }];
         history.index = 0;
     }
     history.chat = chat;
     history.piece = piece;
     history.entries.splice(history.index + 1);
-    history.entries.push({ state: captureCleanupState(piece), key: afterKey });
+    history.entries.push({ state: captureCleanupState(piece), guard: cleanupStateKey(piece) });
     history.index++;
-    if (history.entries.length > 11) { history.entries.shift(); history.index--; }
+    if (history.entries.length > 11) {
+        history.entries.shift();
+        history.index--;
+    }
 }
 async function stepCleanupHistory(delta) {
     if (running || history.busy) return EDITOR.warning('整理进行中');
     const chat = USER.getContext?.()?.chat;
-    const piece = BASE.getLastSheetsPiece()?.piece;
+    const piece = BASE.getLastSheetsPiece?.()?.piece;
     if (history.chat !== chat || history.piece !== piece) return EDITOR.info('当前聊天没有整理历史');
     const next = history.index + delta;
     if (next < 0 || next >= history.entries.length) return EDITOR.info('没有更多操作');
-    if (snapshotKey() !== history.entries[history.index].key) return EDITOR.warning('表格已有其他修改，无法安全恢复');
+    if (cleanupStateKey(piece) !== history.entries[history.index]?.guard) {
+        return EDITOR.warning('聊天正文、Swipe或表格已有其他修改，无法安全恢复');
+    }
     history.busy = true;
     const backup = captureCleanupState(piece);
+    let appliedKey = null;
     try {
         restoreCleanupState(piece, history.entries[next].state);
+        appliedKey = cleanupStateKey(piece);
         await USER.saveChat();
+        if (USER.getContext?.()?.chat !== chat || BASE.getLastSheetsPiece?.()?.piece !== piece
+            || cleanupStateKey(piece) !== appliedKey) {
+            return EDITOR.warning('恢复期间聊天或表格已变化，未覆盖后续操作');
+        }
         history.index = next;
-        BASE.refreshContextView();
-        updateSystemMessageTableStatus();
+        history.entries[next] = { state: captureCleanupState(piece), guard: cleanupStateKey(piece) };
+        try {
+            BASE.refreshContextView();
+            updateSystemMessageTableStatus();
+        } catch (viewError) {
+            console.warn('[Memo][undo] 恢复已保存但视图刷新失败', viewError);
+        }
         EDITOR.success(delta < 0 ? '已撤回' : '已前进');
     } catch (error) {
-        if (USER.getContext?.()?.chat === chat && BASE.getLastSheetsPiece()?.piece === piece) restoreCleanupState(piece, backup);
+        if (USER.getContext?.()?.chat === chat && BASE.getLastSheetsPiece?.()?.piece === piece
+            && (appliedKey === null || cleanupStateKey(piece) === appliedKey)) {
+            restoreCleanupState(piece, backup);
+        }
         EDITOR.error('恢复失败：' + String(error?.message || error));
-    } finally { history.busy = false; }
+    } finally {
+        history.busy = false;
+    }
 }
 
 function depletedInventoryOperations(sheets) {
@@ -160,7 +184,8 @@ async function commitCleanup(matches, piece, sessionActive) {
         EDITOR.info('表格整理已保存，期间记录发生变化，停止后续整理');
         return false;
     }
-    rememberCleanup(piece, backup);
+    try { rememberCleanup(piece, backup); }
+    catch (historyError) { console.warn('[Memo][cleanup] 整理已保存，但撤回历史记录失败', historyError); }
     EDITOR.success(`表格整理完成（${result.count}项）`);
     try {
         BASE.refreshContextView();
@@ -173,13 +198,16 @@ async function commitCleanup(matches, piece, sessionActive) {
 
 async function runStableCleanup(mode = 'repair') {
     const redundancyOnly = mode === 'redundancy';
-    if (running) return EDITOR.warning('表格整理正在进行中');
+    if (running || history.busy) return EDITOR.warning('表格整理或恢复正在进行中');
     running = true;
     const sessionChat = USER.getContext?.()?.chat;
     const sessionActive = () => USER.getContext?.()?.chat === sessionChat;
     try {
-        ensureSevenTableWorld();
-        repairMissingColumnsBeforeCleanup();
+        // 冗余整理仅合并行，不执行普通表格修复的预处理。
+        if (!redundancyOnly) {
+            ensureSevenTableWorld();
+            repairMissingColumnsBeforeCleanup();
+        }
         const piece = BASE.getLastSheetsPiece()?.piece;
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
         let tableText = getTablePromptByPiece(piece);
