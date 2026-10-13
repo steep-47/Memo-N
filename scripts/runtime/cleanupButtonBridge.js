@@ -25,27 +25,50 @@ if (!window[INSTALL_FLAG]) {
 
     function mountRedundancyButton() {
         const anchor = document.querySelector('#table_rebuild_button, #table_clear_up');
-        if (!anchor || document.getElementById('memo_redundancy_cleanup')) return !!anchor;
+        if (!anchor) return false;
+        if (document.getElementById('memo_redundancy_cleanup')) return true;
+
+        const host = anchor.parentElement;
+        if (!host) return false;
+        // Keep the native controls and the new controls in a single horizontal toolbar.
+        host.style.display = 'flex';
+        host.style.flexDirection = 'row';
+        host.style.flexWrap = 'nowrap';
+        host.style.alignItems = 'center';
+        host.style.gap = '6px';
+        host.style.overflowX = 'auto';
+
         const button = document.createElement('button');
         button.id = 'memo_redundancy_cleanup';
         button.type = 'button';
-        button.className = anchor.className;
-        button.style.cssText = 'display:inline-flex!important;align-items:center;justify-content:center;width:auto!important;min-width:0!important;height:36px!important;min-height:0!important;padding:0 10px!important;margin:0!important;white-space:nowrap;flex:0 0 auto!important;vertical-align:middle;';
+        button.className = 'menu_button';
         button.textContent = '冗余整理';
-        button.title = '仅合并重复记录和明确连续的历史事件，保留关键细节';
+        button.title = '合并重复记录与连续事件，保留细节';
+        button.style.cssText = 'flex:0 0 auto;width:auto;min-width:0;white-space:nowrap;';
         anchor.insertAdjacentElement('afterend', button);
+
         let previous = button;
-        for (const [id, glyph, direction, title] of [['memo_cleanup_undo', '↶', -1, '撤回整理'], ['memo_cleanup_redo', '↷', 1, '前进整理']]) {
+        for (const [id, icon, direction, title] of [
+            ['memo_cleanup_undo', 'fa-rotate-left', -1, '撤回整理'],
+            ['memo_cleanup_redo', 'fa-rotate-right', 1, '前进整理']
+        ]) {
             const control = document.createElement('button');
             control.id = id;
             control.type = 'button';
-            control.className = anchor.className;
-            control.style.cssText = 'display:inline-flex!important;align-items:center;justify-content:center;width:36px!important;min-width:36px!important;height:36px!important;min-height:0!important;padding:0!important;margin:0!important;flex:0 0 36px!important;vertical-align:middle;';
-            control.textContent = glyph;
+            control.className = 'menu_button';
             control.title = title;
+            control.setAttribute('aria-label', title);
+            control.style.cssText = 'flex:0 0 32px;width:32px;min-width:32px;padding:0;';
+            const glyph = document.createElement('i');
+            glyph.className = 'fa-solid ' + icon;
+            control.appendChild(glyph);
             previous.insertAdjacentElement('afterend', control);
             previous = control;
-            control.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); stepCleanupHistory(direction); });
+            control.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                stepCleanupHistory(direction);
+            });
         }
         return true;
     }
