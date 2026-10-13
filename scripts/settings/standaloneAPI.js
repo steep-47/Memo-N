@@ -118,16 +118,32 @@ function showModelStatus(message) {
     const output = document.getElementById('memo-record-model-status');
     if (output) output.textContent = message;
 }
-function saveResolvedModel(model, verified = false) {
+function saveResolvedModel(model, verified = false, expectedIdentity = apiIdentity()) {
+    if (apiIdentity() !== expectedIdentity) return false;
     const data = USER.IMPORTANT_USER_PRIVACY_DATA;
     if (data.custom_model_name !== model) data.custom_model_name = model;
     const field = document.getElementById('custom_model_name');
     if (field) field.value = model;
     if (verified) {
-        data.memo_record_verified_identity = apiIdentity();
-        data.memo_record_verified_model = model;
+        if (data.memo_record_verified_identity !== expectedIdentity) data.memo_record_verified_identity = expectedIdentity;
+        if (data.memo_record_verified_model !== model) data.memo_record_verified_model = model;
+        // Keep the selected named profile in sync with the model that actually passed.
+        const profiles = data.memo_api_profiles;
+        const selected = data.memo_api_profile_id;
+        if (Array.isArray(profiles) && selected) {
+            const pos = profiles.findIndex(x => x?.id === selected);
+            const profile = profiles[pos];
+            if (pos >= 0 && profile.url === String(data.custom_api_url || '').trim()
+                && profile.key === data.custom_api_key
+                && profile.modelMode !== 'manual' && profile.model !== model) {
+                const updated = profiles.slice();
+                updated[pos] = { ...profile, model };
+                data.memo_api_profiles = updated;
+            }
+        }
     }
     showModelStatus('当前记录模型：' + model);
+    return true;
 }
 export async function resolveRecordApiModel({ refresh = false } = {}) {
     const data = USER.IMPORTANT_USER_PRIVACY_DATA;
@@ -151,13 +167,16 @@ export async function resolveRecordApiModel({ refresh = false } = {}) {
     }
     showModelStatus('正在自动获取可用模型…');
     const keys = await getDecryptedApiKey();
+    if (apiIdentity() !== identity) throw new Error('API 配置已更改，请重新测试');
     if (!keys?.trim()) throw new Error('API Key 不可用，请重新填写');
     try {
         const models = await discoverChatModels(url, keys.split(',').map(x => x.trim()).find(Boolean));
+        if (apiIdentity() !== identity) throw new Error('API 配置已更改，请重新测试');
         discoveryCache = { identity, models, timestamp: Date.now() };
-        saveResolvedModel(models[0]);
+        saveResolvedModel(models[0], false, identity);
         return { model: models[0], candidates: models, manual: false };
     } catch (error) {
+        if (apiIdentity() !== identity) throw new Error('API 配置已更改，请重新测试');
         showModelStatus('无法自动获取模型；请在高级设置填写服务商提供的模型 ID');
         throw new Error('无法自动识别模型：' + (error?.message || error) + '。可在高级设置手动填写模型 ID');
     }
