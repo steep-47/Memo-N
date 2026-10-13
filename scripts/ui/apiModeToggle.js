@@ -151,6 +151,10 @@ function createCustomPanel() {
     test.addEventListener('click', async () => {
         test.disabled = true;
         try {
+            if (!privacy.custom_api_url?.trim() || !privacy.custom_model_name?.trim() || !privacy.custom_api_key) {
+                globalThis.toastr?.warning?.('请先填写并保存 API URL、Key 和模型 ID');
+                return;
+            }
             await handleApiTestRequest(privacy.custom_api_url, privacy.custom_api_key, privacy.custom_model_name);
         } finally { test.disabled = false; }
     });
