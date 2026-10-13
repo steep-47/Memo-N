@@ -106,7 +106,7 @@ async function decryptXor(encrypted, deviceId) {
 
 // The nickname of a saved API profile is not the provider's model ID.
 let discoveryCache = null;
-function apiIdentity() {
+export function apiIdentity() {
     const data = USER.IMPORTANT_USER_PRIVACY_DATA;
     const text = JSON.stringify([String(data.custom_api_url || '').trim(), String(data.custom_api_key || '')]);
     // Do not persist another copy of the stored credential, even its obfuscated form.
