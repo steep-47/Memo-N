@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-body-whitespace-1';
+const RUNTIME_VERSION = '0.75-native-ui-1';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
