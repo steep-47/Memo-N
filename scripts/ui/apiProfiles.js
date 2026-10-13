@@ -1,5 +1,5 @@
 import { USER } from '../../core/manager.js';
-import { processApiKey } from '../settings/standaloneAPI.js';
+import { processApiKey, apiIdentity } from '../settings/standaloneAPI.js';
 import { generateDeviceId } from '../../utils/utility.js';
 
 const PRIVATE = USER.IMPORTANT_USER_PRIVACY_DATA;
@@ -103,7 +103,12 @@ function saveProfile() {
     const profiles = listProfiles();
     const current = selectedProfile();
     const id = current?.id || ('memo-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10));
-    const item = { id, name, ...fields, updatedAt: Date.now() };
+    const matchedExisting = current?.verified === true && current.url === fields.url
+        && current.key === fields.key && current.model === fields.model
+        && current.modelMode === fields.modelMode;
+    const justTested = PRIVATE.memo_record_verified_identity === apiIdentity()
+        && PRIVATE.memo_record_verified_model === fields.model && !!fields.model;
+    const item = { id, name, ...fields, verified: matchedExisting || justTested, updatedAt: Date.now() };
     const index = profiles.findIndex(existing => existing.id === id);
     if (index < 0) {
         if (profiles.length >= 30) return notify('warning', '最多保存30个 API 方案');
