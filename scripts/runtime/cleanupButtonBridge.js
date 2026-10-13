@@ -1,4 +1,4 @@
-import { runStableCleanup } from './stableTableCleanup.js?v=memon96';
+import { runStableCleanup, stepCleanupHistory } from './stableTableCleanup.js?v=memon96';
 
 const INSTALL_FLAG = '__memoCleanupButtonBridgeInstalled';
 
@@ -33,6 +33,16 @@ if (!window[INSTALL_FLAG]) {
         button.textContent = '冗余整理';
         button.title = '仅合并重复记录和明确连续的历史事件，保留关键细节';
         anchor.insertAdjacentElement('afterend', button);
+        for (const [id, glyph, direction, title] of [['memo_cleanup_undo', '↶', -1, '撤回整理'], ['memo_cleanup_redo', '↷', 1, '前进整理']]) {
+            const control = document.createElement('button');
+            control.id = id;
+            control.type = 'button';
+            control.className = anchor.className;
+            control.textContent = glyph;
+            control.title = title;
+            button.insertAdjacentElement('afterend', control);
+            control.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); stepCleanupHistory(direction); });
+        }
         return true;
     }
     if (!mountRedundancyButton()) {
