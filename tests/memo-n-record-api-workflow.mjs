@@ -16,7 +16,8 @@ const status = { textContent:'' }, modelField = { value:'' };
 
 class MockLLM {
     constructor(config) { this.config = config; }
-    async callLLM(message) {
+    async callLLM(message, streamCallback = null) {
+        assert.equal(streamCallback, null, 'test and independent recording must both be non-streaming');
         requestedModels.push(this.config.model_name);
         if (this.config.model_name === 'unavailable-model') throw new Error('API请求失败: 404 未知模型');
         if (this.config.model_name === 'actual-mini' || this.config.model_name === 'manual-id') {
