@@ -204,8 +204,8 @@ export async function handleMainAPIRequest(systemPrompt, userPrompt, isSilent = 
  * @returns {Promise<Array<{keyIndex: number, success: boolean, error?: string}>>} 测试结果数组.
  */
 export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) {
-    if (!apiUrl || !encryptedApiKeys) {
-        EDITOR.error('请先填写 API URL 和 API Key。');
+    if (!String(apiUrl ?? '').trim() || !encryptedApiKeys || !String(modelName ?? '').trim()) {
+        EDITOR.error('请先填写 API 地址、API Key 和模型名称。');
         return []; // 初始验证失败时返回空数组
     }
 
