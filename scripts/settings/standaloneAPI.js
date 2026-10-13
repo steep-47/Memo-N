@@ -287,7 +287,9 @@ export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) 
         EDITOR.warning('请先填写 API 地址和 API Key');
         return [];
     }
+    const testIdentity = apiIdentity();
     const rawKeys = await getDecryptedApiKey();
+    if (apiIdentity() !== testIdentity) return [];
     const key = rawKeys?.split(',').map(x => x.trim()).find(Boolean);
     if (!key) {
         EDITOR.warning('API Key 不可用，请重新填写');
@@ -298,7 +300,7 @@ export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) 
         EDITOR.POPUP_TYPE.CONFIRM, '测试独立记录 API',
         { okButton: '测试', cancelButton: '取消' }
     );
-    if (!confirmed) return [];
+    if (!confirmed || apiIdentity() !== testIdentity) return [];
 
     let resolved;
     try {
@@ -307,13 +309,16 @@ export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) 
         EDITOR.warning(String(error?.message || error));
         return [];
     }
+    if (apiIdentity() !== testIdentity) return [];
     // Automatic choice probes at most 3 chat models; manual mode tests only the chosen ID.
     const candidates = resolved.manual ? [resolved.model] : resolved.candidates.slice(0, 3);
     let last = null;
     for (const model of candidates) {
+        if (apiIdentity() !== testIdentity) return [];
         const result = (await testApiConnection(apiUrl, [key], model))[0];
+        if (apiIdentity() !== testIdentity) return [];
         if (result?.success) {
-            saveResolvedModel(model, true);
+            saveResolvedModel(model, true, testIdentity);
             EDITOR.success('连接成功，记录模型：' + model);
             return [{ ...result, model }];
         }
@@ -398,6 +403,7 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByS
         return;
     }
     const USER_API_MODEL = resolvedModel.model;
+    const requestIdentity = apiIdentity();
     // const MAX_RETRIES = USER.tableBaseSetting.custom_api_retries ?? 0; // 从设置中获取重试次数，默认为 0
     const MAX_RETRIES = 0; // 从设置中获取重试次数，默认为 0
 
@@ -474,6 +480,7 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByS
                 response = await llmService.callLLM(promptData, streamCallback);
                 console.log(`请求成功 (llmService, 密钥索引: ${keyIndexToTry}):`, response);
                 loadingToast?.close();
+                if (!suspended && typeof response === 'string' && response.trim()) saveResolvedModel(USER_API_MODEL, true, requestIdentity);
                 return suspended ? 'suspended' : response; // Success, return immediately
             } catch (llmServiceError) {
                 // llmService failed, log error and continue loop
