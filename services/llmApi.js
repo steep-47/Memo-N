@@ -95,7 +95,7 @@ export class LLMApiService {
         } else {
             // 未配置代理，使用原始的直接 fetch 逻辑
             console.log("未检测到代理配置，将使用直接 fetch");
-            let apiEndpoint = this.config.api_url;
+            let apiEndpoint = this.config.api_url.replace(/\/+$/, '');
             if (!apiEndpoint.endsWith("/chat/completions")) {
                 apiEndpoint += "/chat/completions";
             }
