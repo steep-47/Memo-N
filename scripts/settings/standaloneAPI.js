@@ -251,9 +251,16 @@ export async function handleApiTestRequest(apiUrl, encryptedApiKeys, modelName) 
             });
 
             if (failureCount > 0) {
-                EDITOR.error(`${failureCount} 个 Key 测试失败。请检查控制台获取详细信息。`);
-                EDITOR.error(`API端点: ${apiUrl}`);
-                EDITOR.error(`错误详情: ${results.find(r => !r.success)?.error || '未知错误'}`);
+                const detail = String(results.find(item => !item.success)?.error || '未知错误');
+                if (/未知或不可用模型|模型.{0,12}(?:不存在|不可用|无效)|unknown.{0,15}model|model.{0,15}(?:not found|unavailable|invalid)/i.test(detail)) {
+                    EDITOR.error('模型不可用：' + modelName + '。请点击「获取模型列表」选择接口返回的模型 ID，或核对服务商文档。');
+                } else if (/\b404\b/.test(detail)) {
+                    EDITOR.error('API 返回 404：请检查地址路径和模型 ID（' + modelName + '），不代表 Key 一定错误。');
+                } else if (/\b401\b|\b403\b|unauthorized|invalid.{0,15}(?:api.?key|token)|鉴权失败|密钥.{0,10}无效/i.test(detail)) {
+                    EDITOR.error('API 鉴权失败：请检查 Key 是否有效、是否有模型权限。');
+                } else {
+                    EDITOR.error('API 连接测试失败：' + detail.slice(0, 240));
+                }
             }
             if (successCount > 0) {
                 EDITOR.success(`${successCount} 个 Key 测试成功！`);
@@ -293,7 +300,7 @@ export async function testApiConnection(apiUrl, apiKeys, modelName) {
             const llmService = new LLMApiService({
                 api_url: apiUrl,
                 api_key: apiKey,
-                model_name: modelName || 'gpt-3.5-turbo', // 使用用户设置的模型名称
+                model_name: modelName, // 必须使用用户实际指定的模型，不静默回退默认模型
                 system_prompt: 'You are a test assistant.',
                 temperature: 0.1 // 使用用户设置的温度
             });
