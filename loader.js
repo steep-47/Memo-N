@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-native-ui-1';
+const RUNTIME_VERSION = '0.75-api-profiles-1';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -46,6 +46,7 @@ const runtimes = [
     ['记录模式控制', './scripts/runtime/modeRuntimeControl.js'],
     ['单次API记录引擎', './scripts/engine/recordEngine.js'],
     ['记录API开关', './scripts/ui/apiModeToggle.js'],
+    ['自定义API多方案', './scripts/ui/apiProfiles.js'],
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
