@@ -72,10 +72,10 @@ function createProviderChoice() {
     wrap.id = 'memo-record-provider-choice';
     wrap.style.display = 'block';
     wrap.style.margin = '6px 0 10px';
-    wrap.textContent = '独立填表使用：';
+    wrap.textContent = '记录模型';
     const select = document.createElement('select');
     select.style.marginLeft = '8px';
-    for (const [value, label] of [['main', '主聊天 API'], ['custom', '自定义 API（使用下方 URL / Key / 模型）']]) {
+    for (const [value, label] of [['main', '主聊天 API'], ['custom', '自定义 API']]) {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = label;
@@ -144,10 +144,22 @@ function createCustomPanel() {
         USER.saveSettings?.();
     });
     temp.min = '0'; temp.max = '2'; temp.step = '0.1';
+    const limit = field('最大输出 Token', 'number', '8192', USER.tableBaseSetting.custom_max_tokens ?? 8192, value => {
+        const n = Number(value);
+        if (!Number.isInteger(n) || n < 256 || n > 65536) {
+            globalThis.toastr?.warning?.('最大输出 Token 请设置在 256～65536 之间');
+            limit.value = String(USER.tableBaseSetting.custom_max_tokens ?? 8192);
+            return;
+        }
+        USER.tableBaseSetting.custom_max_tokens = n;
+        USER.saveSettings?.();
+    });
+    limit.min = '256'; limit.max = '65536'; limit.step = '1';
+    limit.parentElement.style.gridColumn = '1 / -1';
     const test = document.createElement('button');
     test.type = 'button';
     test.className = 'menu_button';
-    test.textContent = '测试 API 连接';
+    test.textContent = '测试连接';
     test.addEventListener('click', async () => {
         test.disabled = true;
         try {
