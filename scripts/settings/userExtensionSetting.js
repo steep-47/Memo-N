@@ -282,20 +282,22 @@ function initBindings() {
         USER.saveSettings?.();
     });
 
-    let apiKeyDebounceTimer;
-    $('#custom_api_key').on('input', function () {
-        clearTimeout(apiKeyDebounceTimer);
-        apiKeyDebounceTimer = setTimeout(async () => {
-            try {
-                const result = processApiKey($(this).val(), generateDeviceId());
-                USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_key = result.encryptedResult.encrypted || result.encryptedResult;
-                USER.saveSettings?.();
-                EDITOR.success(result.message);
-            } catch (error) {
-                console.error('API Key 处理失败:', error);
-                EDITOR.error('未能获取到API KEY，请重新输入~', error.message, error);
-            }
-        }, 500);
+    // 保存时才处理新输入，避免输入中途清空，也不把密文回填到密码框。
+    $('#custom_api_key').on('change', function () {
+        const raw = String($(this).val() ?? '').trim();
+        if (!raw) return;
+        try {
+            const result = processApiKey(raw, generateDeviceId());
+            const encrypted = result.encryptedResult?.encrypted || result.encryptedResult;
+            if (typeof encrypted !== 'string' || !encrypted) throw new Error('API Key 加密失败');
+            USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_key = encrypted;
+            USER.saveSettings?.();
+            $(this).val('').attr('placeholder', '已保存 API Key，输入新 Key 可替换');
+            EDITOR.success(result.message);
+        } catch (error) {
+            console.error('[Memo] 自定义 API Key 保存失败:', error);
+            EDITOR.error('无法保存 API Key', error?.message || String(error));
+        }
     });
 
     $('#custom_model_name').on('input', function () {
@@ -382,7 +384,7 @@ export function renderSetting() {
     refreshRebuildTemplate();
 
     $('#custom_api_url').val(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_url || '');
-    $('#custom_api_key').val(USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_key || '');
+    $('#custom_api_key').val('').attr('placeholder', USER.IMPORTANT_USER_PRIVACY_DATA.custom_api_key ? '已保存 API Key，输入新 Key 可替换' : 'API Key（多个 Key 用逗号分隔）');
     $('#custom_model_name').val(USER.IMPORTANT_USER_PRIVACY_DATA.custom_model_name || '');
     $('#table_proxy_address').val(USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_address || '');
     $('#table_proxy_key').val(USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_key || '');
