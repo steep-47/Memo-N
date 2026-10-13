@@ -478,7 +478,8 @@ export async function handleCustomAPIRequest(systemPrompt, userPrompt, isStepByS
 
             try {
                 // Pass promptData (which could be string or array) to callLLM
-                response = await llmService.callLLM(promptData, streamCallback);
+                // 独立填表与连接测试走同一非流式 Chat Completions 路径，避免测试通过但流式调用失败。
+                response = await llmService.callLLM(promptData, isStepByStepSummary ? null : streamCallback);
                 console.log(`请求成功 (llmService, 密钥索引: ${keyIndexToTry}):`, response);
                 loadingToast?.close();
                 if (!suspended && typeof response === 'string' && response.trim()) saveResolvedModel(USER_API_MODEL, true, requestIdentity);
