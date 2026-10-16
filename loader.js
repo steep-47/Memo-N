@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-auto-record-model-1';
+const RUNTIME_VERSION = '0.75-user-last-api-1';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -50,7 +50,7 @@ const runtimes = [
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
-    // 最后修正单API记录契约中的对象核对格式，避免模型照抄通用三参数update/delete。
+    // 最后修正单API记录契约中的对象核对格式，并把Memo-N尾部system协议移到最后user之前，兼容要求最后消息为user的API。
     ['对象核对输出硬约束', './scripts/runtime/identityExpectedPromptGuard.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['整理最近证据与表达规则', './scripts/runtime/cleanupEvidenceWindow.js'],
@@ -70,4 +70,3 @@ jQuery(() => {
 });
 
 console.log('[Memo-N][loader] v0.75 loaded: preset-compatible one-call record protocol');
-
