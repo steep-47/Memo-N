@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-independent-api-sync-5';
+const RUNTIME_VERSION = '0.75-independent-api-unified-2';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -35,15 +35,9 @@ const runtimes = [
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['上下文轮数最小值保护', './scripts/runtime/contextRoundInputGuard.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
-    // 四层都包装记录请求：安装顺序决定调用/返回链。请求侧先识别，再由格式锁改写实际发送内容；
-    // 返回侧依次做窄兼容归一化，最后仍由safeTableExecutor裁决。
-    // 实际数据流：格式锁注入 -> API -> 基础传输规范化 -> 独立API规范化 -> row-data规范化 -> 严格执行器。
-    ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
+    // 独立API与一次性API共享同一套函数签名和严格执行规则；独立API只替换底层provider。
+    // 独立API返回不再经过任何专用格式修复层：模型原始tableEdit直接进入同一safeTableExecutor校验。
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
-    // 补齐独立API/第三方端点仍可能返回的data XML方言；只做确定性规范化，最终仍由严格执行器裁决。
-    ['独立API返回兼容同步', './scripts/runtime/independentApiTransportSync.js'],
-    // 补齐row标签把JSON data放在顶层属性中的同族返回；身份表仍要求expected，未知属性继续拒绝。
-    ['独立API row-data属性同步', './scripts/runtime/independentApiDataAttributeSync.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
@@ -74,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: preset-compatible one-call record protocol');
+console.log('[Memo-N][loader] v0.75 loaded: independent API differs from one-call only at provider transport');

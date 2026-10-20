@@ -9,19 +9,19 @@ import { executeMemoTableEdit, restoreMemoSnapshot, saveMemoSnapshot } from './s
 import JSON5 from '../../utils/json5.min.mjs';
 
 const INDEPENDENT_OPERATION_RULES = `# Memo独立记录操作协议
+独立API与一次性API使用完全相同的记录操作协议；这里只改变请求所使用的API地址/Key/model，不改变函数签名、对象核对规则或执行器规则。
 固定标准表索引：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件。
 每轮必须按0→1→2→3→4→5→6逐表检查。每张表只判断“当前待处理回复是否产生该表负责的新事实，或最终事实是否与当前表已有记录不同”：有则修改，没有则跳过并继续下一张。不得因为前几张表无变化、变化很小或认为“没大事”而提前结束；只有七表全部检查完且均无需修改时才允许NO_CHANGE。
 背包表只保留实际持有库存：数量归零、全部售出、耗尽、全部交付或明确完全不再持有时必须deleteRow，不得update成数量0后继续保留；部分消耗只更新剩余数量；装备、工具、容器仅被使用仍持有时保留。表中明确数量0且已售出/耗尽的旧库存也应核对第一列物品名后删除；未知数量和不明去向不得猜删。
 表6除重大历史节点外，也承接0～5没有合适字段、但对后续剧情连续性有用的已发生事实；同一连续事件可更新已有记录，不必每轮机械新增。
 记录前先把正文拆成最小独立事实再逐项归位。“修炼体系/路径”只保存稳定的修行类别或专精路线标签，不写解释句。对人族先看灵根条件：无灵根并走一至九品等凡俗武道→“武夫”；有灵根、以灵气修行为根基并稳定专精体魄/肉身→“体修”；有灵根、走常规修仙且没有明确稳定专精→“练气士”。练气士是修仙统称，不随炼气/筑基/金丹等境界变化，会普通功法术法也仍只是练气士。若已经明确形成剑修、法修、魂修、丹师、器师、符师、阵师、御兽、旁门等稳定专精/职业，直接记录更具体标签并取代“练气士”，不得写“练气士／剑修”；多个具体专精只有在都明确时才用“／”连接。武夫≠体修；灵根未知时不得仅凭近战、肉身强或使用兵器强判武夫/体修。妖族实际修行记“妖修”，灵族达到自主修行并实际修炼记“灵修”。不得只凭种族、一次用剑、一次施法、一次炼丹等行为判定路线。“修为”只写当前境界/阶段；修炼经历、长期停滞、瓶颈、伤势或限制分别写人物主表重要信息或人物发展表当前重要状态，不塞进体系/路径或修为字段。
-只能使用：
-insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
-表2/4/5的update/delete必须额外携带当前目标行第一列原值作为对象核对名：
-updateRow(tableIndex,rowIndex,data,"当前行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前行第一列原值")
-对象核对名必须原样抄当前表格执行前该row的第一列；人物改名时仍写旧姓名作核对，新姓名放data里。表2/4/5新增对象必须在data第0列写对象名；同名已存在时优先update，不重复insert。
+统一调用格式与一次性API完全一致：
+insertRow(tableIndex,{columnIndex:"value"})
+updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")
+deleteRow(tableIndex,rowIndex,"expected")
+insertRow固定2个参数；updateRow固定4个参数；deleteRow固定3个参数。禁止输出第5个参数，也禁止省略update/delete的expected参数。
+表2/4/5的expected必须原样抄当前目标row执行前第一列对象名；人物改名时仍用旧姓名核对，新姓名写入data。其他表的update/delete也保持相同完整签名，但expected固定填写空字符串""，不得删除该参数。
+表2/4/5新增对象必须在data第0列写对象名；同名已存在时优先update，不重复insert。
 data键优先使用数字列索引；也可使用当前表中完全一致的真实表头名，执行器会安全映射。禁止使用不存在、近似或自行编造的列名。
 updateRow只能使用当前真实存在的rowIndex，越界不得自动新增；真正新增必须明确使用insertRow。当前表格是rowIndex和对象名的唯一依据，不按旧聊天猜行号。
 人物主表与人物发展表通过姓名关联；年龄与最后确认时间必须分别维护，最后确认时间记录到世界日期即可。

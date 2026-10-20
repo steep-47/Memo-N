@@ -36,15 +36,13 @@ if (!isMemoRecordOnlyRequest({ ordered_prompts: manualMessages })) {
 const injectedMessages = injectProtocolIntoMessages(manualMessages);
 if (!injectedMessages[0].content.includes(PROTOCOL_MARK)) throw new Error('未把唯一输出协议注入system消息');
 if (!injectedMessages[0].content.includes('insertRow(1,{"0":"示例角色","11":"青木诀"})')) throw new Error('唯一协议缺少完整标准成品示例');
+if (!injectedMessages[0].content.includes('updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"},"")')) throw new Error('非身份表update没有保留一次性API的第4参数空expected');
 if (injectedMessages[1].content !== manualMessages[1].content) throw new Error('注入协议时不应改写用户输入资料');
 
 const injectedTwice = injectProtocolIntoMessages(injectedMessages);
 const markerCount = injectedTwice.map(item => item?.content || '').join('\n').split(PROTOCOL_MARK).length - 1;
 if (markerCount !== 1) throw new Error(`唯一协议重复注入：${markerCount}`);
 
-// The custom independent API sends a message array. LLMApiService forwards an
-// array directly and ignores config.system_prompt, so the wrapper itself must
-// inject into the actual array sent to callLLM rather than only mutating config.
 const customService = new LLMApiService();
 const customArrayResult = await customService.callLLM(manualMessages);
 if (!Array.isArray(customArrayResult)) throw new Error('自定义API数组请求被错误改成非数组');
@@ -79,22 +77,51 @@ const cleanupInjected = injectProtocolIntoConfig(cleanupConfig);
 if (!cleanupInjected.systemPrompt.includes(PROTOCOL_MARK)) throw new Error('整理请求未注入唯一输出协议');
 if (cleanupConfig.systemPrompt.includes(PROTOCOL_MARK)) throw new Error('注入不应原地污染调用方config');
 
-if (!STRICT_OUTPUT_PROTOCOL.includes('只用于分隔输入资料，不属于输出语法')) throw new Error('协议未明确区分输入XML与输出语法');
-for (const token of ['insertRow(', 'updateRow(', 'deleteRow(', '<tableEdit><!-- NO_CHANGE --></tableEdit>']) {
-    if (!STRICT_OUTPUT_PROTOCOL.includes(token)) throw new Error(`协议缺少标准输出要素：${token}`);
+for (const token of [
+    'insertRow(tableIndex:number,data:{[colIndex:number]:string|number})',
+    'updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number},expected:string)',
+    'deleteRow(tableIndex:number,rowIndex:number,expected:string)',
+    'updateRow固定4个参数',
+    'deleteRow固定3个参数',
+    '<tableEdit><!-- NO_CHANGE --></tableEdit>',
+]) {
+    if (!STRICT_OUTPUT_PROTOCOL.includes(token)) throw new Error(`协议缺少一次性API统一要素：${token}`);
+}
+
+const oneCall = await fs.readFile(new URL('../scripts/engine/recordEngine.js', import.meta.url), 'utf8');
+const independent = await fs.readFile(new URL('../scripts/runtime/separateTableUpdate.js', import.meta.url), 'utf8');
+for (const token of [
+    'insertRow(tableIndex,{columnIndex:"value"})',
+    'updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")',
+    'deleteRow(tableIndex,rowIndex,"expected")',
+]) {
+    if (!oneCall.includes(token)) throw new Error(`一次性API缺少标准签名：${token}`);
+    if (!independent.includes(token)) throw new Error(`独立API没有同步一次性API签名：${token}`);
+}
+if (!independent.includes('其他表的update/delete也保持相同完整签名，但expected固定填写空字符串""')) {
+    throw new Error('独立API没有同步一次性API的非身份表空expected规则');
+}
+if (!independent.includes('const messages=await buildIndependentMessages')
+    || !independent.includes('useMain?await handleMainAPIRequest(messages,null,isSilentMode):await handleCustomAPIRequest(messages,null,true,isSilentMode)')) {
+    throw new Error('独立API主地址/自定义地址没有复用同一份messages；provider不应改变记录协议');
 }
 
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
-const protocolPos = loader.indexOf('./scripts/runtime/recordOnlyOutputProtocolGuard.js');
-const transportPos = loader.indexOf('./scripts/runtime/recordOnlyTransportGuard.js');
-const independentPos = loader.indexOf('./scripts/runtime/independentApiTransportSync.js');
-const dataAttrPos = loader.indexOf('./scripts/runtime/independentApiDataAttributeSync.js');
-if (protocolPos < 0 || transportPos < 0 || independentPos < 0 || dataAttrPos < 0
-    || !(transportPos < protocolPos && protocolPos < independentPos && independentPos < dataAttrPos)) {
-    throw new Error('记录包装器安装顺序错误：基础传输 -> 唯一格式锁 -> 独立兼容 -> row-data兼容');
+if (!loader.includes('./scripts/runtime/recordOnlyOutputProtocolGuard.js')) {
+    throw new Error('独立记录缺少统一协议注入层');
 }
-if (!loader.includes('格式锁注入 -> API -> 基础传输规范化 -> 独立API规范化 -> row-data规范化 -> 严格执行器')) {
-    throw new Error('loader未声明当前完整记录链路顺序');
+for (const obsolete of [
+    'recordOnlyTransportGuard.js',
+    'independentApiTransportSync.js',
+    'independentApiDataAttributeSync.js',
+]) {
+    if (loader.includes(obsolete)) throw new Error(`正式独立链不应再加载返回格式特判层：${obsolete}`);
+}
+if (!loader.includes('独立API返回不再经过任何专用格式修复层')) {
+    throw new Error('loader没有声明独立返回直接进入严格执行器');
+}
+if (!loader.includes('独立API与一次性API共享同一套函数签名和严格执行规则')) {
+    throw new Error('loader没有声明统一协议架构');
 }
 
-console.log('memo-n output protocol PASS: custom API arrays receive real protocol injection; final user preserved; wrapper composition and canonical protocol correct');
+console.log('memo-n output protocol PASS: independent API differs only by provider; fixed 2/4/3 signatures and raw tableEdit enter the same strict executor');
