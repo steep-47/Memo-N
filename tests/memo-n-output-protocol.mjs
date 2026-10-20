@@ -42,6 +42,25 @@ const injectedTwice = injectProtocolIntoMessages(injectedMessages);
 const markerCount = injectedTwice.map(item => item?.content || '').join('\n').split(PROTOCOL_MARK).length - 1;
 if (markerCount !== 1) throw new Error(`唯一协议重复注入：${markerCount}`);
 
+// The custom independent API sends a message array. LLMApiService forwards an
+// array directly and ignores config.system_prompt, so the wrapper itself must
+// inject into the actual array sent to callLLM rather than only mutating config.
+const customService = new LLMApiService();
+const customArrayResult = await customService.callLLM(manualMessages);
+if (!Array.isArray(customArrayResult)) throw new Error('自定义API数组请求被错误改成非数组');
+if (!String(customArrayResult[0]?.content ?? '').includes(PROTOCOL_MARK)) {
+    throw new Error('自定义API messages数组没有实际收到唯一输出协议');
+}
+if (customArrayResult.at(-1)?.role !== 'user') {
+    throw new Error('自定义API协议注入破坏了最后一条user消息');
+}
+if (customService.config.system_prompt !== '') {
+    throw new Error('数组请求不应依赖或污染未被LLMApiService使用的config.system_prompt');
+}
+if (manualMessages[0].content.includes(PROTOCOL_MARK)) {
+    throw new Error('自定义API协议注入不应原地污染调用方messages');
+}
+
 const noDollar3Request = {
     ordered_prompts: [
         { role: 'system', content: '请整理下面这些状态数据。' },
@@ -68,11 +87,14 @@ for (const token of ['insertRow(', 'updateRow(', 'deleteRow(', '<tableEdit><!-- 
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
 const protocolPos = loader.indexOf('./scripts/runtime/recordOnlyOutputProtocolGuard.js');
 const transportPos = loader.indexOf('./scripts/runtime/recordOnlyTransportGuard.js');
-if (protocolPos < 0 || transportPos < 0 || transportPos >= protocolPos) {
-    throw new Error('包装器安装顺序错误：传输兼容层应先安装，唯一格式锁后安装成为最外层');
+const independentPos = loader.indexOf('./scripts/runtime/independentApiTransportSync.js');
+const dataAttrPos = loader.indexOf('./scripts/runtime/independentApiDataAttributeSync.js');
+if (protocolPos < 0 || transportPos < 0 || independentPos < 0 || dataAttrPos < 0
+    || !(transportPos < protocolPos && protocolPos < independentPos && independentPos < dataAttrPos)) {
+    throw new Error('记录包装器安装顺序错误：基础传输 -> 唯一格式锁 -> 独立兼容 -> row-data兼容');
 }
-if (!loader.includes('格式锁注入 -> API -> 兼容规范化 -> 严格执行器')) {
-    throw new Error('loader未声明实际记录链路顺序');
+if (!loader.includes('格式锁注入 -> API -> 基础传输规范化 -> 独立API规范化 -> row-data规范化 -> 严格执行器')) {
+    throw new Error('loader未声明当前完整记录链路顺序');
 }
 
-console.log('memo-n output protocol PASS: manual/cleanup forced system protocol, no-$3 signature fallback, idempotent, canonical example present, wrapper composition correct');
+console.log('memo-n output protocol PASS: custom API arrays receive real protocol injection; final user preserved; wrapper composition and canonical protocol correct');
