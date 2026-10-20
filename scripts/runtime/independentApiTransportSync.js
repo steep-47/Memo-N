@@ -1,8 +1,11 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
+import JSON5 from '../../utils/json5.min.mjs';
 
-const PATCH_MARK = '__memoNIndependentApiTransportSyncV1';
+const PATCH_MARK = '__memoNIndependentApiTransportSyncV2';
 const TABLE_EDIT_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/ig;
+const COMPACT_CALL_RE = /<(insertRow|updateRow|deleteRow)(?=tableIndex\s*=)([^<>]*?)\/\s*>/gi;
+const IDENTITY_TABLES = new Set([2, 4, 5]);
 
 function requestText(value) {
     if (Array.isArray(value)) return value.map(item => requestText(item)).join('\n');
@@ -78,6 +81,111 @@ function parseXmlAttributes(source) {
     return attrs;
 }
 
+function readQuoted(source, start) {
+    let cursor = start;
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor++;
+    const quote = source[cursor];
+    if (quote !== '"' && quote !== "'") return null;
+    cursor++;
+    let output = '';
+    for (; cursor < source.length; cursor++) {
+        const ch = source[cursor];
+        if (ch === quote) return { value: decodeXml(output), end: cursor + 1 };
+        output += ch;
+    }
+    return null;
+}
+
+function readNamedQuoted(source, start, name) {
+    let cursor = start;
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor++;
+    if (!source.startsWith(name, cursor)) return null;
+    cursor += name.length;
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor++;
+    if (source[cursor] !== '=') return null;
+    return readQuoted(source, cursor + 1);
+}
+
+function parseCompactData(value) {
+    let parsed;
+    try { parsed = JSON5.parse(String(value ?? '').trim()); }
+    catch (_) { return null; }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const entries = Object.entries(parsed);
+    if (!entries.length) return null;
+    const normalized = {};
+    for (const [key, cellValue] of entries) {
+        const column = strictDecimal(key);
+        if (column === null) return null;
+        if (typeof cellValue !== 'string' && (typeof cellValue !== 'number' || !Number.isFinite(cellValue))) return null;
+        normalized[column] = cellValue;
+    }
+    return normalized;
+}
+
+function canonicalizeCompactCall(name, payload) {
+    let cursor = 0;
+    const tableToken = readNamedQuoted(payload, cursor, 'tableIndex');
+    if (!tableToken) return null;
+    const tableIndex = strictDecimal(tableToken.value);
+    if (tableIndex === null) return null;
+    cursor = tableToken.end;
+
+    let rowIndex = null;
+    if (name !== 'insertRow') {
+        const rowToken = readNamedQuoted(payload, cursor, 'rowIndex');
+        if (!rowToken) return null;
+        rowIndex = strictDecimal(rowToken.value);
+        if (rowIndex === null) return null;
+        cursor = rowToken.end;
+    }
+
+    let data = null;
+    if (name !== 'deleteRow') {
+        const dataToken = readNamedQuoted(payload, cursor, 'data');
+        if (!dataToken) return null;
+        data = parseCompactData(dataToken.value);
+        if (!data) return null;
+        cursor = dataToken.end;
+    }
+
+    while (cursor < payload.length && /\s/.test(payload[cursor])) cursor++;
+    let expected;
+    if (cursor < payload.length) {
+        const expectedToken = readQuoted(payload, cursor);
+        if (!expectedToken || !String(expectedToken.value).trim()) return null;
+        expected = expectedToken.value;
+        cursor = expectedToken.end;
+        while (cursor < payload.length && /\s/.test(payload[cursor])) cursor++;
+    }
+    if (cursor !== payload.length) return null;
+
+    if (name === 'insertRow') {
+        if (expected !== undefined) return null;
+        return `insertRow(${tableIndex},${JSON.stringify(data)})`;
+    }
+    if (IDENTITY_TABLES.has(tableIndex) && expected === undefined) return null;
+    if (name === 'deleteRow') {
+        return expected === undefined
+            ? `deleteRow(${tableIndex},${rowIndex})`
+            : `deleteRow(${tableIndex},${rowIndex},${JSON.stringify(String(expected))})`;
+    }
+    return expected === undefined
+        ? `updateRow(${tableIndex},${rowIndex},${JSON.stringify(data)})`
+        : `updateRow(${tableIndex},${rowIndex},${JSON.stringify(data)},${JSON.stringify(String(expected))})`;
+}
+
+function normalizeCompactPseudoCalls(block) {
+    let changed = false;
+    const text = String(block ?? '').replace(COMPACT_CALL_RE, (match, name, payload) => {
+        const normalized = canonicalizeCompactCall(name, payload);
+        if (!normalized) return match;
+        changed = true;
+        return normalized;
+    });
+    return { text, changed };
+}
+
 function allowedType(value) {
     if (value === undefined) return true;
     return ['string', 'number', 'text'].includes(String(value).trim().toLowerCase());
@@ -147,10 +255,13 @@ function normalizeIndependentApiResponse(raw, channel = 'unknown') {
     const matches = [...raw.matchAll(TABLE_EDIT_RE)];
     if (matches.length !== 1) return raw;
     const match = matches[0];
-    const normalized = normalizeDataNodes(match[0]);
-    if (!normalized.changed) return raw;
-    console.log(`[Memo-N][independent-api-sync] ${channel} 已同步规范化独立API的<data>变体，继续交给严格执行器复核`);
-    return `${raw.slice(0, match.index)}${normalized.text}${raw.slice(match.index + match[0].length)}`;
+    const compact = normalizeCompactPseudoCalls(match[0]);
+    const dataNodes = normalizeDataNodes(compact.text);
+    if (!compact.changed && !dataNodes.changed) return raw;
+    if (compact.changed) console.log(`[Memo-N][independent-api-sync] ${channel} 已规范化无分隔属性/匿名expected的独立API伪XML调用`);
+    if (dataNodes.changed) console.log(`[Memo-N][independent-api-sync] ${channel} 已同步规范化独立API的<data>变体`);
+    console.log(`[Memo-N][independent-api-sync] ${channel} 规范化完成，继续交给严格执行器复核`);
+    return `${raw.slice(0, match.index)}${dataNodes.text}${raw.slice(match.index + match[0].length)}`;
 }
 
 function installMethodGuard(target, key, requestInspector, channel) {
@@ -208,7 +319,9 @@ function install() {
 install();
 
 export {
+    canonicalizeCompactCall,
     isMemoIndependentRecordRequest,
+    normalizeCompactPseudoCalls,
     normalizeDataNodes,
     normalizeIndependentApiResponse,
 };
