@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-independent-api-sync-2';
+const RUNTIME_VERSION = '0.75-independent-api-sync-3';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -41,6 +41,8 @@ const runtimes = [
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     // 补齐独立API/第三方端点仍可能返回的data XML方言；只做确定性规范化，最终仍由严格执行器裁决。
     ['独立API返回兼容同步', './scripts/runtime/independentApiTransportSync.js'],
+    // 补齐row标签把JSON data放在顶层属性中的同族返回；身份表仍要求expected，未知属性继续拒绝。
+    ['独立API row-data属性同步', './scripts/runtime/independentApiDataAttributeSync.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
