@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-independent-api-unified-1';
+const RUNTIME_VERSION = '0.75-independent-api-unified-2';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -36,8 +36,7 @@ const runtimes = [
     ['上下文轮数最小值保护', './scripts/runtime/contextRoundInputGuard.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
     // 独立API与一次性API共享同一套函数签名和严格执行规则；独立API只替换底层provider。
-    // record-only链只保留通用传输外壳与同协议格式锁，不再加载任何“独立API专用”返回方言适配器。
-    ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
+    // 独立API返回不再经过任何专用格式修复层：模型原始tableEdit直接进入同一safeTableExecutor校验。
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
@@ -69,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: unified one-call/independent record protocol');
+console.log('[Memo-N][loader] v0.75 loaded: independent API differs from one-call only at provider transport');
