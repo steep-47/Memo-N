@@ -39,6 +39,18 @@ if (!noSpacesNormalized.includes('updateRow(2,8,{"2":0},"三阶骨蟒核心逆�
     throw new Error('无属性分隔空格形式没有规范化');
 }
 
+const reordered = `<tableEdit><!--\n<updateRow rowIndex="8" expected="三阶骨蟒核心逆鳞" data='{"2":0}' tableIndex="2"/>\n--></tableEdit>`;
+const reorderedNormalized = normalizeIndependentApiDataAttributeResponse(reordered, 'test');
+if (!reorderedNormalized.includes('updateRow(2,8,{"2":0},"三阶骨蟒核心逆鳞")')) {
+    throw new Error('属性顺序变化时没有规范化');
+}
+
+const headerNameData = `<tableEdit><!--\n<updateRow tableIndex="2" rowIndex="8" data='{"数量":0}' expected="三阶骨蟒核心逆鳞"/>\n--></tableEdit>`;
+const headerNameNormalized = normalizeIndependentApiDataAttributeResponse(headerNameData, 'test');
+if (!headerNameNormalized.includes('updateRow(2,8,{"数量":0},"三阶骨蟒核心逆鳞")')) {
+    throw new Error('真实表头名data键被兼容层错误拒绝');
+}
+
 const insert = `<tableEdit><!--\n<insertRow tableIndex="6" data='{"0":"霜月二十三","1":"闭关炼甲"}'/>\n--></tableEdit>`;
 const insertNormalized = normalizeIndependentApiDataAttributeResponse(insert, 'test');
 if (!insertNormalized.includes('insertRow(6,{"0":"霜月二十三","1":"闭关炼甲"})')) {
@@ -66,4 +78,14 @@ if (normalizeIndependentApiDataAttributeResponse(duplicateBlocks, 'test') !== du
     throw new Error('多个tableEdit块必须继续留给严格入口拒绝');
 }
 
-console.log('memo-n-independent-api-data-attr PASS: row-level data JSON attributes normalized; identity and unknown-attribute safety retained');
+const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
+for (const file of [
+    './scripts/runtime/recordOnlyTransportGuard.js',
+    './scripts/runtime/recordOnlyOutputProtocolGuard.js',
+    './scripts/runtime/independentApiTransportSync.js',
+    './scripts/runtime/independentApiDataAttributeSync.js',
+]) {
+    if (!loader.includes(file)) throw new Error(`loader缺少记录链路模块：${file}`);
+}
+
+console.log('memo-n-independent-api-data-attr PASS: row-level data JSON attributes normalize across spacing/order/header keys; identity and unknown-attribute safety retained');
