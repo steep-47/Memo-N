@@ -107,16 +107,21 @@ if (!independent.includes('const messages=await buildIndependentMessages')
 }
 
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
-const protocolPos = loader.indexOf('./scripts/runtime/recordOnlyOutputProtocolGuard.js');
-const transportPos = loader.indexOf('./scripts/runtime/recordOnlyTransportGuard.js');
-if (protocolPos < 0 || transportPos < 0 || transportPos >= protocolPos) {
-    throw new Error('记录包装器安装顺序错误：通用传输层应先安装、统一格式锁后安装');
+if (!loader.includes('./scripts/runtime/recordOnlyOutputProtocolGuard.js')) {
+    throw new Error('独立记录缺少统一协议注入层');
 }
-for (const obsolete of ['independentApiTransportSync.js', 'independentApiDataAttributeSync.js']) {
-    if (loader.includes(obsolete)) throw new Error(`正式链路不应再加载独立API专用协议适配：${obsolete}`);
+for (const obsolete of [
+    'recordOnlyTransportGuard.js',
+    'independentApiTransportSync.js',
+    'independentApiDataAttributeSync.js',
+]) {
+    if (loader.includes(obsolete)) throw new Error(`正式独立链不应再加载返回格式特判层：${obsolete}`);
+}
+if (!loader.includes('独立API返回不再经过任何专用格式修复层')) {
+    throw new Error('loader没有声明独立返回直接进入严格执行器');
 }
 if (!loader.includes('独立API与一次性API共享同一套函数签名和严格执行规则')) {
     throw new Error('loader没有声明统一协议架构');
 }
 
-console.log('memo-n output protocol PASS: independent API differs only by provider; fixed 2/4/3 signatures and strict executor semantics match one-call mode');
+console.log('memo-n output protocol PASS: independent API differs only by provider; fixed 2/4/3 signatures and raw tableEdit enter the same strict executor');
