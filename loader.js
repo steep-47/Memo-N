@@ -64,7 +64,7 @@ const runtimes = [
     ['双指缩放', './scripts/ui/pinchZoom.js'],
     ['角色状态表点击桥', './scripts/ui/roleStatusClickBridge.js'],
     ['单元格编辑输入框尺寸', './scripts/ui/cellEditorSize.js'],
-    ['填表状态颜色', './scripts/runtime/fillStatusColor.js'],
+    ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
