@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 let source = await fs.readFile(new URL('../scripts/runtime/independentApiTransportSync.js', import.meta.url), 'utf8');
 source = source
     .replace("import { EDITOR } from '../../core/manager.js';", 'const { EDITOR } = globalThis.__memoNIndependentSyncMocks;')
-    .replace("import LLMApiService from '../../services/llmApi.js';", 'const { LLMApiService } = globalThis.__memoNIndependentSyncMocks;');
+    .replace("import LLMApiService from '../../services/llmApi.js';", 'const { LLMApiService } = globalThis.__memoNIndependentSyncMocks;')
+    .replace("import JSON5 from '../../utils/json5.min.mjs';", 'const { JSON5 } = globalThis.__memoNIndependentSyncMocks;');
 
 class LLMApiService {
     constructor() { this.config = { system_prompt: '# Memo独立记录操作协议 <tableEdit>' }; }
@@ -14,6 +15,7 @@ globalThis.TavernHelper = { async generateRaw() { return ''; } };
 globalThis.__memoNIndependentSyncMocks = {
     EDITOR: { async generateRaw() { return ''; } },
     LLMApiService,
+    JSON5: { parse: JSON.parse },
 };
 
 const module = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-independent-api-sync`);
@@ -23,6 +25,34 @@ if (!isMemoIndependentRecordRequest({ ordered_prompts:[
     { role:'system', content:'# Memo独立记录操作协议' },
     { role:'user', content:'只输出 <tableEdit><!-- ... --></tableEdit>' },
 ] })) throw new Error('没有识别独立记录请求');
+
+const exactObserved = `<tableEdit><!--\n<updateRowtableIndex="2"rowIndex="8"data='{"2":0}'"三阶骨蟒核心逆鳞"/>\n--></tableEdit>`;
+const observedNormalized = normalizeIndependentApiResponse(exactObserved, 'test');
+if (!observedNormalized.includes('updateRow(2,8,{"2":0},"三阶骨蟒核心逆鳞")')) {
+    throw new Error('截图中的紧凑updateRow伪XML没有规范化');
+}
+
+const compactInsert = `<tableEdit><!--\n<insertRowtableIndex="6"data='{"0":"霜降","1":"凌霜别苑"}'/>\n--></tableEdit>`;
+const compactInsertNormalized = normalizeIndependentApiResponse(compactInsert, 'test');
+if (!compactInsertNormalized.includes('insertRow(6,{"0":"霜降","1":"凌霜别苑"})')) {
+    throw new Error('紧凑insertRow伪XML没有规范化');
+}
+
+const compactDelete = `<tableEdit><!--\n<deleteRowtableIndex="2"rowIndex="8""三阶骨蟒核心逆鳞"/>\n--></tableEdit>`;
+const compactDeleteNormalized = normalizeIndependentApiResponse(compactDelete, 'test');
+if (!compactDeleteNormalized.includes('deleteRow(2,8,"三阶骨蟒核心逆鳞")')) {
+    throw new Error('紧凑deleteRow伪XML没有规范化');
+}
+
+const identityMissingExpected = `<tableEdit><!--\n<updateRowtableIndex="2"rowIndex="8"data='{"2":0}'/>\n--></tableEdit>`;
+if (normalizeIndependentApiResponse(identityMissingExpected, 'test') !== identityMissingExpected) {
+    throw new Error('身份保护表缺对象核对名时不应自动猜补');
+}
+
+const unknownCompactTail = `<tableEdit><!--\n<updateRowtableIndex="2"rowIndex="8"data='{"2":0}'expected="三阶骨蟒核心逆鳞" extra="x"/>\n--></tableEdit>`;
+if (normalizeIndependentApiResponse(unknownCompactTail, 'test') !== unknownCompactTail) {
+    throw new Error('紧凑伪XML出现未知尾部字段时不应放宽');
+}
 
 const textBody = `<tableEdit><!--\n<updateRow tableIndex="1" rowIndex="0"><data columnIndex="12">炼丹</data></updateRow>\n--></tableEdit>`;
 const textNormalized = normalizeIndependentApiResponse(textBody, 'test');
@@ -63,4 +93,4 @@ if (normalizeIndependentApiResponse(duplicateBlocks, 'test') !== duplicateBlocks
     throw new Error('多个tableEdit块必须留给严格入口拒绝');
 }
 
-console.log('memo-n-independent-api-sync PASS: independent API data XML drift normalized narrowly; unsafe variants remain strict');
+console.log('memo-n-independent-api-sync PASS: compact malformed pseudo XML + data XML drift normalized narrowly; unsafe variants remain strict');
