@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-user-last-api-1';
+const RUNTIME_VERSION = '0.75-independent-api-sync-1';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -39,6 +39,8 @@ const runtimes = [
     // 实际调用顺序因此是：格式锁注入 -> API -> 兼容规范化 -> 严格执行器。
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
+    // 补齐独立API/第三方端点仍可能返回的data XML方言；只做确定性规范化，最终仍由严格执行器裁决。
+    ['独立API返回兼容同步', './scripts/runtime/independentApiTransportSync.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
     ['标签×删除当前聊天表格', './scripts/runtime/chatSheetChoiceDelete.js'],
     ['Swipe精确快照恢复', './scripts/runtime/swipeSnapshotRestore.js'],
