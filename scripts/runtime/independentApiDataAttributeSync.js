@@ -2,9 +2,12 @@ import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 import JSON5 from '../../utils/json5.min.mjs';
 
-const PATCH_MARK = '__memoNIndependentApiDataAttributeSyncV1';
+const PATCH_MARK = '__memoNIndependentApiDataAttributeSyncV2';
 const TABLE_EDIT_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/ig;
-const ROW_TAG_RE = /<(insertRow|updateRow|deleteRow)(?=\s*tableIndex\s*=)([^<>]*?)(?:\/\s*>|>\s*<\/\1\s*>)/gi;
+// Match self-closing or empty-pair row tags even when attributes are reordered or
+// the model accidentally omits whitespace after the operation name. The parser
+// below remains authoritative: unknown/missing/duplicate attributes are rejected.
+const ROW_TAG_RE = /<(insertRow|updateRow|deleteRow)([^<>]*?)(?:\/\s*>|>\s*<\/\1\s*>)/gi;
 const IDENTITY_TABLES = new Set([2, 4, 5]);
 
 function requestText(value) {
@@ -115,12 +118,15 @@ function parseDataObject(value) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const entries = Object.entries(parsed);
     if (!entries.length) return null;
-    const normalized = {};
+
+    // The strict executor already supports numeric column indices *and* exact real
+    // header names. Compatibility normalization must therefore preserve safe
+    // string keys instead of rejecting legal header-name data prematurely.
+    const normalized = Object.create(null);
     for (const [key, cellValue] of entries) {
-        const column = strictDecimal(key);
-        if (column === null) return null;
+        if (!String(key).trim()) return null;
         if (typeof cellValue !== 'string' && (typeof cellValue !== 'number' || !Number.isFinite(cellValue))) return null;
-        normalized[column] = cellValue;
+        normalized[String(key)] = cellValue;
     }
     return normalized;
 }
