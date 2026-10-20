@@ -1,14 +1,14 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV5';
-const PROTOCOL_MARK = '[Memo-N唯一输出格式v2]';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV6';
+const PROTOCOL_MARK = '[Memo-N唯一输出格式v3]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
 ${TRANSPORT_MARK}
-这是记录专用请求的最终输出格式约束，优先于模板中其他格式示例。上面的协议标识同时用于插件识别这是一条Memo记录请求。
+这是记录专用请求的最终输出格式约束。独立API与一次性API使用同一套记录函数协议；独立API只改变API地址/Key/model，不改变函数签名、对象核对规则或严格执行规则。
 
 输入中的 <当前七表>、<最近聊天>、<聊天记录>、<当前表格>、<表头信息> 等标签只用于分隔输入资料，不属于输出语法，也不要照它们的XML结构生成操作。
 
@@ -17,20 +17,18 @@ ${TRANSPORT_MARK}
 标准成品示例：
 <tableEdit><!--
 insertRow(1,{"0":"示例角色","11":"青木诀"})
-updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"})
+updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"},"")
 updateRow(4,0,{"5":"练气士"},"老叔公")
 deleteRow(2,1,"蛐蛐罐")
 --></tableEdit>
 
-允许的函数签名：
+统一函数签名，与一次性API完全一致：
 insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
-updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number})
-deleteRow(tableIndex:number,rowIndex:number)
+updateRow(tableIndex:number,rowIndex:number,data:{[colIndex:number]:string|number},expected:string)
+deleteRow(tableIndex:number,rowIndex:number,expected:string)
+insertRow固定2个参数；updateRow固定4个参数；deleteRow固定3个参数。禁止输出第5个参数，也禁止省略update/delete的expected参数。
 
-表2背包、表4人物主表、表5人物发展表属于对象身份保护表，它们的update/delete必须使用带对象核对名的安全签名：
-updateRow(tableIndex,rowIndex,data,"当前目标行第一列原值")
-deleteRow(tableIndex,rowIndex,"当前目标行第一列原值")
-对象核对名必须原样抄写执行前当前表目标row的第一列，不能写计划修改后的名称，也不能根据旧聊天猜。表2/4/5新增对象时，insertRow的data第0列必须写对象名。
+表2背包、表4人物主表、表5人物发展表的expected必须原样抄写执行前当前目标row第一列对象名，不能写计划修改后的名称，也不能根据旧聊天猜。其他表的update/delete也使用完全相同的完整签名，但expected固定填写空字符串""。表2/4/5新增对象时，insertRow的data第0列必须写对象名。
 
 背包库存数量归零或确认全部售出、耗尽、全部交付、不再持有时使用deleteRow；不得只update数量0并保留旧库存。部分消耗保留剩余数量；可重复使用物品不因使用而删除；未知数量不猜删。
 
@@ -127,7 +125,7 @@ function patchGenerateRaw(target, key, channel) {
         if (!guarded) return await current.apply(this, args);
         const nextArgs = [...args];
         nextArgs[0] = injectProtocolIntoConfig(args?.[0]);
-        console.log(`[Memo-N][output-protocol] ${channel} 已强制注入唯一tableEdit函数格式`);
+        console.log(`[Memo-N][output-protocol] ${channel} 已强制注入与一次性API一致的tableEdit函数格式`);
         return await current.apply(this, nextArgs);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
@@ -145,15 +143,10 @@ function patchCustomApi() {
         const combined = [this?.config?.system_prompt ?? '', args?.[0]];
         if (!isMemoRecordOnlyRequest(combined)) return await current.apply(this, args);
 
-        // Custom independent recording normally sends a messages array. LLMApiService
-        // forwards arrays directly and deliberately ignores config.system_prompt, so
-        // mutating only config.system_prompt would log a successful injection while
-        // sending none of the strict protocol to the provider. Inject into the actual
-        // message array in this branch and keep its final user message in place.
         if (Array.isArray(args?.[0])) {
             const nextArgs = [...args];
             nextArgs[0] = injectProtocolIntoMessages(args[0]);
-            console.log('[Memo-N][output-protocol] 自定义API messages数组已强制注入唯一tableEdit函数格式');
+            console.log('[Memo-N][output-protocol] 自定义API messages数组已注入与一次性API一致的tableEdit函数格式');
             return await current.apply(this, nextArgs);
         }
 
@@ -167,7 +160,7 @@ function patchCustomApi() {
         const originalSystem = config.system_prompt;
         config.system_prompt = appendProtocol(originalSystem);
         try {
-            console.log('[Memo-N][output-protocol] 自定义API 已强制注入唯一tableEdit函数格式');
+            console.log('[Memo-N][output-protocol] 自定义API 已注入与一次性API一致的tableEdit函数格式');
             return await current.apply(this, args);
         } finally {
             config.system_prompt = originalSystem;
@@ -190,7 +183,7 @@ function install() {
             if (patchTavern() || tries >= 20) clearInterval(retry);
         }, 500);
     }
-    console.log(`[Memo-N] 记录专用唯一输出协议v2已加载：对象身份保护签名已对齐｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
+    console.log(`[Memo-N] 记录专用唯一输出协议v3已加载：与一次性API固定签名对齐｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
 }
 
 install();
