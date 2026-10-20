@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-independent-api-sync-4';
+const RUNTIME_VERSION = '0.75-independent-api-sync-5';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -35,8 +35,9 @@ const runtimes = [
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['上下文轮数最小值保护', './scripts/runtime/contextRoundInputGuard.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
-    // 两层都是generateRaw包装器：先安装返回兼容层，再安装请求格式锁。
-    // 实际调用顺序因此是：格式锁注入 -> API -> 兼容规范化 -> 严格执行器。
+    // 四层都包装记录请求：安装顺序决定调用/返回链。请求侧先识别，再由格式锁改写实际发送内容；
+    // 返回侧依次做窄兼容归一化，最后仍由safeTableExecutor裁决。
+    // 实际数据流：格式锁注入 -> API -> 基础传输规范化 -> 独立API规范化 -> row-data规范化 -> 严格执行器。
     ['独立tableEdit传输守卫', './scripts/runtime/recordOnlyTransportGuard.js'],
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     // 补齐独立API/第三方端点仍可能返回的data XML方言；只做确定性规范化，最终仍由严格执行器裁决。
@@ -63,7 +64,7 @@ const runtimes = [
     ['双指缩放', './scripts/ui/pinchZoom.js'],
     ['角色状态表点击桥', './scripts/ui/roleStatusClickBridge.js'],
     ['单元格编辑输入框尺寸', './scripts/ui/cellEditorSize.js'],
-    ['填表状态颜色', './scripts/ui/fillStatusColor.js'],
+    ['填表状态颜色', './scripts/runtime/fillStatusColor.js'],
 ];
 
 for (const [label, path] of runtimes) await loadRuntime(label, path);
