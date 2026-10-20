@@ -1,7 +1,7 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV4';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV5';
 const PROTOCOL_MARK = '[Memo-N唯一输出格式v2]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
@@ -144,6 +144,18 @@ function patchCustomApi() {
     const wrapped = async function (...args) {
         const combined = [this?.config?.system_prompt ?? '', args?.[0]];
         if (!isMemoRecordOnlyRequest(combined)) return await current.apply(this, args);
+
+        // Custom independent recording normally sends a messages array. LLMApiService
+        // forwards arrays directly and deliberately ignores config.system_prompt, so
+        // mutating only config.system_prompt would log a successful injection while
+        // sending none of the strict protocol to the provider. Inject into the actual
+        // message array in this branch and keep its final user message in place.
+        if (Array.isArray(args?.[0])) {
+            const nextArgs = [...args];
+            nextArgs[0] = injectProtocolIntoMessages(args[0]);
+            console.log('[Memo-N][output-protocol] 自定义API messages数组已强制注入唯一tableEdit函数格式');
+            return await current.apply(this, nextArgs);
+        }
 
         const config = this?.config;
         if (!config || typeof config !== 'object') {
