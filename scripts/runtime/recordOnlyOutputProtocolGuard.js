@@ -2,10 +2,11 @@ import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } from './recordSemantics.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV8';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV9';
 const PROTOCOL_MARK = '[Memo-N唯一输出格式v4]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
+const REDUNDANCY_MARKER = 'Memo冗余合并专用整理器';
 const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
@@ -64,12 +65,21 @@ function isMemoCleanupRequest(value) {
     return requestText(value).includes(CLEANUP_MARKER);
 }
 
+function isMemoRedundancyRequest(value) {
+    return requestText(value).includes(REDUNDANCY_MARKER);
+}
+
+function shouldIncludeRecordSemantics(value) {
+    return !isMemoCleanupRequest(value) && !isMemoRedundancyRequest(value);
+}
+
 function isMemoRecordOnlyRequest(value) {
     const text = requestText(value);
     return text.includes('Memo独立表格记录器')
         || text.includes('[Memo七表独立记录')
         || text.includes(TRANSPORT_MARK)
         || text.includes(CLEANUP_MARKER)
+        || text.includes(REDUNDANCY_MARKER)
         || looksLikeMemoSevenTableRequest(text);
 }
 
@@ -150,7 +160,7 @@ function injectProtocolIntoMessages(messages) {
     const list = Array.isArray(messages)
         ? messages.map(message => (message && typeof message === 'object' ? { ...message } : message))
         : [];
-    const includeRecordSemantics = !isMemoCleanupRequest(list);
+    const includeRecordSemantics = shouldIncludeRecordSemantics(list);
     const systemIndex = list.findIndex(message => String(message?.role ?? '').toLowerCase() === 'system');
     if (systemIndex >= 0) {
         list[systemIndex] = {
@@ -180,7 +190,7 @@ function injectProtocolIntoConfig(config) {
         next.messages = injectProtocolIntoMessages(next.messages);
         return next;
     }
-    const includeRecordSemantics = !isMemoCleanupRequest(next);
+    const includeRecordSemantics = shouldIncludeRecordSemantics(next);
     if (Object.prototype.hasOwnProperty.call(next, 'systemPrompt') || Object.prototype.hasOwnProperty.call(next, 'prompt')) {
         next.systemPrompt = appendProtocol(next.systemPrompt, { includeRecordSemantics });
         return next;
@@ -228,7 +238,7 @@ function patchCustomApi() {
         }
 
         const config = this?.config;
-        const includeRecordSemantics = !isMemoCleanupRequest(combined);
+        const includeRecordSemantics = shouldIncludeRecordSemantics(combined);
         if (!config || typeof config !== 'object') {
             const nextArgs = [...args];
             nextArgs[0] = appendProtocol(args?.[0], { includeRecordSemantics });
@@ -261,7 +271,7 @@ function install() {
             if (patchTavern() || tries >= 20) clearInterval(retry);
         }, 500);
     }
-    console.log(`[Memo-N] 记录专用唯一输出协议v4已加载：统一记录职责｜最后user兼容｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
+    console.log(`[Memo-N] 记录专用唯一输出协议v4已加载：统一记录职责｜最后user兼容｜整理请求不注入记录职责｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
 }
 
 install();
@@ -277,7 +287,9 @@ export {
     injectProtocolIntoMessages,
     isMemoCleanupRequest,
     isMemoRecordOnlyRequest,
+    isMemoRedundancyRequest,
     keepFinalUser,
     looksLikeMemoSevenTableRequest,
     placeRecordSemanticsBeforeFinalUser,
+    shouldIncludeRecordSemantics,
 };
