@@ -1,8 +1,8 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
-import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } from './recordSemantics.js';
+import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE, normalizeLegacyRecordSemantics } from './recordSemantics.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV9';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV10';
 const PROTOCOL_MARK = '[Memo-N唯一输出格式v4]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
@@ -157,10 +157,17 @@ function placeRecordSemanticsBeforeFinalUser(messages) {
 }
 
 function injectProtocolIntoMessages(messages) {
+    const includeRecordSemantics = shouldIncludeRecordSemantics(messages);
     const list = Array.isArray(messages)
-        ? messages.map(message => (message && typeof message === 'object' ? { ...message } : message))
+        ? messages.map(message => {
+            if (!message || typeof message !== 'object') return message;
+            const next = { ...message };
+            if (includeRecordSemantics && typeof next.content === 'string') {
+                next.content = normalizeLegacyRecordSemantics(next.content);
+            }
+            return next;
+        })
         : [];
-    const includeRecordSemantics = shouldIncludeRecordSemantics(list);
     const systemIndex = list.findIndex(message => String(message?.role ?? '').toLowerCase() === 'system');
     if (systemIndex >= 0) {
         list[systemIndex] = {
@@ -192,11 +199,14 @@ function injectProtocolIntoConfig(config) {
     }
     const includeRecordSemantics = shouldIncludeRecordSemantics(next);
     if (Object.prototype.hasOwnProperty.call(next, 'systemPrompt') || Object.prototype.hasOwnProperty.call(next, 'prompt')) {
-        next.systemPrompt = appendProtocol(next.systemPrompt, { includeRecordSemantics });
+        const systemPrompt = includeRecordSemantics ? normalizeLegacyRecordSemantics(next.systemPrompt) : next.systemPrompt;
+        next.systemPrompt = appendProtocol(systemPrompt, { includeRecordSemantics });
+        if (includeRecordSemantics && typeof next.prompt === 'string') next.prompt = normalizeLegacyRecordSemantics(next.prompt);
         return next;
     }
     if (Object.prototype.hasOwnProperty.call(next, 'system_prompt')) {
-        next.system_prompt = appendProtocol(next.system_prompt, { includeRecordSemantics });
+        const systemPrompt = includeRecordSemantics ? normalizeLegacyRecordSemantics(next.system_prompt) : next.system_prompt;
+        next.system_prompt = appendProtocol(systemPrompt, { includeRecordSemantics });
         return next;
     }
     return next;
@@ -212,7 +222,7 @@ function patchGenerateRaw(target, key, channel) {
         if (!guarded) return await current.apply(this, args);
         const nextArgs = [...args];
         nextArgs[0] = injectProtocolIntoConfig(args?.[0]);
-        console.log(`[Memo-N][output-protocol] ${channel} 已注入统一tableEdit协议，并把最终记录职责放在最后user之前`);
+        console.log(`[Memo-N][output-protocol] ${channel} 已清理旧冲突规则、注入统一tableEdit协议，并把最终记录职责放在最后user之前`);
         return await current.apply(this, nextArgs);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
@@ -233,7 +243,7 @@ function patchCustomApi() {
         if (Array.isArray(args?.[0])) {
             const nextArgs = [...args];
             nextArgs[0] = injectProtocolIntoMessages(args[0]);
-            console.log('[Memo-N][output-protocol] 自定义API messages已统一协议，最终职责紧贴最后user之前');
+            console.log('[Memo-N][output-protocol] 自定义API messages已清理旧冲突规则并统一协议，最终职责紧贴最后user之前');
             return await current.apply(this, nextArgs);
         }
 
@@ -241,15 +251,21 @@ function patchCustomApi() {
         const includeRecordSemantics = shouldIncludeRecordSemantics(combined);
         if (!config || typeof config !== 'object') {
             const nextArgs = [...args];
-            nextArgs[0] = appendProtocol(args?.[0], { includeRecordSemantics });
+            const prompt = includeRecordSemantics ? normalizeLegacyRecordSemantics(args?.[0]) : args?.[0];
+            nextArgs[0] = appendProtocol(prompt, { includeRecordSemantics });
             return await current.apply(this, nextArgs);
         }
 
         const originalSystem = config.system_prompt;
-        config.system_prompt = appendProtocol(originalSystem, { includeRecordSemantics });
+        const normalizedSystem = includeRecordSemantics ? normalizeLegacyRecordSemantics(originalSystem) : originalSystem;
+        config.system_prompt = appendProtocol(normalizedSystem, { includeRecordSemantics });
+        const nextArgs = [...args];
+        if (includeRecordSemantics && typeof nextArgs[0] === 'string') {
+            nextArgs[0] = normalizeLegacyRecordSemantics(nextArgs[0]);
+        }
         try {
-            console.log('[Memo-N][output-protocol] 自定义API 已注入统一tableEdit协议');
-            return await current.apply(this, args);
+            console.log('[Memo-N][output-protocol] 自定义API 已清理旧冲突规则并注入统一tableEdit协议');
+            return await current.apply(this, nextArgs);
         } finally {
             config.system_prompt = originalSystem;
         }
@@ -271,7 +287,7 @@ function install() {
             if (patchTavern() || tries >= 20) clearInterval(retry);
         }, 500);
     }
-    console.log(`[Memo-N] 记录专用唯一输出协议v4已加载：统一记录职责｜最后user兼容｜整理请求不注入记录职责｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
+    console.log(`[Memo-N] 记录专用唯一输出协议v4已加载：旧冲突规则发送前清理｜统一记录职责｜最后user兼容｜整理请求隔离｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
 }
 
 install();
