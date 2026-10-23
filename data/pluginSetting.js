@@ -26,7 +26,7 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     injection_mode: 'deep_system',
     deep: 1,
     message_template: `# dataTable 世界状态记忆
-## 表格：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展 / 6历史事件
+## 表格：0当前状态 / 1角色状态 / 2背包 / 3当前任务与约定 / 4人物主表 / 5人物发展表 / 6历史事件
 {{tableData}}
 # 操作
 insertRow(tableIndex:number,data:{[colIndex:number]:string|number})
