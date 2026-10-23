@@ -1,7 +1,8 @@
 import { APP, USER } from '../../core/manager.js';
+import { RECORD_SEMANTICS_RULE } from './recordSemantics.js';
 
-const MARK = '[Memo-N对象核对输出硬约束v3]';
-const OLD_MARK_RE = /^\[Memo-N对象核对输出硬约束v[123]\]/;
+const MARK = '[Memo-N对象核对输出硬约束v4]';
+const OLD_MARK_RE = /^\[Memo-N对象核对输出硬约束v[1234]\]/;
 const RECORD_MARK = '[Memo-N native tableEdit one-call v1]';
 
 function active() {
@@ -35,6 +36,7 @@ function inject(data) {
     const guard = {
         role: 'system',
         content: `${MARK}
+${RECORD_SEMANTICS_RULE}
 本轮updateRow统一4参数：updateRow(tableIndex,rowIndex,{columnIndex:"value"},"expected")。
 本轮deleteRow统一3参数：deleteRow(tableIndex,rowIndex,"expected")。
 表2/4/5：expected原样抄本轮对象核对映射中同一tableIndex、rowIndex的修改前名称；其他表填空字符串""。不能把占位词expected写入结果。
@@ -55,4 +57,4 @@ function inject(data) {
 const settingsReady = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
 APP.eventSource.on(settingsReady, inject);
 APP.eventSource.makeLast?.(settingsReady, inject);
-console.log('[Memo-N] 对象核对输出硬约束v3已加载：Memo系统协议保持在最后用户消息之前');
+console.log('[Memo-N] 对象核对输出硬约束v4已加载：一次API记录职责与独立API对齐，Memo系统协议保持在最后user之前');
