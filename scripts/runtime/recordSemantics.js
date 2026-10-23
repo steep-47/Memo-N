@@ -27,9 +27,14 @@ const LEGACY_RECORD_CONFLICTS = [
 ];
 
 const LEGACY_HISTORY_CONTRACT = /#6 历史事件表：[^\n]*(?:\n(?!\n\[完整性判断\])[\s\S]*?)?(?=\n\n\[完整性判断\])/g;
+const LEGACY_HISTORY_RULE_LINE = /^- 表6“历史事件表”[^\n]*$/gm;
 
 function currentHistoryContract() {
     return `#6 历史事件表：${HISTORY_TABLE_RULES.note}。${HISTORY_TABLE_RULES.insertNode}；${HISTORY_TABLE_RULES.updateNode}；${HISTORY_TABLE_RULES.deleteNode}。`;
+}
+
+function currentHistoryRuleLine() {
+    return `- 表6“历史事件表”：${HISTORY_TABLE_RULES.note}；${HISTORY_TABLE_RULES.insertNode}；${HISTORY_TABLE_RULES.updateNode}。`;
 }
 
 function normalizeLegacyRecordSemantics(value) {
@@ -37,6 +42,7 @@ function normalizeLegacyRecordSemantics(value) {
     for (const [legacy, replacement] of LEGACY_RECORD_CONFLICTS) {
         if (text.includes(legacy)) text = text.replaceAll(legacy, replacement);
     }
+    text = text.replace(LEGACY_HISTORY_RULE_LINE, currentHistoryRuleLine());
     if (text.includes('#6 历史事件表：') && text.includes('[完整性判断]')) {
         text = text.replace(LEGACY_HISTORY_CONTRACT, currentHistoryContract());
     }
