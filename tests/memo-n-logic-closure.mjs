@@ -7,6 +7,7 @@ const cleanup = await fs.readFile(new URL('../scripts/runtime/cleanupEvidenceWin
 const mode = await fs.readFile(new URL('../scripts/runtime/modeRuntimeControl.js', import.meta.url), 'utf8');
 const manual = await fs.readFile(new URL('../scripts/runtime/manualRoundContextBridge.js', import.meta.url), 'utf8');
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
+const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 
 for (const token of [
     '一次API与独立API只差请求所用provider',
@@ -34,6 +35,7 @@ for (const [label, source] of [['auto independent', mode], ['manual independent'
     if (source.includes("./separateTableUpdate.js?v=0.50")) throw new Error(`${label} still loads stale/duplicate v0.50 module URL`);
 }
 
-if (!loader.includes("const RUNTIME_VERSION = '0.75-logic-closure-2'")) throw new Error('runtime cache version was not bumped after prompt deconfliction');
+if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader display version does not match manifest');
+if (!loader.includes(`const RUNTIME_VERSION = '${manifest.version}-`)) throw new Error('runtime cache version does not start with current release version');
 
-console.log('memo-n logic closure PASS: conflicting legacy prompts are stripped; record, maintenance and redundancy remain separated');
+console.log('memo-n logic closure PASS: conflicting legacy prompts are stripped; record, maintenance and redundancy remain separated across release bumps');
