@@ -2,7 +2,7 @@ import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } from './recordSemantics.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV7';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV8';
 const PROTOCOL_MARK = '[Memo-N唯一输出格式v4]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
@@ -73,15 +73,25 @@ function isMemoRecordOnlyRequest(value) {
         || looksLikeMemoSevenTableRequest(text);
 }
 
+function appendRecordSemantics(value) {
+    const text = String(value ?? '').trim();
+    if (text.includes(RECORD_SEMANTICS_MARK)) return text;
+    return text ? `${text}\n\n${RECORD_SEMANTICS_RULE}` : RECORD_SEMANTICS_RULE;
+}
+
+function stripRecordSemantics(value) {
+    let text = String(value ?? '');
+    if (!text.includes(RECORD_SEMANTICS_MARK)) return text;
+    text = text.replace(RECORD_SEMANTICS_RULE, '');
+    return text.replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
 function appendProtocol(value, { includeRecordSemantics = true } = {}) {
     let text = String(value ?? '').trim();
     if (!text.includes(PROTOCOL_MARK)) {
         text = text ? `${text}\n\n${STRICT_OUTPUT_PROTOCOL}` : STRICT_OUTPUT_PROTOCOL;
     }
-    if (includeRecordSemantics && !text.includes(RECORD_SEMANTICS_MARK)) {
-        text = `${text}\n\n${RECORD_SEMANTICS_RULE}`;
-    }
-    return text;
+    return includeRecordSemantics ? appendRecordSemantics(text) : text;
 }
 
 function keepFinalUser(messages) {
@@ -100,6 +110,42 @@ function keepFinalUser(messages) {
     return list;
 }
 
+function placeRecordSemanticsBeforeFinalUser(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    let userIndex = -1;
+    for (let index = list.length - 1; index >= 0; index--) {
+        if (String(list[index]?.role ?? '').toLowerCase() === 'user') {
+            userIndex = index;
+            break;
+        }
+    }
+
+    for (let index = 0; index < list.length; index++) {
+        if (String(list[index]?.role ?? '').toLowerCase() !== 'system') continue;
+        if (!String(list[index]?.content ?? '').includes(RECORD_SEMANTICS_MARK)) continue;
+        list[index] = { ...list[index], content: stripRecordSemantics(list[index]?.content) };
+    }
+
+    const boundary = userIndex >= 0 ? userIndex : list.length;
+    let systemIndex = -1;
+    for (let index = boundary - 1; index >= 0; index--) {
+        if (String(list[index]?.role ?? '').toLowerCase() === 'system') {
+            systemIndex = index;
+            break;
+        }
+    }
+
+    if (systemIndex >= 0) {
+        list[systemIndex] = {
+            ...list[systemIndex],
+            content: appendRecordSemantics(list[systemIndex]?.content),
+        };
+    } else {
+        list.splice(boundary, 0, { role: 'system', content: RECORD_SEMANTICS_RULE });
+    }
+    return list;
+}
+
 function injectProtocolIntoMessages(messages) {
     const list = Array.isArray(messages)
         ? messages.map(message => (message && typeof message === 'object' ? { ...message } : message))
@@ -109,15 +155,17 @@ function injectProtocolIntoMessages(messages) {
     if (systemIndex >= 0) {
         list[systemIndex] = {
             ...list[systemIndex],
-            content: appendProtocol(list[systemIndex]?.content, { includeRecordSemantics }),
+            content: appendProtocol(list[systemIndex]?.content, { includeRecordSemantics: false }),
         };
     } else {
         list.unshift({
             role: 'system',
-            content: appendProtocol('', { includeRecordSemantics }),
+            content: appendProtocol('', { includeRecordSemantics: false }),
         });
     }
-    return keepFinalUser(list);
+    keepFinalUser(list);
+    if (includeRecordSemantics) placeRecordSemanticsBeforeFinalUser(list);
+    return list;
 }
 
 function injectProtocolIntoConfig(config) {
@@ -154,7 +202,7 @@ function patchGenerateRaw(target, key, channel) {
         if (!guarded) return await current.apply(this, args);
         const nextArgs = [...args];
         nextArgs[0] = injectProtocolIntoConfig(args?.[0]);
-        console.log(`[Memo-N][output-protocol] ${channel} 已注入统一tableEdit协议并保持最后消息为user`);
+        console.log(`[Memo-N][output-protocol] ${channel} 已注入统一tableEdit协议，并把最终记录职责放在最后user之前`);
         return await current.apply(this, nextArgs);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
@@ -175,7 +223,7 @@ function patchCustomApi() {
         if (Array.isArray(args?.[0])) {
             const nextArgs = [...args];
             nextArgs[0] = injectProtocolIntoMessages(args[0]);
-            console.log('[Memo-N][output-protocol] 自定义API messages已统一协议并保持最后消息为user');
+            console.log('[Memo-N][output-protocol] 自定义API messages已统一协议，最终职责紧贴最后user之前');
             return await current.apply(this, nextArgs);
         }
 
@@ -231,4 +279,5 @@ export {
     isMemoRecordOnlyRequest,
     keepFinalUser,
     looksLikeMemoSevenTableRequest,
+    placeRecordSemanticsBeforeFinalUser,
 };
