@@ -1,9 +1,11 @@
 import { EDITOR } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
+import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } from './recordSemantics.js';
 
-const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV6';
-const PROTOCOL_MARK = '[Memo-N唯一输出格式v3]';
+const PATCH_MARK = '__memoNRecordOnlyOutputProtocolGuardV7';
+const PROTOCOL_MARK = '[Memo-N唯一输出格式v4]';
 const TRANSPORT_MARK = '# Memo独立记录操作协议';
+const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const MEMO_TABLE_NAMES = ['当前状态表','角色状态表','背包表','当前任务与约定表','人物主表','人物发展表','历史事件表'];
 
 const STRICT_OUTPUT_PROTOCOL = `# ${PROTOCOL_MARK}
@@ -58,42 +60,68 @@ function looksLikeMemoSevenTableRequest(text) {
     return /(?:insertRow|updateRow|deleteRow|tableEdit|rowIndex|colIndex)/i.test(source);
 }
 
+function isMemoCleanupRequest(value) {
+    return requestText(value).includes(CLEANUP_MARKER);
+}
+
 function isMemoRecordOnlyRequest(value) {
     const text = requestText(value);
     return text.includes('Memo独立表格记录器')
         || text.includes('[Memo七表独立记录')
         || text.includes(TRANSPORT_MARK)
-        || text.includes('Memo世界状态表格整理器')
+        || text.includes(CLEANUP_MARKER)
         || looksLikeMemoSevenTableRequest(text);
 }
 
-function appendProtocol(value) {
-    const text = String(value ?? '').trim();
-    if (text.includes(PROTOCOL_MARK)) return text;
-    return text ? `${text}\n\n${STRICT_OUTPUT_PROTOCOL}` : STRICT_OUTPUT_PROTOCOL;
+function appendProtocol(value, { includeRecordSemantics = true } = {}) {
+    let text = String(value ?? '').trim();
+    if (!text.includes(PROTOCOL_MARK)) {
+        text = text ? `${text}\n\n${STRICT_OUTPUT_PROTOCOL}` : STRICT_OUTPUT_PROTOCOL;
+    }
+    if (includeRecordSemantics && !text.includes(RECORD_SEMANTICS_MARK)) {
+        text = `${text}\n\n${RECORD_SEMANTICS_RULE}`;
+    }
+    return text;
+}
+
+function keepFinalUser(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    let userIndex = -1;
+    for (let index = list.length - 1; index >= 0; index--) {
+        if (String(list[index]?.role ?? '').toLowerCase() === 'user') {
+            userIndex = index;
+            break;
+        }
+    }
+    if (userIndex < 0 || userIndex === list.length - 1) return list;
+    const trailing = list.splice(userIndex + 1);
+    const [user] = list.splice(userIndex, 1);
+    list.push(...trailing, user);
+    return list;
 }
 
 function injectProtocolIntoMessages(messages) {
     const list = Array.isArray(messages)
         ? messages.map(message => (message && typeof message === 'object' ? { ...message } : message))
         : [];
-    if (requestText(list).includes(PROTOCOL_MARK)) return list;
-
+    const includeRecordSemantics = !isMemoCleanupRequest(list);
     const systemIndex = list.findIndex(message => String(message?.role ?? '').toLowerCase() === 'system');
     if (systemIndex >= 0) {
         list[systemIndex] = {
             ...list[systemIndex],
-            content: appendProtocol(list[systemIndex]?.content),
+            content: appendProtocol(list[systemIndex]?.content, { includeRecordSemantics }),
         };
     } else {
-        list.unshift({ role: 'system', content: STRICT_OUTPUT_PROTOCOL });
+        list.unshift({
+            role: 'system',
+            content: appendProtocol('', { includeRecordSemantics }),
+        });
     }
-    return list;
+    return keepFinalUser(list);
 }
 
 function injectProtocolIntoConfig(config) {
     if (!config || typeof config !== 'object' || Array.isArray(config)) return config;
-    if (requestText(config).includes(PROTOCOL_MARK)) return config;
 
     const next = { ...config };
     if (Array.isArray(next.ordered_prompts)) {
@@ -104,12 +132,13 @@ function injectProtocolIntoConfig(config) {
         next.messages = injectProtocolIntoMessages(next.messages);
         return next;
     }
+    const includeRecordSemantics = !isMemoCleanupRequest(next);
     if (Object.prototype.hasOwnProperty.call(next, 'systemPrompt') || Object.prototype.hasOwnProperty.call(next, 'prompt')) {
-        next.systemPrompt = appendProtocol(next.systemPrompt);
+        next.systemPrompt = appendProtocol(next.systemPrompt, { includeRecordSemantics });
         return next;
     }
     if (Object.prototype.hasOwnProperty.call(next, 'system_prompt')) {
-        next.system_prompt = appendProtocol(next.system_prompt);
+        next.system_prompt = appendProtocol(next.system_prompt, { includeRecordSemantics });
         return next;
     }
     return next;
@@ -125,7 +154,7 @@ function patchGenerateRaw(target, key, channel) {
         if (!guarded) return await current.apply(this, args);
         const nextArgs = [...args];
         nextArgs[0] = injectProtocolIntoConfig(args?.[0]);
-        console.log(`[Memo-N][output-protocol] ${channel} 已强制注入与一次性API一致的tableEdit函数格式`);
+        console.log(`[Memo-N][output-protocol] ${channel} 已注入统一tableEdit协议并保持最后消息为user`);
         return await current.apply(this, nextArgs);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
@@ -146,21 +175,22 @@ function patchCustomApi() {
         if (Array.isArray(args?.[0])) {
             const nextArgs = [...args];
             nextArgs[0] = injectProtocolIntoMessages(args[0]);
-            console.log('[Memo-N][output-protocol] 自定义API messages数组已注入与一次性API一致的tableEdit函数格式');
+            console.log('[Memo-N][output-protocol] 自定义API messages已统一协议并保持最后消息为user');
             return await current.apply(this, nextArgs);
         }
 
         const config = this?.config;
+        const includeRecordSemantics = !isMemoCleanupRequest(combined);
         if (!config || typeof config !== 'object') {
             const nextArgs = [...args];
-            nextArgs[0] = appendProtocol(args?.[0]);
+            nextArgs[0] = appendProtocol(args?.[0], { includeRecordSemantics });
             return await current.apply(this, nextArgs);
         }
 
         const originalSystem = config.system_prompt;
-        config.system_prompt = appendProtocol(originalSystem);
+        config.system_prompt = appendProtocol(originalSystem, { includeRecordSemantics });
         try {
-            console.log('[Memo-N][output-protocol] 自定义API 已注入与一次性API一致的tableEdit函数格式');
+            console.log('[Memo-N][output-protocol] 自定义API 已注入统一tableEdit协议');
             return await current.apply(this, args);
         } finally {
             config.system_prompt = originalSystem;
@@ -183,7 +213,7 @@ function install() {
             if (patchTavern() || tries >= 20) clearInterval(retry);
         }, 500);
     }
-    console.log(`[Memo-N] 记录专用唯一输出协议v3已加载：与一次性API固定签名对齐｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
+    console.log(`[Memo-N] 记录专用唯一输出协议v4已加载：统一记录职责｜最后user兼容｜EDITOR=${editor} TavernHelper=${tavern} CustomAPI=${custom}`);
 }
 
 install();
@@ -197,6 +227,8 @@ export {
     appendProtocol,
     injectProtocolIntoConfig,
     injectProtocolIntoMessages,
+    isMemoCleanupRequest,
     isMemoRecordOnlyRequest,
+    keepFinalUser,
     looksLikeMemoSevenTableRequest,
 };
