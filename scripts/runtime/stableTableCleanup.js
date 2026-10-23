@@ -210,7 +210,7 @@ async function runStableCleanup(mode = 'repair') {
         }
         const piece = BASE.getLastSheetsPiece()?.piece;
         if (!piece?.memo_n_hash_sheets) return EDITOR.error('表格整理失败：没有找到可整理的表格记录');
-        let tableText = getTablePromptByPiece(piece);
+        let tableText = getTablePromptByPiece(piece, redundancyOnly);
         if (!String(tableText || '').trim()) return EDITOR.error('表格整理失败：当前表格内容无法读取');
         const localOperations = redundancyOnly ? null : depletedInventoryOperations(BASE.getChatSheets?.() ?? []);
         if (localOperations) {
