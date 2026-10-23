@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-event-cleanup-1';
+const RUNTIME_VERSION = '0.75-event-cleanup-2';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
