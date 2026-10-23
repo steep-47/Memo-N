@@ -1,10 +1,15 @@
 import fs from 'node:fs/promises';
 
 let source = await fs.readFile(new URL('../scripts/runtime/identityExpectedPromptGuard.js', import.meta.url), 'utf8');
-source = source.replace(
-    "import { APP, USER } from '../../core/manager.js';",
-    'const { APP, USER } = globalThis.__memoNUserLastMocks;',
-);
+source = source
+    .replace(
+        "import { APP, USER } from '../../core/manager.js';",
+        'const { APP, USER } = globalThis.__memoNUserLastMocks;',
+    )
+    .replace(
+        "import { RECORD_SEMANTICS_RULE } from './recordSemantics.js';",
+        'const { RECORD_SEMANTICS_RULE } = globalThis.__memoNUserLastMocks;',
+    );
 
 const handlers = [];
 globalThis.__memoNUserLastMocks = {
@@ -25,6 +30,7 @@ globalThis.__memoNUserLastMocks = {
         },
         getSettings: () => ({ memo_n_settings: { independent_record_api_enabled: false } }),
     },
+    RECORD_SEMANTICS_RULE: '[Memo-N记录职责收口v1]\n表6跨轮完整事件合并只由冗余整理执行。',
 };
 
 await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-user-last-api`);
@@ -55,16 +61,19 @@ if (!request.messages.at(-1)?.content.startsWith('继续行动')) {
 }
 
 const contractIndex = request.messages.findIndex(message => String(message?.content ?? '').includes('[Memo-N native tableEdit one-call v1]'));
-const guardIndex = request.messages.findIndex(message => String(message?.content ?? '').startsWith('[Memo-N对象核对输出硬约束v3]'));
+const guardIndex = request.messages.findIndex(message => String(message?.content ?? '').startsWith('[Memo-N对象核对输出硬约束v4]'));
 const userIndex = request.messages.length - 1;
 if (contractIndex < 0 || guardIndex < 0) throw new Error('Memo-N系统协议在重排后丢失');
 if (!(contractIndex < guardIndex && guardIndex < userIndex)) {
     throw new Error(`Memo-N发送顺序错误：contract=${contractIndex}, guard=${guardIndex}, user=${userIndex}`);
 }
+if (!request.messages[guardIndex].content.includes('[Memo-N记录职责收口v1]')) {
+    throw new Error('一次API没有注入统一记录职责');
+}
 
 const recordCount = request.messages.filter(message => String(message?.content ?? '').includes('[Memo-N native tableEdit one-call v1]')).length;
-const guardCount = request.messages.filter(message => /^\[Memo-N对象核对输出硬约束v[123]\]/.test(String(message?.content ?? ''))).length;
+const guardCount = request.messages.filter(message => /^\[Memo-N对象核对输出硬约束v[1234]\]/.test(String(message?.content ?? ''))).length;
 if (recordCount !== 1) throw new Error(`主记录协议数量异常：${recordCount}`);
 if (guardCount !== 1) throw new Error(`对象核对协议数量异常：${guardCount}`);
 
-console.log('memo-n user-last API PASS: Memo system contracts precede the final user message without duplication');
+console.log('memo-n user-last API PASS: one-call semantics guard precedes the final user message without duplication');

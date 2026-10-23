@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-event-cleanup-3';
+const RUNTIME_VERSION = '0.75-logic-closure-1';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -35,7 +35,7 @@ const runtimes = [
     ['手动更新按对话轮读取上下文', './scripts/runtime/manualRoundContextBridge.js'],
     ['上下文轮数最小值保护', './scripts/runtime/contextRoundInputGuard.js'],
     ['推理区机器记录显示隐藏', './scripts/runtime/reasoningRecordDisplayShield.js'],
-    // 独立API与一次性API共享同一套函数签名和严格执行规则；独立API只替换底层provider。
+    // 独立API与一次性API共享同一套函数签名、记录职责和严格执行规则；独立API只替换底层provider。
     // 独立API返回不再经过任何专用格式修复层：模型原始tableEdit直接进入同一safeTableExecutor校验。
     ['记录专用唯一输出格式', './scripts/runtime/recordOnlyOutputProtocolGuard.js'],
     ['遗留重复模板清理', './scripts/runtime/legacyTableStructureCleanup.js'],
@@ -49,10 +49,10 @@ const runtimes = [
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
-    // 最后修正单API记录契约中的对象核对格式，并把Memo-N尾部system协议移到最后user之前，兼容要求最后消息为user的API。
+    // 最后修正单API记录契约：统一记录职责与对象核对，并把Memo-N system协议移到最后user之前。
     ['对象核对输出硬约束', './scripts/runtime/identityExpectedPromptGuard.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
-    ['整理最近证据与表达规则', './scripts/runtime/cleanupEvidenceWindow.js'],
+    ['表格整理证据与维护边界', './scripts/runtime/cleanupEvidenceWindow.js'],
     ['整理按钮桥接', './scripts/runtime/cleanupButtonBridge.js'],
     ['人物表展示', './scripts/ui/personTableSplit.js'],
     ['双指缩放', './scripts/ui/pinchZoom.js'],
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: event cleanup plus completed-matter settlement');
+console.log('[Memo-N][loader] v0.75 loaded: record/maintenance/redundancy responsibilities closed');

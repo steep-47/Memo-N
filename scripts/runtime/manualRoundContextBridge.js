@@ -1,8 +1,8 @@
 import { APP, EDITOR, USER } from '../../core/manager.js';
 import { reloadCurrentChat } from '/script.js';
-import { TableTwoStepSummary } from './separateTableUpdate.js?v=0.50';
+import { TableTwoStepSummary } from './separateTableUpdate.js?v=memon82';
 
-const INSTALL_FLAG = '__memoNManualRoundContextBridgeV7';
+const INSTALL_FLAG = '__memoNManualRoundContextBridgeV8';
 const TABLE_EDIT_BLOCK_RE = /<tableEdit\b[^>]*>[\s\S]*?<\/tableEdit>/gi;
 const OP_LINE_RE = /^\s*(?:insertRow|updateRow|deleteRow)\s*\([\s\S]*\)\s*;?\s*$/;
 const VISIBLE_EXTRA_KEYS = ['display_text', 'reasoning', 'reasoning_display_text'];
@@ -409,7 +409,7 @@ function install() {
         setTimeout(() => cleanupLegacyVisibleRecords().catch(() => {}), 800);
     });
 
-    console.log('[Memo-N] v0.50 手动记录可见通道隔离：实时piece + 单入口 + 非流式raw + 最新独立记录规则');
+    console.log('[Memo-N] v0.51 手动记录可见通道隔离：统一separateTableUpdate memon82实例 + 实时piece + 单入口 + 非流式raw');
 }
 
 install();
