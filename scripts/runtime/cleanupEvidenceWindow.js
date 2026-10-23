@@ -1,10 +1,10 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoCleanupEvidenceWindowV4';
+const PATCH_MARK = '__memoCleanupEvidenceWindowV5';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
 const EVIDENCE_RULE = '当前七表是表格整理的主体和主要事实来源；最近聊天只作为极小的校对证据窗口，用于确认表内已有记录的明显冲突、失效或错误。整理不以重新阅读剧情和补录大量信息为目标；表内没有对应问题时，不主动从最近聊天扩写新内容。';
-const EXPRESSION_RULE = '表格整理同时负责维护长文本字段的可读性：当内容存在重复、同义堆叠、无效铺陈，或表达已经明显影响快速查阅时，应在不损失有效事实、位置、程度、状态、条件、关系和人物辨识度的前提下主动提炼。叙述性表达本身不是问题；若它有助于准确表达特征、关系、条件、程度或辨识度，应保留，只去掉不承载有效信息的铺陈。整理后的文字应紧凑、自然、便于快速阅读，而不是压成生硬标签。';
+const MAINTENANCE_SCOPE_RULE = '普通“表格整理”只做七表正确性维护：处理重复实体/物品/任务行、完成/过期/失效项、错表错位、字段混写、旧值冲突及能够明确证明的数据错误；不做长文本润色或内容压缩，也不把表6逐轮记录重组为完整事件。表6完整事件级跨行合并以及纯内容冗余压缩统一交给“冗余整理”。';
 const SETTLEMENT_RULE = '删除表3中已完成、失败、取消、失效或明确到期的事项前，先结算其已确认的结束事实：若结束使表1/4/5等当前状态中的持续描述失效，先更新对应字段；若结束本身对未来推演仍有长期价值，优先更新表6已有相关事件的结果，只有没有合适历史行且确有独立长期价值时才新增历史。普通完成项不为留痕而新增表6；目标表已有该结果时不重复写。期限结束只证明原状态终止，不得据此推断新的地点、行为、身份或其他后续状态；结算完成后再删除表3。';
 
 function cleanMessage(item) {
@@ -62,8 +62,8 @@ function appendCleanupRules(text) {
     if (!result.includes(EVIDENCE_RULE)) {
         result += `\n\n[整理证据边界]\n${EVIDENCE_RULE}`;
     }
-    if (!result.includes(EXPRESSION_RULE)) {
-        result += `\n\n[长文本表达整理]\n${EXPRESSION_RULE}`;
+    if (!result.includes(MAINTENANCE_SCOPE_RULE)) {
+        result += `\n\n[普通表格整理职责]\n${MAINTENANCE_SCOPE_RULE}`;
     }
     return result;
 }
@@ -89,6 +89,10 @@ function rewriteCleanupUserPrompt(value) {
         '以及最近聊天能够直接证明的明确漏项',
         '以及最近聊天能够直接证明的表内明显冲突、失效或错误',
     );
+    text = text.replaceAll(
+        '历史表既整理重大节点，也保留0～5无法承接但后续需要的连续性事实，同一连续事件优先合并/更新。',
+        '历史表只做正确性维护：纠正明确错误、重复或与已确认事实冲突的记录；完整事件级跨行合并交给冗余整理。',
+    );
 
     return appendSettlementRule(appendCleanupRules(text));
 }
@@ -101,7 +105,11 @@ function rewriteCleanupSystemPrompt(value) {
         '当前表中存在明确漏项，而最近聊天能够直接证明时允许补回；证据不足保持原状，不为了“完整”制造事实。',
         '最近聊天只用于辅助判断当前表内已有记录的明显冲突、失效或错误；整理不主动把聊天内容重新补录进表，证据不足保持原状。',
     );
-    return appendCleanupRules(text);
+    text = text.replaceAll(
+        '纯氛围、无后续意义的琐碎动作可删除；同一连续事件优先压缩维护同一条记录，不机械按每轮拆行。',
+        '历史表仅纠正明确错误、重复或与已确认事实冲突的行；普通表格整理不做完整事件级跨行压缩。',
+    );
+    return appendSettlementRule(appendCleanupRules(text));
 }
 
 function patchEditorGenerateRaw() {
@@ -127,7 +135,15 @@ function patchCustomApi() {
     if (!proto || typeof proto.callLLM !== 'function' || proto.callLLM[PATCH_MARK]) return;
     const original = proto.callLLM;
     const wrapped = async function (...args) {
-        if (String(this?.config?.system_prompt ?? '').includes(CLEANUP_MARKER)) {
+        const config = this?.config;
+        const currentSystem = String(config?.system_prompt ?? '');
+        if (!currentSystem.includes(CLEANUP_MARKER)) return original.apply(this, args);
+
+        const originalSystem = config?.system_prompt;
+        if (config && typeof config === 'object') {
+            config.system_prompt = rewriteCleanupSystemPrompt(originalSystem);
+        }
+        try {
             if (typeof args[0] === 'string') {
                 args[0] = rewriteCleanupUserPrompt(args[0]);
             } else if (Array.isArray(args[0])) {
@@ -140,8 +156,10 @@ function patchCustomApi() {
                 }
                 args[0] = messages;
             }
+            return await original.apply(this, args);
+        } finally {
+            if (config && typeof config === 'object') config.system_prompt = originalSystem;
         }
-        return original.apply(this, args);
     };
     Object.defineProperty(wrapped, PATCH_MARK, { value: true });
     proto.callLLM = wrapped;
@@ -153,6 +171,14 @@ function install() {
 }
 
 install();
-console.log('[Memo-N] 表格整理规则已加载：七表为主体、最近仅保留1轮校对证据，并在删除结束事项前结算其确定结果');
+console.log('[Memo-N] 普通表格整理v5已加载：只做正确性维护、1轮校对证据、结束事项先结算后删除');
 
-export { EVIDENCE_RULE, EXPRESSION_RULE, SETTLEMENT_RULE, buildOneRoundEvidence, rewriteCleanupUserPrompt, rewriteCleanupSystemPrompt };
+export {
+    CLEANUP_MARKER,
+    EVIDENCE_RULE,
+    MAINTENANCE_SCOPE_RULE,
+    SETTLEMENT_RULE,
+    buildOneRoundEvidence,
+    rewriteCleanupUserPrompt,
+    rewriteCleanupSystemPrompt,
+};
