@@ -15,7 +15,15 @@ for (const token of [
     '普通完成项不为留痕而新增表6',
     '期限结束只证明原状态终止',
     '结算完成后再删除表3',
-    'config.system_prompt = rewriteCleanupSystemPrompt',
+    "const REDUNDANCY_MARKER = 'Memo冗余合并专用整理器'",
+    '冗余整理应近似幂等',
+    '视为稳定历史单元，不得仅为了更短再次改写',
+    '明确终局',
+    '不得跨终局合并',
+    '原事件明确尚未闭合',
+    '应优先输出NO_CHANGE',
+    'rewriteRedundancySystemPrompt',
+    'config.system_prompt = normalCleanup',
     'EDITOR.generateRaw = wrapped',
     'proto.callLLM = wrapped',
 ]) {
@@ -34,4 +42,4 @@ if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader/manifest version mismatch');
 
-console.log('memo-n cleanup evidence window PASS: correctness-only maintenance, one-round evidence, settle-before-delete');
+console.log('memo-n cleanup evidence window PASS: correctness maintenance and repeated redundancy cleanup remain isolated and stable');
