@@ -14,12 +14,14 @@ for (const token of [
     '表3除任务、承诺、交易、约定外，也记录有明确期限或结束条件、尚未结算的持续事项',
     '表6是高召回历史采集层',
     '跨轮完整事件识别与压缩统一交给“冗余整理”',
+    'LEGACY_RECORD_CONFLICTS',
+    'normalizeLegacyRecordSemantics',
 ]) {
     if (!semantics.includes(token)) throw new Error(`record semantics missing: ${token}`);
 }
 
-if (!output.includes("from './recordSemantics.js'")) throw new Error('independent/raw record path does not use shared record semantics');
-if (!oneCallGuard.includes("from './recordSemantics.js'")) throw new Error('one-call path does not use shared record semantics');
+if (!output.includes('normalizeLegacyRecordSemantics')) throw new Error('independent/raw record path does not strip legacy conflicting semantics');
+if (!oneCallGuard.includes('normalizeLegacyRecordSemantics')) throw new Error('one-call path does not strip legacy conflicting semantics');
 if (!output.includes("const REDUNDANCY_MARKER = 'Memo冗余合并专用整理器'")) throw new Error('output guard cannot identify redundancy cleanup');
 if (!output.includes('function shouldIncludeRecordSemantics')) throw new Error('output guard lacks cleanup-mode semantics isolation');
 if (!output.includes('placeRecordSemanticsBeforeFinalUser')) throw new Error('record semantics are not made final system authority');
@@ -32,6 +34,6 @@ for (const [label, source] of [['auto independent', mode], ['manual independent'
     if (source.includes("./separateTableUpdate.js?v=0.50")) throw new Error(`${label} still loads stale/duplicate v0.50 module URL`);
 }
 
-if (!loader.includes("const RUNTIME_VERSION = '0.75-logic-closure-1'")) throw new Error('runtime cache version was not bumped for logic closure');
+if (!loader.includes("const RUNTIME_VERSION = '0.75-logic-closure-2'")) throw new Error('runtime cache version was not bumped after prompt deconfliction');
 
-console.log('memo-n logic closure PASS: record, maintenance and redundancy responsibilities are separated and provider paths share one semantics contract');
+console.log('memo-n logic closure PASS: conflicting legacy prompts are stripped; record, maintenance and redundancy remain separated');
