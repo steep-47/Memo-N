@@ -20,7 +20,9 @@ for (const token of [
 
 if (!output.includes("from './recordSemantics.js'")) throw new Error('independent/raw record path does not use shared record semantics');
 if (!oneCallGuard.includes("from './recordSemantics.js'")) throw new Error('one-call path does not use shared record semantics');
-if (!output.includes('return keepFinalUser(list)')) throw new Error('record-only transport does not enforce final user');
+if (!output.includes("const REDUNDANCY_MARKER = 'Memo冗余合并专用整理器'")) throw new Error('output guard cannot identify redundancy cleanup');
+if (!output.includes('function shouldIncludeRecordSemantics')) throw new Error('output guard lacks cleanup-mode semantics isolation');
+if (!output.includes('placeRecordSemanticsBeforeFinalUser')) throw new Error('record semantics are not made final system authority');
 if (!cleanup.includes('普通“表格整理”只做七表正确性维护')) throw new Error('normal cleanup is not correctness-only');
 if (!cleanup.includes('完整事件级跨行合并以及纯内容冗余压缩统一交给“冗余整理”')) throw new Error('normal cleanup still overlaps redundancy cleanup');
 if (cleanup.includes('const EXPRESSION_RULE =')) throw new Error('normal cleanup still injects long-text compression');
