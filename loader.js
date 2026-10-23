@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.75-logic-closure-2';
-const DISPLAY_VERSION = '0.75';
+const RUNTIME_VERSION = '0.76-logic-closure-2';
+const DISPLAY_VERSION = '0.76';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: logic closure with legacy prompt conflicts removed before send');
+console.log('[Memo-N][loader] v0.76 loaded: logic closure with legacy prompt conflicts removed before send');
