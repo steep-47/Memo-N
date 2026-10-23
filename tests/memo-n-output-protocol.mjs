@@ -33,6 +33,7 @@ const {
     injectProtocolIntoMessages,
     isMemoCleanupRequest,
     isMemoRecordOnlyRequest,
+    isMemoRedundancyRequest,
 } = module;
 
 const manualMessages = [
@@ -59,8 +60,12 @@ const reordered = injectProtocolIntoMessages(trailingSystemMessages);
 if (reordered.at(-1)?.role !== 'user' || reordered.at(-1)?.content !== '本轮待记录正文') {
     throw new Error('严格Chat Completion兼容失败：独立记录最后一条消息不是原user');
 }
-if (!reordered.some(message => String(message?.content ?? '').includes('旧尾部审计'))) {
-    throw new Error('尾部system重排时丢失了审计规则');
+const finalSystem = reordered.at(-2);
+if (finalSystem?.role !== 'system' || !String(finalSystem?.content ?? '').includes('旧尾部审计')) {
+    throw new Error('尾部system重排时丢失了审计规则或没有紧贴最终user');
+}
+if (!String(finalSystem?.content ?? '').includes(RECORD_SEMANTICS_MARK)) {
+    throw new Error('共享记录职责没有成为最终system权威规则');
 }
 
 const injectedTwice = injectProtocolIntoMessages(injectedMessages);
@@ -104,6 +109,15 @@ const cleanupInjected = injectProtocolIntoConfig(cleanupConfig);
 if (!cleanupInjected.systemPrompt.includes(PROTOCOL_MARK)) throw new Error('整理请求未注入唯一输出协议');
 if (cleanupInjected.systemPrompt.includes(RECORD_SEMANTICS_MARK)) throw new Error('普通表格整理不应收到记录阶段职责');
 if (cleanupConfig.systemPrompt.includes(PROTOCOL_MARK)) throw new Error('注入不应原地污染调用方config');
+
+const redundancyConfig = {
+    systemPrompt: '你是Memo冗余合并专用整理器。只做内容去冗余与合并。',
+    prompt: '<当前七表>...</当前七表>',
+};
+if (!isMemoRedundancyRequest(redundancyConfig)) throw new Error('没有识别冗余整理请求');
+const redundancyInjected = injectProtocolIntoConfig(redundancyConfig);
+if (!redundancyInjected.systemPrompt.includes(PROTOCOL_MARK)) throw new Error('冗余整理请求未注入统一tableEdit协议');
+if (redundancyInjected.systemPrompt.includes(RECORD_SEMANTICS_MARK)) throw new Error('冗余整理不应收到记录阶段职责');
 
 for (const token of [
     'insertRow(tableIndex:number,data:{[colIndex:number]:string|number})',
@@ -152,4 +166,4 @@ if (!loader.includes('独立API与一次性API共享同一套函数签名、记�
     throw new Error('loader没有声明统一记录职责架构');
 }
 
-console.log('memo-n output protocol PASS: provider-only split, final-user compatibility, shared record semantics, fixed 2/4/3 signatures');
+console.log('memo-n output protocol PASS: provider-only split, final-user compatibility, final semantics authority, cleanup isolation, fixed 2/4/3 signatures');
