@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-event-cleanup-2';
+const RUNTIME_VERSION = '0.75-event-cleanup-3';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: event-level redundancy cleanup and timed task tracking');
+console.log('[Memo-N][loader] v0.75 loaded: event cleanup plus completed-matter settlement');

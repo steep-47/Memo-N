@@ -8,16 +8,23 @@ for (const token of [
     '<最近聊天>',
     '最近聊天只作为极小的校对证据窗口',
     '表内没有对应问题时，不主动从最近聊天扩写新内容',
+    '删除表3中已完成、失败、取消、失效或明确到期的事项前',
+    '普通完成项不为留痕而新增表6',
+    '期限结束只证明原状态终止',
+    '结算完成后再删除表3',
     'EDITOR.generateRaw = wrapped',
     'proto.callLLM = wrapped',
 ]) {
     if (!source.includes(token)) throw new Error(`cleanup evidence window missing: ${token}`);
 }
 
+if (!source.includes("const CLEANUP_MARKER = 'Memo世界状态表格整理器'")) {
+    throw new Error('settlement rule must remain scoped to normal table cleanup');
+}
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
     throw new Error('cleanup evidence window runtime is not loaded');
 }
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader/manifest version mismatch');
 
-console.log('memo-n cleanup evidence window PASS: seven tables remain primary, chat reduced to one evidence round');
+console.log('memo-n cleanup evidence window PASS: one-round evidence plus settle-before-delete lifecycle cleanup');
