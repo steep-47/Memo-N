@@ -1,4 +1,4 @@
-const RUNTIME_VERSION = '0.75-logic-closure-1';
+const RUNTIME_VERSION = '0.75-logic-closure-2';
 const DISPLAY_VERSION = '0.75';
 
 // index.js 必须保持唯一的标准模块URL。
@@ -49,7 +49,7 @@ const runtimes = [
     ['七表规则', './scripts/runtime/memoryContentRules.js'],
     // 放在旧七表规则之后，并在请求事件中保持最后执行：只纠正记录判断，不替换单API链。
     ['逐表连续性审计与对象安全', './scripts/runtime/continuityAuditRules.js'],
-    // 最后修正单API记录契约：统一记录职责与对象核对，并把Memo-N system协议移到最后user之前。
+    // 最后修正单API记录契约：发送前移除旧冲突语义，统一记录职责与对象核对，并把Memo-N system协议移到最后user之前。
     ['对象核对输出硬约束', './scripts/runtime/identityExpectedPromptGuard.js'],
     ['稳定表格整理', './scripts/runtime/stableTableCleanup.js'],
     ['表格整理证据与维护边界', './scripts/runtime/cleanupEvidenceWindow.js'],
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.75 loaded: record/maintenance/redundancy responsibilities closed');
+console.log('[Memo-N][loader] v0.75 loaded: logic closure with legacy prompt conflicts removed before send');

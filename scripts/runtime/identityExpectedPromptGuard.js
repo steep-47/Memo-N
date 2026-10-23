@@ -1,8 +1,8 @@
 import { APP, USER } from '../../core/manager.js';
-import { RECORD_SEMANTICS_RULE } from './recordSemantics.js';
+import { RECORD_SEMANTICS_RULE, normalizeLegacyRecordSemantics } from './recordSemantics.js';
 
-const MARK = '[Memo-N对象核对输出硬约束v4]';
-const OLD_MARK_RE = /^\[Memo-N对象核对输出硬约束v[1234]\]/;
+const MARK = '[Memo-N对象核对输出硬约束v5]';
+const OLD_MARK_RE = /^\[Memo-N对象核对输出硬约束v[12345]\]/;
 const RECORD_MARK = '[Memo-N native tableEdit one-call v1]';
 
 function active() {
@@ -28,10 +28,18 @@ function extractRecordContract(messages) {
     return messages.splice(index, 1)[0] ?? null;
 }
 
+function normalizeSystemRules(messages) {
+    return messages.map(message => {
+        if (String(message?.role ?? '').toLowerCase() !== 'system' || typeof message?.content !== 'string') return message;
+        return { ...message, content: normalizeLegacyRecordSemantics(message.content) };
+    });
+}
+
 function inject(data) {
     if (!active() || !Array.isArray(data?.messages)) return;
 
-    data.messages = data.messages.filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')));
+    data.messages = normalizeSystemRules(data.messages)
+        .filter(message => !OLD_MARK_RE.test(String(message?.content ?? '')));
     const contract = extractRecordContract(data.messages);
     const guard = {
         role: 'system',
@@ -57,4 +65,4 @@ ${RECORD_SEMANTICS_RULE}
 const settingsReady = APP.event_types.CHAT_COMPLETION_SETTINGS_READY;
 APP.eventSource.on(settingsReady, inject);
 APP.eventSource.makeLast?.(settingsReady, inject);
-console.log('[Memo-N] 对象核对输出硬约束v4已加载：一次API记录职责与独立API对齐，Memo系统协议保持在最后user之前');
+console.log('[Memo-N] 对象核对输出硬约束v5已加载：发送前移除旧冲突记录规则，统一职责紧贴最后user之前');

@@ -5,12 +5,14 @@ source = source
     .replace("import { EDITOR } from '../../core/manager.js';", 'const { EDITOR } = globalThis.__memoNProtocolMocks;')
     .replace("import LLMApiService from '../../services/llmApi.js';", 'const { LLMApiService } = globalThis.__memoNProtocolMocks;')
     .replace(
-        "import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } from './recordSemantics.js';",
-        'const { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE } = globalThis.__memoNProtocolMocks;',
+        "import { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE, normalizeLegacyRecordSemantics } from './recordSemantics.js';",
+        'const { RECORD_SEMANTICS_MARK, RECORD_SEMANTICS_RULE, normalizeLegacyRecordSemantics } = globalThis.__memoNProtocolMocks;',
     );
 
 const RECORD_SEMANTICS_MARK = '[Memo-N记录职责收口v1]';
 const RECORD_SEMANTICS_RULE = `${RECORD_SEMANTICS_MARK}\n表3记录有明确期限或结束条件、尚未结算的持续事项。\n表6跨轮完整事件识别与压缩统一交给冗余整理。`;
+const legacyConflict = '同一连续事件可更新已有记录，不必每轮机械新增。';
+const normalizeLegacyRecordSemantics = value => String(value ?? '').replaceAll(legacyConflict, '');
 
 class LLMApiService {
     constructor() { this.config = { system_prompt: '' }; }
@@ -23,6 +25,7 @@ globalThis.__memoNProtocolMocks = {
     LLMApiService,
     RECORD_SEMANTICS_MARK,
     RECORD_SEMANTICS_RULE,
+    normalizeLegacyRecordSemantics,
 };
 
 const module = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}#memo-n-output-protocol`);
@@ -37,7 +40,7 @@ const {
 } = module;
 
 const manualMessages = [
-    { role: 'system', content: '你是Memo独立表格记录器。# Memo独立记录操作协议' },
+    { role: 'system', content: `你是Memo独立表格记录器。# Memo独立记录操作协议\n${legacyConflict}` },
     { role: 'user', content: '<当前表格>这里是输入XML分隔结构</当前表格>' },
 ];
 if (!isMemoRecordOnlyRequest({ ordered_prompts: manualMessages })) {
@@ -47,14 +50,15 @@ if (!isMemoRecordOnlyRequest({ ordered_prompts: manualMessages })) {
 const injectedMessages = injectProtocolIntoMessages(manualMessages);
 if (!injectedMessages[0].content.includes(PROTOCOL_MARK)) throw new Error('未把唯一输出协议注入system消息');
 if (!injectedMessages[0].content.includes(RECORD_SEMANTICS_MARK)) throw new Error('独立记录未注入统一记录职责');
+if (injectedMessages.some(item => String(item?.content ?? '').includes(legacyConflict))) throw new Error('独立记录发送前仍残留旧表6压缩规则');
 if (!injectedMessages[0].content.includes('insertRow(1,{"0":"示例角色","11":"青木诀"})')) throw new Error('唯一协议缺少完整标准成品示例');
 if (!injectedMessages[0].content.includes('updateRow(1,0,{"12":"炼丹","15":"青云宗外门弟子"},"")')) throw new Error('非身份表update没有保留一次性API的第4参数空expected');
-if (injectedMessages[1].content !== manualMessages[1].content) throw new Error('注入协议时不应改写用户输入资料');
+if (injectedMessages[1].content !== manualMessages[1].content) throw new Error('注入协议时不应改写无冲突的用户输入资料');
 
 const trailingSystemMessages = [
-    { role: 'system', content: '你是Memo独立表格记录器。# Memo独立记录操作协议' },
+    { role: 'system', content: `你是Memo独立表格记录器。# Memo独立记录操作协议\n${legacyConflict}` },
     { role: 'user', content: '本轮待记录正文' },
-    { role: 'system', content: '[Memo-N逐表连续性审计v6] 旧尾部审计' },
+    { role: 'system', content: `[Memo-N逐表连续性审计v6] 旧尾部审计\n${legacyConflict}` },
 ];
 const reordered = injectProtocolIntoMessages(trailingSystemMessages);
 if (reordered.at(-1)?.role !== 'user' || reordered.at(-1)?.content !== '本轮待记录正文') {
@@ -66,6 +70,9 @@ if (finalSystem?.role !== 'system' || !String(finalSystem?.content ?? '').includ
 }
 if (!String(finalSystem?.content ?? '').includes(RECORD_SEMANTICS_MARK)) {
     throw new Error('共享记录职责没有成为最终system权威规则');
+}
+if (reordered.some(item => String(item?.content ?? '').includes(legacyConflict))) {
+    throw new Error('尾部旧审计中的冲突记录语义没有被发送前清理');
 }
 
 const injectedTwice = injectProtocolIntoMessages(injectedMessages);
@@ -82,6 +89,9 @@ if (!String(customArrayResult[0]?.content ?? '').includes(PROTOCOL_MARK)) {
 }
 if (customArrayResult.at(-1)?.role !== 'user') {
     throw new Error('自定义API协议注入没有修复最后一条user消息');
+}
+if (customArrayResult.some(item => String(item?.content ?? '').includes(legacyConflict))) {
+    throw new Error('自定义API仍收到旧冲突记录规则');
 }
 if (customService.config.system_prompt !== '') {
     throw new Error('数组请求不应依赖或污染未被LLMApiService使用的config.system_prompt');
@@ -166,4 +176,4 @@ if (!loader.includes('独立API与一次性API共享同一套函数签名、记�
     throw new Error('loader没有声明统一记录职责架构');
 }
 
-console.log('memo-n output protocol PASS: provider-only split, final-user compatibility, final semantics authority, cleanup isolation, fixed 2/4/3 signatures');
+console.log('memo-n output protocol PASS: conflicts stripped, provider-only split, final-user compatibility, cleanup isolation, fixed 2/4/3 signatures');
