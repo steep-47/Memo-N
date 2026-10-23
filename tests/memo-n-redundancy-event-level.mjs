@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 
 const cleanup = await fs.readFile(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
+const guard = await fs.readFile(new URL('../scripts/runtime/cleanupEvidenceWindow.js', import.meta.url), 'utf8');
 const settings = await fs.readFile(new URL('../data/pluginSetting.js', import.meta.url), 'utf8');
 
 for (const token of [
@@ -12,6 +13,18 @@ for (const token of [
     '禁止只剩最终结果',
 ]) {
     if (!cleanup.includes(token)) throw new Error(`redundancy cleanup contract missing: ${token}`);
+}
+
+for (const token of [
+    '冗余整理应近似幂等',
+    '稳定历史单元',
+    '不得仅为了更短再次改写',
+    '明确终局',
+    '不得跨终局合并',
+    '原事件明确尚未闭合',
+    '应优先输出NO_CHANGE',
+]) {
+    if (!guard.includes(token)) throw new Error(`redundancy idempotence contract missing: ${token}`);
 }
 
 if (!cleanup.includes('期限已到且无明确延期/续期的事项应删除')) {
@@ -27,4 +40,4 @@ if (!settings.includes('延期或续期只依据新的明确事实，不因重�
     throw new Error('table 3 must not auto-extend timed matters');
 }
 
-console.log('memo-n redundancy event-level PASS: content compaction is separate from table correctness repair');
+console.log('memo-n redundancy event-level PASS: repeated cleanup is idempotent, closed events are stable, unresolved events may continue');
