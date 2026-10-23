@@ -1,11 +1,13 @@
 import { EDITOR, USER } from '../../core/manager.js';
 import LLMApiService from '../../services/llmApi.js';
 
-const PATCH_MARK = '__memoCleanupEvidenceWindowV5';
+const PATCH_MARK = '__memoCleanupEvidenceWindowV6';
 const CLEANUP_MARKER = 'Memo世界状态表格整理器';
+const REDUNDANCY_MARKER = 'Memo冗余合并专用整理器';
 const EVIDENCE_RULE = '当前七表是表格整理的主体和主要事实来源；最近聊天只作为极小的校对证据窗口，用于确认表内已有记录的明显冲突、失效或错误。整理不以重新阅读剧情和补录大量信息为目标；表内没有对应问题时，不主动从最近聊天扩写新内容。';
 const MAINTENANCE_SCOPE_RULE = '普通“表格整理”只做七表正确性维护：处理重复实体/物品/任务行、完成/过期/失效项、错表错位、字段混写、旧值冲突及能够明确证明的数据错误；不做长文本润色或内容压缩，也不把表6逐轮记录重组为完整事件。表6完整事件级跨行合并以及纯内容冗余压缩统一交给“冗余整理”。';
 const SETTLEMENT_RULE = '删除表3中已完成、失败、取消、失效或明确到期的事项前，先结算其已确认的结束事实：若结束使表1/4/5等当前状态中的持续描述失效，先更新对应字段；若结束本身对未来推演仍有长期价值，优先更新表6已有相关事件的结果，只有没有合适历史行且确有独立长期价值时才新增历史。普通完成项不为留痕而新增表6；目标表已有该结果时不重复写。期限结束只证明原状态终止，不得据此推断新的地点、行为、身份或其他后续状态；结算完成后再删除表3。';
+const REDUNDANCY_IDEMPOTENCE_RULE = '冗余整理应近似幂等：表6中已经能够独立表达一个完整事件、且内部没有逐轮重复或同义堆叠的行，视为稳定历史单元，不得仅为了更短再次改写。明确终局（目标达成或失败、冲突解决、正式结案、明确离场等）视为事件边界；终局之后即使人物、地点或主题相同，也默认是新的完整事件，不得跨终局合并。只有原事件明确尚未闭合，且后续记录直接延续同一目标、冲突或行动链时，才允许在后续冗余整理中继续合并。对已经整理好的相同表再次运行时，应优先输出NO_CHANGE。';
 
 function cleanMessage(item) {
     return String(item?.mes ?? '')
@@ -76,6 +78,14 @@ function appendSettlementRule(text) {
     return result;
 }
 
+function appendRedundancyIdempotenceRule(text) {
+    let result = String(text ?? '').trimEnd();
+    if (!result.includes(REDUNDANCY_IDEMPOTENCE_RULE)) {
+        result += `\n\n[重复执行稳定性]\n${REDUNDANCY_IDEMPOTENCE_RULE}`;
+    }
+    return result;
+}
+
 function rewriteCleanupUserPrompt(value) {
     let text = String(value ?? '');
     if (!text) return text;
@@ -112,17 +122,31 @@ function rewriteCleanupSystemPrompt(value) {
     return appendSettlementRule(appendCleanupRules(text));
 }
 
+function rewriteRedundancySystemPrompt(value) {
+    const text = String(value ?? '');
+    if (!text.includes(REDUNDANCY_MARKER)) return text;
+    return appendRedundancyIdempotenceRule(text);
+}
+
 function patchEditorGenerateRaw() {
     if (typeof EDITOR.generateRaw !== 'function' || EDITOR.generateRaw[PATCH_MARK]) return;
     const original = EDITOR.generateRaw;
     const wrapped = async function (...args) {
         const request = args?.[0];
-        if (request && typeof request === 'object' && String(request.systemPrompt ?? '').includes(CLEANUP_MARKER)) {
-            args[0] = {
-                ...request,
-                systemPrompt: rewriteCleanupSystemPrompt(request.systemPrompt),
-                prompt: rewriteCleanupUserPrompt(request.prompt),
-            };
+        if (request && typeof request === 'object') {
+            const systemPrompt = String(request.systemPrompt ?? '');
+            if (systemPrompt.includes(CLEANUP_MARKER)) {
+                args[0] = {
+                    ...request,
+                    systemPrompt: rewriteCleanupSystemPrompt(request.systemPrompt),
+                    prompt: rewriteCleanupUserPrompt(request.prompt),
+                };
+            } else if (systemPrompt.includes(REDUNDANCY_MARKER)) {
+                args[0] = {
+                    ...request,
+                    systemPrompt: rewriteRedundancySystemPrompt(request.systemPrompt),
+                };
+            }
         }
         return original.apply(this, args);
     };
@@ -137,24 +161,30 @@ function patchCustomApi() {
     const wrapped = async function (...args) {
         const config = this?.config;
         const currentSystem = String(config?.system_prompt ?? '');
-        if (!currentSystem.includes(CLEANUP_MARKER)) return original.apply(this, args);
+        const normalCleanup = currentSystem.includes(CLEANUP_MARKER);
+        const redundancyCleanup = currentSystem.includes(REDUNDANCY_MARKER);
+        if (!normalCleanup && !redundancyCleanup) return original.apply(this, args);
 
         const originalSystem = config?.system_prompt;
         if (config && typeof config === 'object') {
-            config.system_prompt = rewriteCleanupSystemPrompt(originalSystem);
+            config.system_prompt = normalCleanup
+                ? rewriteCleanupSystemPrompt(originalSystem)
+                : rewriteRedundancySystemPrompt(originalSystem);
         }
         try {
-            if (typeof args[0] === 'string') {
-                args[0] = rewriteCleanupUserPrompt(args[0]);
-            } else if (Array.isArray(args[0])) {
-                const messages = args[0].map(item => ({ ...item }));
-                for (let i = messages.length - 1; i >= 0; i--) {
-                    if (messages[i]?.role === 'user' && typeof messages[i]?.content === 'string') {
-                        messages[i].content = rewriteCleanupUserPrompt(messages[i].content);
-                        break;
+            if (normalCleanup) {
+                if (typeof args[0] === 'string') {
+                    args[0] = rewriteCleanupUserPrompt(args[0]);
+                } else if (Array.isArray(args[0])) {
+                    const messages = args[0].map(item => ({ ...item }));
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        if (messages[i]?.role === 'user' && typeof messages[i]?.content === 'string') {
+                            messages[i].content = rewriteCleanupUserPrompt(messages[i].content);
+                            break;
+                        }
                     }
+                    args[0] = messages;
                 }
-                args[0] = messages;
             }
             return await original.apply(this, args);
         } finally {
@@ -171,14 +201,17 @@ function install() {
 }
 
 install();
-console.log('[Memo-N] 普通表格整理v5已加载：只做正确性维护、1轮校对证据、结束事项先结算后删除');
+console.log('[Memo-N] 整理守卫v6已加载：普通整理只做正确性维护；冗余整理支持重复执行稳定性');
 
 export {
     CLEANUP_MARKER,
+    REDUNDANCY_MARKER,
     EVIDENCE_RULE,
     MAINTENANCE_SCOPE_RULE,
     SETTLEMENT_RULE,
+    REDUNDANCY_IDEMPOTENCE_RULE,
     buildOneRoundEvidence,
     rewriteCleanupUserPrompt,
     rewriteCleanupSystemPrompt,
+    rewriteRedundancySystemPrompt,
 };
