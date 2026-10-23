@@ -72,8 +72,7 @@ function primeCanonicalRuleSource() {
 function syncCurrentChatRuleMetadata({ persist = true } = {}) {
     const context = USER.getContext?.();
     const sessionChat = context?.chat;
-    const { piece } = USER.getChatPiece?.() || {};
-    if (!piece || !Array.isArray(sessionChat)) return false;
+    if (!Array.isArray(sessionChat)) return false;
 
     const structures = Array.isArray(USER.tableBaseSetting?.tableStructure)
         ? USER.tableBaseSetting.tableStructure
@@ -91,7 +90,9 @@ function syncCurrentChatRuleMetadata({ persist = true } = {}) {
         if (sheet.data && sheet.data !== sheet.source?.data) sheetChanged = syncRuleData(sheet.data, structure) || sheetChanged;
         if (!sheetChanged) continue;
 
-        const saved = sheet.save?.(piece, true);
+        // null 明确绕过 Sheet.save 的默认 targetPiece 参数：只写 chatMetadata 中的表格元数据，
+        // 不创建/移动/覆盖任何消息级 memo_n_hash_sheets 或 Swipe 快照。
+        const saved = sheet.save?.(null, true);
         if (saved === false) throw new Error(`标准表 ${sheet.name} 规则元数据保存失败`);
         changed = true;
     }
@@ -103,7 +104,7 @@ function syncCurrentChatRuleMetadata({ persist = true } = {}) {
         } catch (error) {
             console.error('[Memo-N][rule-migration] 保存聊天规则迁移失败', error);
         }
-        console.log('[Memo-N][rule-migration] 已同步当前旧聊天的七表规则元数据；数据行未改动');
+        console.log('[Memo-N][rule-migration] 已同步当前旧聊天的七表规则元数据；数据行与历史快照未改动');
     }
     return changed;
 }
@@ -194,7 +195,7 @@ function install() {
 
     primeCanonicalRuleSource();
 
-    // 打开或切换旧聊天时只同步标准表的规则元数据；不重建表、不改表头、不改任何数据行。
+    // 打开或切换旧聊天时只同步标准表的规则元数据；不重建表、不改表头、不改任何数据行或历史快照。
     const chatEvents = new Set([
         APP.event_types?.CHAT_CHANGED,
         APP.event_types?.CHAT_LOADED,
