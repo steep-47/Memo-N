@@ -20,7 +20,7 @@ for (const token of [
     'scheduleRuleMetadataSync',
     'APP.event_types?.CHAT_CHANGED',
     'APP.event_types?.CHAT_LOADED',
-    '数据行未改动',
+    '数据行与历史快照未改动',
 ]) {
     if (!preflight.includes(token)) throw new Error(`old-chat rule migration missing: ${token}`);
 }
@@ -29,11 +29,17 @@ const syncStart = preflight.indexOf('function syncCurrentChatRuleMetadata');
 const syncEnd = preflight.indexOf('function scheduleRuleMetadataSync');
 if (syncStart < 0 || syncEnd <= syncStart) throw new Error('cannot isolate metadata-only sync function');
 const syncBody = preflight.slice(syncStart, syncEnd);
-for (const forbidden of ['rebuildHashSheetByValueSheet', 'repairMissingColumnsBeforeCleanup', 'ensureSevenTableWorld']) {
-    if (syncBody.includes(forbidden)) throw new Error(`metadata-only migration must not mutate table structure/content: ${forbidden}`);
+for (const forbidden of [
+    'rebuildHashSheetByValueSheet',
+    'repairMissingColumnsBeforeCleanup',
+    'ensureSevenTableWorld',
+    'memo_n_hash_sheets',
+    'swipe_info',
+]) {
+    if (syncBody.includes(forbidden)) throw new Error(`metadata-only migration must not mutate table structure/content/snapshots: ${forbidden}`);
 }
-if (!syncBody.includes('syncRuleData') || !syncBody.includes('sheet.save?.(piece, true)')) {
-    throw new Error('metadata-only migration does not persist standard rule fields');
+if (!syncBody.includes('syncRuleData') || !syncBody.includes('sheet.save?.(null, true)')) {
+    throw new Error('metadata-only migration does not persist standard rule fields without touching message snapshots');
 }
 
 const scheduleStart = preflight.indexOf('function scheduleRuleMetadataSync');
@@ -43,4 +49,4 @@ if (scheduleBody.includes('ensureSevenTableWorld') || scheduleBody.includes('rep
     throw new Error('chat-load rule migration must not trigger structural migration');
 }
 
-console.log('memo-n source rule migration PASS: high-recall history rules auto-sync to old chats without touching data rows');
+console.log('memo-n source rule migration PASS: high-recall history rules auto-sync to old chats without touching data rows or message/swipe snapshots');
