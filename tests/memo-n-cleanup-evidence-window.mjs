@@ -59,12 +59,13 @@ for (const token of [
 for (const token of [
     'TIME_BLOCK_GAP_MINUTES = 60',
     'LONG_EVENT_ROW_MINUTES = 120',
+    'FORMAL_STAGE_RE',
+    '四强(?:首战|次战|次阵|战)?',
+    '总决战',
     'segmentHistoryRows',
     'formatSegmentedHistoryTable',
     '候选事件组',
     'rowIndex始终是原表真实行号',
-    '阶段:四强',
-    '总决战',
     'runWithSegmentedHistoryView',
 ]) {
     if (!segmented.includes(token)) throw new Error(`segmented redundancy view missing: ${token}`);
