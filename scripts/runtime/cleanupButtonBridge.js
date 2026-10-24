@@ -1,4 +1,4 @@
-import { runStableCleanup, stepCleanupHistory } from './stableTableCleanup.js?v=0.82-redundancy-event-scale-1';
+import { runStableCleanup, stepCleanupHistory } from './stableTableCleanup.js?v=0.83-redundancy-full-scan-1';
 
 const INSTALL_FLAG = '__memoCleanupButtonBridgeInstalled';
 
