@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.83-redundancy-full-scan-1';
-const DISPLAY_VERSION = '0.83';
+const RUNTIME_VERSION = '0.84-redundancy-segmented-history-1';
+const DISPLAY_VERSION = '0.84';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.83 loaded: redundancy cleanup scans table 6 oldest-to-newest before producing one final tableEdit');
+console.log('[Memo-N][loader] v0.84 loaded: redundancy cleanup groups table 6 by time continuity and strong event anchors before one AI pass');
