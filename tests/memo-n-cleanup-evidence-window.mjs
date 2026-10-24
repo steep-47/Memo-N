@@ -40,7 +40,11 @@ for (const token of [
     'Memo冗余合并专用整理器',
     '表0～5仅可压缩同一现有行内部明确重复、同义堆叠且不承载额外事实的文字',
     '表6负责事件级冗余整理',
-    '同一目标、冲突或连续行动链的多行',
+    '表6原始行是高召回的逐轮记录',
+    '每一行中的“结果”只表示该轮或该阶段产生的局部结果',
+    '不能仅因为某一行写有结果就把它视为独立完整事件',
+    '只有该具体事件真正结束',
+    '不同独立事件不得仅因时间相邻',
     '复杂事件中具有独立回溯价值的子事件可分开保留',
     '只允许updateRow和deleteRow',
     '不得补漏、纠错、迁移字段、编造事实',
@@ -62,11 +66,11 @@ for (const forbidden of [
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
     throw new Error('normal cleanup evidence guard is not loaded');
 }
-if (!loader.includes("const RUNTIME_VERSION = '0.81-redundancy-single-responsibility-1'")) {
-    throw new Error('runtime cache version is not aligned with redundancy simplification');
+if (!loader.includes("const RUNTIME_VERSION = '0.82-redundancy-event-scale-1'")) {
+    throw new Error('runtime cache version is not aligned with redundancy event-scale semantics');
 }
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
-if (manifest.version !== '0.81') throw new Error('manifest version mismatch');
+if (manifest.version !== '0.82') throw new Error('manifest version mismatch');
 if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader/manifest version mismatch');
 
-console.log('memo-n cleanup evidence window PASS: normal cleanup guard is isolated and redundancy cleanup has one prompt path');
+console.log('memo-n cleanup evidence window PASS: normal cleanup guard stays isolated and redundancy distinguishes stage results from complete events');
