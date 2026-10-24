@@ -148,7 +148,7 @@ function depletedInventoryOperations(sheets) {
         const state = String(cells[status]?.data?.value ?? '').trim();
         const zero = amount === 0 || (typeof amount === 'string' && /^0(?:\.0+)?$/.test(amount.trim()));
         if (!name.trim() || !zero || !['已售出', '已耗尽'].includes(state)) continue;
-        const expected = JSON.stringify(name).replace(/</g, '\u003c').replace(/>/g, '\u003e');
+        const expected = JSON.stringify(name).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
         calls.push(`deleteRow(2,${row - 1},${expected})`);
     }
     return calls.length ? [`<tableEdit><!--\n${calls.join('\n')}\n--></tableEdit>`] : null;
