@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 
 const guard = await fs.readFile(new URL('../scripts/runtime/cleanupEvidenceWindow.js', import.meta.url), 'utf8');
 const cleanup = await fs.readFile(new URL('../scripts/runtime/stableTableCleanup.js', import.meta.url), 'utf8');
+const segmented = await fs.readFile(new URL('../scripts/runtime/redundancySegmentedView.js', import.meta.url), 'utf8');
+const bridge = await fs.readFile(new URL('../scripts/runtime/cleanupButtonBridge.js', import.meta.url), 'utf8');
 const loader = await fs.readFile(new URL('../loader.js', import.meta.url), 'utf8');
 
 for (const token of [
@@ -42,24 +44,37 @@ for (const token of [
     '表0～5按表序检查',
     '表6必须从当前最早的数据行开始',
     '严格按rowIndex递增顺序连续扫描到最后一行',
-    '发现一组可合并记录后',
-    '不得因为已经找到若干操作',
-    '只有表6最后一行也完成判断后',
     '完整扫描不等于必须修改',
     '表6原始行是高召回的逐轮记录',
     '每一行中的“结果”只表示该轮或该阶段产生的局部结果',
     '不能仅因为某一行写有结果就把它视为独立完整事件',
-    '只有该具体事件真正结束',
     '不同独立事件不得仅因时间相邻',
-    '复杂事件中具有独立回溯价值的子事件可分开保留',
     '只允许updateRow和deleteRow',
     '不得补漏、纠错、迁移字段、编造事实',
-    '<冗余整理任务>',
-    '<输出要求>',
-    '扫描中途不要生成最终答案',
     '无需改动时输出<tableEdit><!-- NO_CHANGE --></tableEdit>',
 ]) {
     if (!cleanup.includes(token)) throw new Error(`single redundancy prompt missing: ${token}`);
+}
+
+for (const token of [
+    'TIME_BLOCK_GAP_MINUTES = 60',
+    'LONG_EVENT_ROW_MINUTES = 120',
+    'FORMAL_STAGE_RE',
+    '四强(?:首战|次战|次阵|战)?',
+    '总决战',
+    'segmentHistoryRows',
+    'formatSegmentedHistoryTable',
+    '候选事件组',
+    'rowIndex始终是原表真实行号',
+    'runWithSegmentedHistoryView',
+]) {
+    if (!segmented.includes(token)) throw new Error(`segmented redundancy view missing: ${token}`);
+}
+if (!bridge.includes("runWithSegmentedHistoryView(() => runStableCleanup('redundancy'))")) {
+    throw new Error('redundancy button does not use segmented history view');
+}
+if (bridge.includes('runWithSegmentedHistoryView(() => runStableCleanup())')) {
+    throw new Error('normal cleanup must not use segmented history view');
 }
 
 for (const forbidden of [
@@ -67,7 +82,6 @@ for (const forbidden of [
     '冗余整理应近似幂等',
     '重复执行只保护',
     '优先输出NO_CHANGE',
-    '只有完整扫描七表后没有任何高置信冗余操作时',
     '尽可能多整理',
     '必须处理所有可合并项',
 ]) {
@@ -77,11 +91,11 @@ for (const forbidden of [
 if (!loader.includes("'./scripts/runtime/cleanupEvidenceWindow.js'")) {
     throw new Error('normal cleanup evidence guard is not loaded');
 }
-if (!loader.includes("const RUNTIME_VERSION = '0.83-redundancy-full-scan-1'")) {
-    throw new Error('runtime cache version is not aligned with redundancy full-scan semantics');
+if (!loader.includes("const RUNTIME_VERSION = '0.84-redundancy-segmented-history-1'")) {
+    throw new Error('runtime cache version is not aligned with segmented redundancy semantics');
 }
 const manifest = JSON.parse(await fs.readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
-if (manifest.version !== '0.83') throw new Error('manifest version mismatch');
+if (manifest.version !== '0.84') throw new Error('manifest version mismatch');
 if (!loader.includes(`const DISPLAY_VERSION = '${manifest.version}'`)) throw new Error('loader/manifest version mismatch');
 
-console.log('memo-n cleanup evidence window PASS: normal cleanup guard stays isolated and redundancy scans table 6 oldest-to-newest before final output');
+console.log('memo-n cleanup evidence window PASS: normal cleanup stays isolated and redundancy uses segmented history input');

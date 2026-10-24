@@ -1,4 +1,5 @@
-import { runStableCleanup, stepCleanupHistory } from './stableTableCleanup.js?v=0.83-redundancy-full-scan-1';
+import { runStableCleanup, stepCleanupHistory } from './stableTableCleanup.js?v=0.84-redundancy-segmented-history-1';
+import { runWithSegmentedHistoryView } from './redundancySegmentedView.js?v=0.84-redundancy-segmented-history-1';
 
 const INSTALL_FLAG = '__memoCleanupButtonBridgeInstalled';
 
@@ -36,7 +37,7 @@ if (!window[INSTALL_FLAG]) {
         if (!button) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        try { await runStableCleanup('redundancy'); }
+        try { await runWithSegmentedHistoryView(() => runStableCleanup('redundancy')); }
         catch (error) { console.error('[Memo][redundancy-cleanup]', error); globalThis.toastr?.error?.('冗余整理失败：' + (error?.message || error)); }
     }, true);
 
