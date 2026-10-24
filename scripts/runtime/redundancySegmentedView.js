@@ -163,7 +163,7 @@ export function formatSegmentedHistoryTable(sheet, tableIndex) {
         block.groups.forEach((group, groupIndex) => {
             lines.push(`【候选事件组${blockIndex + 1}.${groupIndex + 1}${group.anchor ? `｜${group.anchor}` : ''}】`);
             for (const row of group.rows) {
-                lines.push(`rowIndex=${row.rowIndex} ${JSON.stringify({ 时间: row.time, 地点: row.location, 涉及人物: row.people, 事件: row.event, 结果: row.result })}`);
+                lines.push(`rowIndex=${row.rowIndex}｜${row.time}｜${row.location}｜${row.people}｜${row.event}｜${row.result}`);
             }
         });
     });
