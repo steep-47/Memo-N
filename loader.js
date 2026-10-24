@@ -1,5 +1,5 @@
-const RUNTIME_VERSION = '0.81-redundancy-single-responsibility-1';
-const DISPLAY_VERSION = '0.81';
+const RUNTIME_VERSION = '0.82-redundancy-event-scale-1';
+const DISPLAY_VERSION = '0.82';
 
 // index.js 必须保持唯一的标准模块URL。
 // core/manager.js 会循环引用 ../index.js；若这里给 index.js 加 ?v= 查询参数，浏览器会把两者当成两个模块，
@@ -68,4 +68,4 @@ jQuery(() => {
     $('#tableUpdateTag').show().text(`v${DISPLAY_VERSION}`);
 });
 
-console.log('[Memo-N][loader] v0.81 loaded: redundancy cleanup has one prompt path and is no longer rewritten by normal cleanup guards');
+console.log('[Memo-N][loader] v0.82 loaded: redundancy cleanup treats per-turn results as event stages, not automatic event boundaries');
